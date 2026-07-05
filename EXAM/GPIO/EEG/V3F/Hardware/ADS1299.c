@@ -4,8 +4,8 @@
 #include "Config.h"
 #include <string.h>
 
-/*============================ ºê¶¨Òå ============================*/
-/* Òý½Å²Ù×÷ºê */
+/*============================ ï¿½ê¶¨ï¿½ï¿½ ============================*/
+/* ï¿½ï¿½ï¿½Å²ï¿½ï¿½ï¿½ï¿½ï¿½ */
 #define ADS1299_CS_LOW() Hal_GPIO_Reset (ADS1299_CS_PIN_ENC)
 #define ADS1299_CS_HIGH() Hal_GPIO_Set (ADS1299_CS_PIN_ENC)
 
@@ -16,61 +16,62 @@
 #define ADS1299_START_HIGH() Hal_GPIO_Set (ADS1299_START_PIN_ENC)
 
 
-/* »º³åÇøÅäÖÃ */
-#define RING_BUF_SIZE 64 /* »·ÐÎ»º³åÇøÉî¶È£¨Ö¡Êý£© */
-#define FRAME_SIZE ADS1299_FRAME_BYTE_NUM    /* ADS1299 Á¬Ðø¶ÁÍêÕû 8 Í¨µÀÖ¡£º3 + 8*3 = 27 ×Ö½Ú */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+#define RING_BUF_SIZE 64
+#define FRAME_SIZE ADS1299_FRAME_BYTE_NUM
 
-/*============================ ¾²Ì¬È«¾Ö±äÁ¿ ============================*/
-/* DMA ´«ÊäÓÃ dummy TX »º³åÇø£¨È« 0£© */
+/*============================ é™æ€å…¨å±€å˜é‡ ============================*/
 static uint8_t ads1299_dma_tx_dummy[FRAME_SIZE] = {0};
 
-/* »·ÐÎ»º³åÇø£¨¶þÎ¬Êý×é£© */
-static uint8_t ring_buffer[RING_BUF_SIZE][FRAME_SIZE];
-static volatile uint8_t head = 0; /* Ð´Ë÷Òý£¨ÖÐ¶ÏÖÐÐÞ¸Ä£© */
-static volatile uint8_t tail = 0; /* ¶ÁË÷Òý£¨Ö÷Ñ­»·ÐÞ¸Ä£© */
+static uint8_t dma_buf0[FRAME_SIZE];
+static uint8_t dma_buf1[FRAME_SIZE];
 
-/* ×´Ì¬Í³¼Æ±äÁ¿ */
+static uint8_t ring_buffer[RING_BUF_SIZE][FRAME_SIZE];
+static volatile uint8_t head = 0;
+static volatile uint8_t tail = 0;
+
+/* ×´Ì¬Í³ï¿½Æ±ï¿½ï¿½ï¿½ */
 volatile uint8_t g_ads1299_spi_dma_busy = 0;
 volatile uint32_t g_ads1299_spi_dma_ok_count = 0;
 volatile uint32_t g_ads1299_spi_dma_lost_count = 0;
 volatile uint32_t g_ads1299_spi_dma_error_count = 0;
 
-/*============================ Ë½ÓÐº¯ÊýÉùÃ÷£¨static£© ============================*/
-/* Ó²¼þ³õÊ¼»¯£¨°´µ÷ÓÃË³Ðò£© */
+/*============================ Ë½ï¿½Ðºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½staticï¿½ï¿½ ============================*/
+/* Ó²ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë³ï¿½ï¿½ */
 static void ADS1299_GPIO_Init (void);
 static void ADS1299_SPI_Init (void);
 static void ADS1299_DMA_Init (void);
 static void ADS1299_Register_Init (void);
 
-/* µ×²ã SPI ¸¨Öúº¯Êý */
+/* ï¿½×²ï¿½ SPI ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static uint8_t ADS1299_SPI_TxRxByte (uint8_t tx_data);
 static void ADS1299_SPI_WaitBusy (void);
 static void ADS1299_SPI_ClearRxNE (void);
 
-/* Ó²¼þ¸´Î»ÓëÃüÁî */
+/* Ó²ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static void ADS1299_ResetByPin (void);
 static void ADS1299_SendCommand (uint8_t cmd);
 static int32_t ADS1299_SignExtend24 (uint32_t raw24);
 
-/* ¼Ä´æÆ÷²Ù×÷ */
+/* ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static uint8_t ADS1299_ReadReg (uint8_t reg);
 // static void    ADS1299_ReadRegs(uint8_t start_reg, uint8_t *buf, uint8_t len);
 static void ADS1299_WriteReg (uint8_t reg, uint8_t value);
 // static void    ADS1299_WriteRegs(uint8_t start_reg, const uint8_t *buf, uint8_t len);
 
-/* Á¬ÐøÄ£Ê½¿ØÖÆ */
+/* ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½ï¿½ï¿½ */
 static void ADS1299_StartContinuous (void);
 // static void    ADS1299_StopContinuous(void);
 
-/* DMA ´«Êä */
+/* DMA ï¿½ï¿½ï¿½ï¿½ */
 static void ADS1299_DMA_StartRead (void);
 static void ADS1299_DMA_StopAndReleaseCS (void);
 
-/* Êý¾Ý½âÎö¸¨Öú */
+/* ï¿½ï¿½ï¿½Ý½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static int32_t ADS1299_SignExtend24 (uint32_t raw24);
 
 
-/* Ó²¼þ³õÊ¼»¯£¨°´µ÷ÓÃË³Ðò£© */
+/* Ó²ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë³ï¿½ï¿½ */
 uint8_t ADS1299_Init (void) {
     ADS1299_GPIO_Init();
     ADS1299_SPI_Init();
@@ -80,7 +81,7 @@ uint8_t ADS1299_Init (void) {
     uint8_t id = ADS1299_ReadReg (ADS1299_REG_ID);
     ADS1299_StartContinuous();
 
-    return id;  // ·µ»Ø ID ¹©Íâ²¿¼ì²é
+    return id;  // ï¿½ï¿½ï¿½ï¿½ ID ï¿½ï¿½ï¿½â²¿ï¿½ï¿½ï¿½
 }
 
 static void ADS1299_GPIO_Init (void) {
@@ -94,63 +95,63 @@ static void ADS1299_GPIO_Init (void) {
     GPIO_ClockEnable (ADS1299_MISO_PORT);
     GPIO_ClockEnable (ADS1299_MOSI_PORT);
 
-    /*-------------------- SPI SCK Òý½Å£º¸´ÓÃÍÆÍì --------------------*/
+    /*-------------------- SPI SCK ï¿½ï¿½ï¿½Å£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ --------------------*/
     Hal_GPIO_Init (ADS1299_SCK_ENC, HAL_GPIO_MODE_AF_PP,
                    HAL_GPIO_SPEED_VERY_HIGH, ADS1299_SCK_AF);
 
-    /*-------------------- SPI MOSI Òý½Å£º¸´ÓÃÍÆÍì --------------------*/
+    /*-------------------- SPI MOSI ï¿½ï¿½ï¿½Å£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ --------------------*/
     Hal_GPIO_Init (ADS1299_MOSI_ENC, HAL_GPIO_MODE_AF_PP,
                    HAL_GPIO_SPEED_VERY_HIGH, ADS1299_MOSI_AF);
 
-    /*-------------------- SPI MISO Òý½Å£º¸´ÓÃÊäÈë --------------------*/
+    /*-------------------- SPI MISO ï¿½ï¿½ï¿½Å£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ --------------------*/
     Hal_GPIO_Init (ADS1299_MISO_ENC, HAL_GPIO_MODE_AF_INPUT,
                    HAL_GPIO_SPEED_VERY_HIGH, ADS1299_MISO_AF);
 
-    /*-------------------- CS Òý½Å£ºÍÆÍìÊä³ö --------------------*/
+    /*-------------------- CS ï¿½ï¿½ï¿½Å£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ --------------------*/
     Hal_GPIO_Init (ADS1299_CS_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP,
                    HAL_GPIO_SPEED_VERY_HIGH, 0);
     ADS1299_CS_HIGH();
 
-    /*-------------------- RESET Òý½Å£ºÍÆÍìÊä³ö --------------------*/
+    /*-------------------- RESET ï¿½ï¿½ï¿½Å£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ --------------------*/
     Hal_GPIO_Init (ADS1299_RESET_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP,
                    HAL_GPIO_SPEED_VERY_HIGH, 0);
     ADS1299_RESET_HIGH();
 
-    /*-------------------- START Òý½Å£ºÍÆÍìÊä³ö --------------------*/
+    /*-------------------- START ï¿½ï¿½ï¿½Å£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ --------------------*/
     Hal_GPIO_Init (ADS1299_START_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP,
                    HAL_GPIO_SPEED_VERY_HIGH, 0);
     ADS1299_START_LOW();
 
-    /*-------------------- DRDY Òý½Å£ºÉÏÀ­ÊäÈë + ÖÐ¶ÏÅäÖÃ --------------------*/
+    /*-------------------- DRDY ï¿½ï¿½ï¿½Å£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ + ï¿½Ð¶ï¿½ï¿½ï¿½ï¿½ï¿½ --------------------*/
     Hal_GPIO_Init (ADS1299_DRDY_PIN_ENC, HAL_GPIO_MODE_INPUT_PU,
                    HAL_GPIO_SPEED_LOW, 0);
 
-    /* ×¢²áÖÐ¶Ï»Øµ÷£¬´¥·¢ÏÂ½µÑØ£¬ÓÅÏÈ¼¶ (0,0) */
+    /* ×¢ï¿½ï¿½ï¿½Ð¶Ï»Øµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â½ï¿½ï¿½Ø£ï¿½ï¿½ï¿½ï¿½È¼ï¿½ (0,0) */
     Hal_GPIO_IRQ_Config (ADS1299_DRDY_PIN_ENC, HAL_GPIO_IRQ_FALLING,
                          0, 0, ADS1299_DMA_StartRead);
     Hal_GPIO_IRQ_Enable (ADS1299_DRDY_PIN_ENC, true);
 }
 
 static void ADS1299_SPI_Init (void) {
-    /* ¿ªÆô SPI2 ÍâÉèÊ±ÖÓ¡£ */
+    /* ï¿½ï¿½ï¿½ï¿½ SPI2 ï¿½ï¿½ï¿½ï¿½Ê±ï¿½Ó¡ï¿½ */
     SPI_ClockEnable (ADS1299_SPI_INSTANCE);
 
     SPI_InitTypeDef SPI_InitStructure = {0};
     SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
-    /* CH32H417 ×÷Îª SPI Ö÷»ú£¬ADS1299 ×÷Îª SPI ´Ó»ú¡£ */
+    /* CH32H417 ï¿½ï¿½Îª SPI ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ADS1299 ï¿½ï¿½Îª SPI ï¿½Ó»ï¿½ï¿½ï¿½ */
     SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
-    /* ADS1299 ÃüÁî¡¢¼Ä´æÆ÷¡¢Êý¾Ý¾ù°´ 8 bit ×Ö½Ú´«Êä¡£ */
+    /* ADS1299 ï¿½ï¿½ï¿½î¡¢ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý¾ï¿½ï¿½ï¿½ 8 bit ï¿½Ö½Ú´ï¿½ï¿½ä¡£ */
     SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
-    /* ADS1299 Ê¹ÓÃ SPI Mode 1£ºCPOL=0£¬CPHA=1¡£ */
+    /* ADS1299 Ê¹ï¿½ï¿½ SPI Mode 1ï¿½ï¿½CPOL=0ï¿½ï¿½CPHA=1ï¿½ï¿½ */
     SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;
     SPI_InitStructure.SPI_CPHA = SPI_CPHA_2Edge;
-    /* NSS Èí¼þ¹ÜÀí£¬ÕæÕýµÄ CS ÓÉ GPIO ÊÖ¶¯¿ØÖÆ¡£ */
+    /* NSS ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ CS ï¿½ï¿½ GPIO ï¿½Ö¶ï¿½ï¿½ï¿½ï¿½Æ¡ï¿½ */
     SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;
-    /* ÏÈÊ¹ÓÃ½ÏµÍ SPI ÆµÂÊ£¬Ó²¼þÎÈ¶¨ºó¿É¸ù¾Ý ADS1299 Ê±ÐòºÍÖ÷ÆµÊÊµ±Ìá¸ß¡£ */
+    /* ï¿½ï¿½Ê¹ï¿½Ã½Ïµï¿½ SPI Æµï¿½Ê£ï¿½Ó²ï¿½ï¿½ï¿½È¶ï¿½ï¿½ï¿½É¸ï¿½ï¿½ï¿½ ADS1299 Ê±ï¿½ï¿½ï¿½ï¿½ï¿½Æµï¿½Êµï¿½ï¿½ï¿½ß¡ï¿½ */
     SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_Mode6;
-    /* ADS1299 SPI Êý¾Ý¸ßÎ»ÏÈ´«¡£ */
+    /* ADS1299 SPI ï¿½ï¿½ï¿½Ý¸ï¿½Î»ï¿½È´ï¿½ï¿½ï¿½ */
     SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
-    /* ²»Ê¹ÓÃ CRC¡£ */
+    /* ï¿½ï¿½Ê¹ï¿½ï¿½ CRCï¿½ï¿½ */
     SPI_InitStructure.SPI_CRCPolynomial = 7;
 
     SPI_Init (ADS1299_SPI_INSTANCE, &SPI_InitStructure);
@@ -169,16 +170,19 @@ static void ADS1299_DMA_Init (void) {
     DMA_Cmd (ADS1299_TX_DMA_CHANNEL, DISABLE);
 
     DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(ADS1299_SPI_INSTANCE->DATAR);
-    DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)ring_buffer[0];
+    DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)dma_buf0;
+    DMA_InitStructure.DMA_Memory1BaseAddr = (uint32_t)dma_buf1;
     DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralSRC;
     DMA_InitStructure.DMA_BufferSize = FRAME_SIZE;
     DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
     DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
     DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
     DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
-    DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
+    DMA_InitStructure.DMA_Mode = DMA_Mode_Circular;
     DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
     DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
+    DMA_InitStructure.DMA_BufferMode = DMA_DoubleBufferMode;
+    DMA_InitStructure.DMA_DoubleBuffer_StartMemory = DMA_DoubleBufferMode_Memory_0;
 
     DMA_Init (ADS1299_RX_DMA_CHANNEL, &DMA_InitStructure);
     DMA_MuxChannelConfig (ADS1299_RX_DMAMUX_CHANNEL, ADS1299_RX_DMA_REQUEST);
@@ -187,6 +191,7 @@ static void ADS1299_DMA_Init (void) {
 
     DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(ADS1299_SPI_INSTANCE->DATAR);
     DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)ads1299_dma_tx_dummy;
+    DMA_InitStructure.DMA_Memory1BaseAddr = 0;
     DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
     DMA_InitStructure.DMA_BufferSize = FRAME_SIZE;
     DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
@@ -196,6 +201,8 @@ static void ADS1299_DMA_Init (void) {
     DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
     DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
     DMA_InitStructure.DMA_Priority = DMA_Priority_High;
+    DMA_InitStructure.DMA_BufferMode = DMA_SingleBufferMode;
+    DMA_InitStructure.DMA_DoubleBuffer_StartMemory = DMA_DoubleBufferMode_Memory_0;
 
     DMA_Init (ADS1299_TX_DMA_CHANNEL, &DMA_InitStructure);
     DMA_MuxChannelConfig (ADS1299_TX_DMAMUX_CHANNEL, ADS1299_TX_DMA_REQUEST);
@@ -212,7 +219,6 @@ static void ADS1299_DMA_Init (void) {
     NVIC_SetPriority (ADS1299_TX_DMA_IRQn, 1);
     NVIC_EnableIRQ (ADS1299_TX_DMA_IRQn);
 
-
     g_ads1299_spi_dma_busy = 0;
     g_ads1299_spi_dma_ok_count = 0;
     g_ads1299_spi_dma_lost_count = 0;
@@ -220,17 +226,17 @@ static void ADS1299_DMA_Init (void) {
 }
 
 static void ADS1299_Register_Init (void) {
-    /* 1. ÉÏµçµÈ´ý */
+    /* 1. ï¿½Ïµï¿½È´ï¿½ */
     Delay_Ms (ADS1299_POWER_ON_DELAY_MS);
 
-    /* 2. Ó²¼þ¸´Î» */
+    /* 2. Ó²ï¿½ï¿½ï¿½ï¿½Î» */
     ADS1299_ResetByPin();
 
-    /* 3. ÍË³öÁ¬Ðø¶ÁÄ£Ê½ */
+    /* 3. ï¿½Ë³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£Ê½ */
     ADS1299_SendCommand (ADS1299_CMD_SDATAC);
     Delay_Ms (10);
 
-    /* 4. ÅäÖÃ CONFIG1~CONFIG4 */
+    /* 4. ï¿½ï¿½ï¿½ï¿½ CONFIG1~CONFIG4 */
     ADS1299_WriteReg (ADS1299_REG_CONFIG1, 0x96);
     Delay_Ms (10);
     ADS1299_WriteReg (ADS1299_REG_CONFIG2, 0xC0);
@@ -240,17 +246,17 @@ static void ADS1299_Register_Init (void) {
     ADS1299_WriteReg (ADS1299_REG_CONFIG4, 0x02);
     Delay_Ms (ADS1299_REF_STABLE_DELAY_MS);
 
-    /* 5. BIAS ÅäÖÃ */
-    ADS1299_WriteReg (ADS1299_REG_BIAS_SENSP, 0x0F);  /* CH1~CH4 ¼ÓÈë BIAS Õý¶Ë¼ì²â/Çý¶¯ */
+    /* 5. BIAS ï¿½ï¿½ï¿½ï¿½ */
+    ADS1299_WriteReg (ADS1299_REG_BIAS_SENSP, 0x0F);  /* CH1~CH4 ï¿½ï¿½ï¿½ï¿½ BIAS ï¿½ï¿½ï¿½Ë¼ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ */
     Delay_Ms (10);
-    ADS1299_WriteReg (ADS1299_REG_BIAS_SENSN, 0x0F);  /* CH1~CH4 ¼ÓÈë BIAS ¸º¶Ë¼ì²â/Çý¶¯ */
+    ADS1299_WriteReg (ADS1299_REG_BIAS_SENSN, 0x0F);  /* CH1~CH4 ï¿½ï¿½ï¿½ï¿½ BIAS ï¿½ï¿½ï¿½Ë¼ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ */
     Delay_Ms (10);
 
     /* 6. MISC1 */
     ADS1299_WriteReg (ADS1299_REG_MISC1, 0x00);
     Delay_Ms (10);
 
-    /* 7. Í¨µÀÅäÖÃ */
+    /* 7. Í¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     ADS1299_WriteReg (ADS1299_REG_CH1SET, 0x60);
     Delay_Ms (10);
     ADS1299_WriteReg (ADS1299_REG_CH2SET, 0x60);
@@ -269,11 +275,11 @@ static void ADS1299_Register_Init (void) {
     Delay_Ms (10);
 }
 
-/* µ×²ã SPI ¸¨Öúº¯Êý */
+/* ï¿½×²ï¿½ SPI ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static uint8_t ADS1299_SPI_TxRxByte (uint8_t tx_data) {
     uint32_t timeout;
 
-    /* µÈ´ý·¢ËÍ»º³åÇøÎª¿Õ£¬±íÊ¾¿ÉÒÔÐ´ÈëÏÂÒ»¸ö×Ö½Ú¡£ */
+    /* ï¿½È´ï¿½ï¿½ï¿½ï¿½Í»ï¿½ï¿½ï¿½ï¿½ï¿½Îªï¿½Õ£ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½Ö½Ú¡ï¿½ */
     timeout = ADS1299_SPI_TIMEOUT;
     while (SPI_I2S_GetFlagStatus (ADS1299_SPI_INSTANCE, SPI_I2S_FLAG_TXE) == RESET) {
         if (timeout-- == 0) {
@@ -281,10 +287,10 @@ static uint8_t ADS1299_SPI_TxRxByte (uint8_t tx_data) {
         }
     }
 
-    /* Ð´ÈëÒ»¸ö×Ö½Úºó£¬SPI Ó²¼þ»á×Ô¶¯²úÉú 8 ¸ö SCK Ê±ÖÓ¡£ */
+    /* Ð´ï¿½ï¿½Ò»ï¿½ï¿½ï¿½Ö½Úºï¿½SPI Ó²ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½ 8 ï¿½ï¿½ SCK Ê±ï¿½Ó¡ï¿½ */
     SPI_I2S_SendData (ADS1299_SPI_INSTANCE, tx_data);
 
-    /* µÈ´ý½ÓÊÕ»º³åÇø·Ç¿Õ¡£SPI ÊÇÈ«Ë«¹¤£ºÃ¿·¢ 1 ×Ö½Ú£¬Ò²»áÍ¬Ê±ÊÕµ½ 1 ×Ö½Ú¡£ */
+    /* ï¿½È´ï¿½ï¿½ï¿½ï¿½Õ»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç¿Õ¡ï¿½SPI ï¿½ï¿½È«Ë«ï¿½ï¿½ï¿½ï¿½Ã¿ï¿½ï¿½ 1 ï¿½Ö½Ú£ï¿½Ò²ï¿½ï¿½Í¬Ê±ï¿½Õµï¿½ 1 ï¿½Ö½Ú¡ï¿½ */
     timeout = ADS1299_SPI_TIMEOUT;
     while (SPI_I2S_GetFlagStatus (ADS1299_SPI_INSTANCE, SPI_I2S_FLAG_RXNE) == RESET) {
         if (timeout-- == 0) {
@@ -298,7 +304,7 @@ static uint8_t ADS1299_SPI_TxRxByte (uint8_t tx_data) {
 static void ADS1299_SPI_WaitBusy (void) {
     uint32_t timeout = ADS1299_SPI_TIMEOUT;
 
-    /* µÈ´ý SPI ×ÜÏß²»Ã¦£¬·ÀÖ¹×îºóÒ»¸ö bit »¹Ã»·¢Íê¾ÍÀ­¸ß CS¡£ */
+    /* ï¿½È´ï¿½ SPI ï¿½ï¿½ï¿½ß²ï¿½Ã¦ï¿½ï¿½ï¿½ï¿½Ö¹ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ bit ï¿½ï¿½Ã»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ CSï¿½ï¿½ */
     while (SPI_I2S_GetFlagStatus (ADS1299_SPI_INSTANCE, SPI_I2S_FLAG_BSY) != RESET) {
         if (timeout-- == 0) {
             break;
@@ -319,20 +325,20 @@ static void ADS1299_SPI_ClearRxNE (void) {
     }
 }
 
-/* Ó²¼þ¸´Î»ÓëÃüÁî */
+/* Ó²ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static void ADS1299_ResetByPin (void) {
-    /* ¸´Î»Ç°ÏÈÍ£Ö¹×ª»»£¬±ÜÃâ¸´Î»ÆÚ¼ä START ×´Ì¬²»È·¶¨¡£ */
+    /* ï¿½ï¿½Î»Ç°ï¿½ï¿½Í£Ö¹×ªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½â¸´Î»ï¿½Ú¼ï¿½ START ×´Ì¬ï¿½ï¿½È·ï¿½ï¿½ï¿½ï¿½ */
     ADS1299_START_LOW();
     ADS1299_CS_HIGH();
 
-    /* RESET µÍÂö³å¡£ */
+    /* RESET ï¿½ï¿½ï¿½ï¿½ï¿½å¡£ */
     ADS1299_RESET_HIGH();
     Delay_Ms (10);
     ADS1299_RESET_LOW();
     Delay_Ms (ADS1299_RESET_LOW_DELAY_MS);
     ADS1299_RESET_HIGH();
 
-    /* µÈ´ý ADS1299 ÄÚ²¿Êý×ÖÂß¼­ºÍ¼Ä´æÆ÷»Ö¸´Ä¬ÈÏÖµ¡£ */
+    /* ï¿½È´ï¿½ ADS1299 ï¿½Ú²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß¼ï¿½ï¿½Í¼Ä´ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½Ä¬ï¿½ï¿½Öµï¿½ï¿½ */
     Delay_Ms (ADS1299_POST_RESET_DELAY_MS);
 }
 
@@ -346,24 +352,24 @@ static void ADS1299_SendCommand (uint8_t cmd) {
     Delay_Us (2);
     ADS1299_CS_HIGH();
 
-    /* ÃüÁîÖ®¼äÁôÒ»µã¼ä¸ô£¬±£Ö¤ ADS1299 ÓÐÊ±¼äÒëÂë¡£ */
+    /* ï¿½ï¿½ï¿½ï¿½Ö®ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¤ ADS1299 ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ë¡£ */
     Delay_Us (10);
 }
 
-/* ¼Ä´æÆ÷²Ù×÷ */
+/* ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static uint8_t ADS1299_ReadReg (uint8_t reg) {
     uint8_t value;
 
     ADS1299_CS_LOW();
     Delay_Us (2);
 
-    /* µÚ 1 ×Ö½Ú£ºRREG | ¼Ä´æÆ÷µØÖ·¡£ */
+    /* ï¿½ï¿½ 1 ï¿½Ö½Ú£ï¿½RREG | ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ */
     (void)ADS1299_SPI_TxRxByte ((uint8_t)(ADS1299_CMD_RREG | (reg & 0x1F)));
 
-    /* µÚ 2 ×Ö½Ú£º¶ÁÈ¡ÊýÁ¿ - 1¡£¶ÁÈ¡ 1 ¸ö¼Ä´æÆ÷£¬ËùÒÔ·¢ËÍ 0x00¡£ */
+    /* ï¿½ï¿½ 2 ï¿½Ö½Ú£ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ - 1ï¿½ï¿½ï¿½ï¿½È¡ 1 ï¿½ï¿½ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô·ï¿½ï¿½ï¿½ 0x00ï¿½ï¿½ */
     (void)ADS1299_SPI_TxRxByte (0x00);
 
-    /* µÚ 3 ×Ö½Ú£º·¢ËÍ dummy byte£¬Í¬Ê±´Ó MISO ¶Á»Ø¼Ä´æÆ÷Öµ¡£ */
+    /* ï¿½ï¿½ 3 ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½ dummy byteï¿½ï¿½Í¬Ê±ï¿½ï¿½ MISO ï¿½ï¿½ï¿½Ø¼Ä´ï¿½ï¿½ï¿½Öµï¿½ï¿½ */
     value = ADS1299_SPI_TxRxByte (0x00);
     ADS1299_SPI_WaitBusy();
 
@@ -381,9 +387,9 @@ static uint8_t ADS1299_ReadReg (uint8_t reg) {
 //     }
 //     ADS1299_CS_LOW();
 //     Delay_Us (2);
-//     /* ÆðÊ¼¼Ä´æÆ÷µØÖ·¡£ */
+//     /* ï¿½ï¿½Ê¼ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ */
 //     (void)ADS1299_SPI_TxRxByte ((uint8_t)(ADS1299_CMD_RREG | (start_reg & 0x1F)));
-//     /* Á¬Ðø¶ÁÈ¡ len ¸ö¼Ä´æÆ÷£¬µÚ¶þ×Ö½ÚÒª·¢ËÍ len - 1¡£ */
+//     /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡ len ï¿½ï¿½ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú¶ï¿½ï¿½Ö½ï¿½Òªï¿½ï¿½ï¿½ï¿½ len - 1ï¿½ï¿½ */
 //     (void)ADS1299_SPI_TxRxByte ((uint8_t)(len - 1));
 //     for (i = 0; i < len; i++) {
 //         buf[i] = ADS1299_SPI_TxRxByte (0x00);
@@ -398,13 +404,13 @@ static void ADS1299_WriteReg (uint8_t reg, uint8_t value) {
     ADS1299_CS_LOW();
     Delay_Us (2);
 
-    /* µÚ 1 ×Ö½Ú£ºWREG | ¼Ä´æÆ÷µØÖ·¡£ */
+    /* ï¿½ï¿½ 1 ï¿½Ö½Ú£ï¿½WREG | ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ */
     (void)ADS1299_SPI_TxRxByte ((uint8_t)(ADS1299_CMD_WREG | (reg & 0x1F)));
 
-    /* µÚ 2 ×Ö½Ú£ºÐ´ÈëÊýÁ¿ - 1¡£Ð´ 1 ¸ö¼Ä´æÆ÷£¬ËùÒÔ·¢ËÍ 0x00¡£ */
+    /* ï¿½ï¿½ 2 ï¿½Ö½Ú£ï¿½Ð´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ - 1ï¿½ï¿½Ð´ 1 ï¿½ï¿½ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô·ï¿½ï¿½ï¿½ 0x00ï¿½ï¿½ */
     (void)ADS1299_SPI_TxRxByte (0x00);
 
-    /* µÚ 3 ×Ö½Ú£ºÕæÕýÐ´Èë¼Ä´æÆ÷µÄÊý¾Ý¡£ */
+    /* ï¿½ï¿½ 3 ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý¡ï¿½ */
     (void)ADS1299_SPI_TxRxByte (value);
     ADS1299_SPI_WaitBusy();
 
@@ -420,9 +426,9 @@ static void ADS1299_WriteReg (uint8_t reg, uint8_t value) {
 //     }
 //     ADS1299_CS_LOW();
 //     Delay_Us (2);
-//     /* ÆðÊ¼¼Ä´æÆ÷µØÖ·¡£ */
+//     /* ï¿½ï¿½Ê¼ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ */
 //     (void)ADS1299_SPI_TxRxByte ((uint8_t)(ADS1299_CMD_WREG | (start_reg & 0x1F)));
-//     /* Á¬ÐøÐ´Èë len ¸ö¼Ä´æÆ÷£¬µÚ¶þ×Ö½ÚÒª·¢ËÍ len - 1¡£ */
+//     /* ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ len ï¿½ï¿½ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú¶ï¿½ï¿½Ö½ï¿½Òªï¿½ï¿½ï¿½ï¿½ len - 1ï¿½ï¿½ */
 //     (void)ADS1299_SPI_TxRxByte ((uint8_t)(len - 1));
 //     for (i = 0; i < len; i++) {
 //         (void)ADS1299_SPI_TxRxByte (buf[i]);
@@ -433,11 +439,11 @@ static void ADS1299_WriteReg (uint8_t reg, uint8_t value) {
 //     Delay_Us (10);
 // }
 
-/* Á¬ÐøÄ£Ê½¿ØÖÆ */
+/* ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½ï¿½ï¿½ */
 static void ADS1299_StartContinuous (void) {
     /*
-     * À­¸ß START Òý½Å£¬Æô¶¯ ADS1299 ×ª»»¡£
-     * Ëæºó·¢ËÍ RDATAC£¬ÈÃ ADS1299 ½øÈëÁ¬Ðø¶ÁÊý¾ÝÄ£Ê½¡£
+     * ï¿½ï¿½ï¿½ï¿½ START ï¿½ï¿½ï¿½Å£ï¿½ï¿½ï¿½ï¿½ï¿½ ADS1299 ×ªï¿½ï¿½ï¿½ï¿½
+     * ï¿½ï¿½ï¿½ï¿½ï¿½ RDATACï¿½ï¿½ï¿½ï¿½ ADS1299 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½
      */
     ADS1299_START_HIGH();
     Delay_Ms (2);
@@ -447,15 +453,15 @@ static void ADS1299_StartContinuous (void) {
 
 // static void ADS1299_StopContinuous (void) {
 //     /*
-//      * ÏÈ·¢ËÍ SDATAC ÍË³öÁ¬Ðø¶ÁÄ£Ê½£¬ÔÙÀ­µÍ START Í£Ö¹×ª»»¡£
-//      * ºóÐøÈç¹ûÒªÐÞ¸Ä¼Ä´æÆ÷£¬±ØÐëÏÈµ÷ÓÃ±¾º¯Êý»òÖÁÉÙ·¢ËÍ SDATAC¡£
+//      * ï¿½È·ï¿½ï¿½ï¿½ SDATAC ï¿½Ë³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ START Í£Ö¹×ªï¿½ï¿½ï¿½ï¿½
+//      * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½Þ¸Ä¼Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Èµï¿½ï¿½Ã±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ù·ï¿½ï¿½ï¿½ SDATACï¿½ï¿½
 //      */
 //     ADS1299_SendCommand (ADS1299_CMD_SDATAC);
 //     Delay_Ms (2);
 //     ADS1299_START_LOW();
 // }
 
-/* DMA ´«Êä */
+/* DMA ï¿½ï¿½ï¿½ï¿½ */
 void ADS1299_DMA_StartRead (void) {
     if (g_ads1299_spi_dma_busy != 0U) {
         g_ads1299_spi_dma_lost_count++;
@@ -463,9 +469,6 @@ void ADS1299_DMA_StartRead (void) {
     }
 
     g_ads1299_spi_dma_busy = 1U;
-
-    SPI_I2S_DMACmd (ADS1299_SPI_INSTANCE, SPI_I2S_DMAReq_Rx, DISABLE);
-    SPI_I2S_DMACmd (ADS1299_SPI_INSTANCE, SPI_I2S_DMAReq_Tx, DISABLE);
 
     DMA_Cmd (ADS1299_RX_DMA_CHANNEL, DISABLE);
     DMA_Cmd (ADS1299_TX_DMA_CHANNEL, DISABLE);
@@ -475,62 +478,43 @@ void ADS1299_DMA_StartRead (void) {
     DMA_ClearITPendingBit (ADS1299_DMA_INSTANCE, ADS1299_TX_DMA_TC_FLAG);
     DMA_ClearITPendingBit (ADS1299_DMA_INSTANCE, ADS1299_TX_DMA_TE_FLAG);
 
-
     ADS1299_SPI_ClearRxNE();
 
-
-    ADS1299_RX_DMA_CHANNEL->MADDR = (uint32_t)ring_buffer[head];
-
     DMA_SetCurrDataCounter (ADS1299_RX_DMA_CHANNEL, FRAME_SIZE);
-
-
     ADS1299_TX_DMA_CHANNEL->MADDR = (uint32_t)ads1299_dma_tx_dummy;
-
     DMA_SetCurrDataCounter (ADS1299_TX_DMA_CHANNEL, FRAME_SIZE);
 
-
     ADS1299_CS_LOW();
-
     Delay_Us (2);
 
-
     DMA_Cmd (ADS1299_RX_DMA_CHANNEL, ENABLE);
-
     DMA_Cmd (ADS1299_TX_DMA_CHANNEL, ENABLE);
 
-
     SPI_I2S_DMACmd (ADS1299_SPI_INSTANCE, SPI_I2S_DMAReq_Rx, ENABLE);
-
     SPI_I2S_DMACmd (ADS1299_SPI_INSTANCE, SPI_I2S_DMAReq_Tx, ENABLE);
 }
 
 static void ADS1299_DMA_StopAndReleaseCS (void) {
 
     SPI_I2S_DMACmd (ADS1299_SPI_INSTANCE, SPI_I2S_DMAReq_Rx, DISABLE);
-
     SPI_I2S_DMACmd (ADS1299_SPI_INSTANCE, SPI_I2S_DMAReq_Tx, DISABLE);
 
-
     DMA_Cmd (ADS1299_RX_DMA_CHANNEL, DISABLE);
-
     DMA_Cmd (ADS1299_TX_DMA_CHANNEL, DISABLE);
-
 
     ADS1299_SPI_WaitBusy();
 
     Delay_Us (2);
-
     ADS1299_CS_HIGH();
-
 
     g_ads1299_spi_dma_busy = 0U;
 }
 
-/* Êý¾Ý½âÎö¸¨Öú */
+/* ï¿½ï¿½ï¿½Ý½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static int32_t ADS1299_SignExtend24 (uint32_t raw24) {
     /*
-     * ADS1299 Í¨µÀÊý¾ÝÊÇ 24 Î»¶þ²¹Âë¡£
-     * Èô bit23 Îª 1£¬±íÊ¾¸ºÊý£¬ÐèÒª°Ñ¸ß 8 Î»²¹ 1£¬À©Õ¹³É 32 Î»ÓÐ·ûºÅÊý¡£
+     * ADS1299 Í¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 24 Î»ï¿½ï¿½ï¿½ï¿½ï¿½ë¡£
+     * ï¿½ï¿½ bit23 Îª 1ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½Ñ¸ï¿½ 8 Î»ï¿½ï¿½ 1ï¿½ï¿½ï¿½ï¿½Õ¹ï¿½ï¿½ 32 Î»ï¿½Ð·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
      */
     raw24 &= 0x00FFFFFFUL;
     if ((raw24 & 0x00800000UL) != 0U) {
@@ -557,14 +541,14 @@ void ADS1299_ParseRawFrame (const uint8_t *frame_buf, uint32_t *status, int32_t 
         return;
     }
 
-    /* Ç° 3 ×Ö½ÚÊÇ×´Ì¬×Ö£¬²»ÊÇÍ¨µÀÄÔµçÊý¾Ý¡£ */
+    /* Ç° 3 ï¿½Ö½ï¿½ï¿½ï¿½×´Ì¬ï¿½Ö£ï¿½ï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½ï¿½Ôµï¿½ï¿½ï¿½ï¿½Ý¡ï¿½ */
     if (status != 0) {
         *status = ((uint32_t)frame_buf[0] << 16) |
                   ((uint32_t)frame_buf[1] << 8) |
                   ((uint32_t)frame_buf[2]);
     }
 
-    /* ºóÃæ 24 ×Ö½ÚÎª 8 ¸öÍ¨µÀ£¬Ã¿Í¨µÀ 3 ×Ö½Ú£¬24 bit ¶þ²¹Âë£¬¸ß×Ö½ÚÔÚÇ°¡£ */
+    /* ï¿½ï¿½ï¿½ï¿½ 24 ï¿½Ö½ï¿½Îª 8 ï¿½ï¿½Í¨ï¿½ï¿½ï¿½ï¿½Ã¿Í¨ï¿½ï¿½ 3 ï¿½Ö½Ú£ï¿½24 bit ï¿½ï¿½ï¿½ï¿½ï¿½ë£¬ï¿½ï¿½ï¿½Ö½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½ */
     for (i = 0; i < ADS1299_CHANNEL_NUM; i++) {
         index = (uint8_t)(ADS1299_STATUS_BYTE_NUM + i * ADS1299_CHANNEL_BYTE_NUM);
         raw24 = ((uint32_t)frame_buf[index] << 16) |
@@ -575,10 +559,10 @@ void ADS1299_ParseRawFrame (const uint8_t *frame_buf, uint32_t *status, int32_t 
     }
 }
 
-/* ´Ó»·ÐÎ»º³åÇø¶ÁÈ¡Ò»Ö¡Êý¾Ý£¬³É¹¦·µ»Ø 1£¬ÎÞÊý¾Ý·µ»Ø 0 */
+/* ï¿½Ó»ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡Ò»Ö¡ï¿½ï¿½ï¿½Ý£ï¿½ï¿½É¹ï¿½ï¿½ï¿½ï¿½ï¿½ 1ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý·ï¿½ï¿½ï¿½ 0 */
 uint8_t ring_buffer_get_frame (uint8_t *dest) {
     if (head == tail) {
-        return 0;  // »º³åÇøÎª¿Õ
+        return 0;  // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿½
     }
     memcpy (dest, ring_buffer[tail], FRAME_SIZE);
     tail = (tail + 1) % RING_BUF_SIZE;
@@ -594,6 +578,10 @@ void DMA1_Channel1_IRQHandler (void) {
         ADS1299_DMA_StopAndReleaseCS();
         g_ads1299_spi_dma_ok_count++;
 
+        uint32_t ct = ADS1299_RX_DMA_CHANNEL->CFGR & (1U << 16);
+        const uint8_t *completed = (ct != 0) ? dma_buf0 : dma_buf1;
+
+        memcpy (ring_buffer[head], completed, FRAME_SIZE);
         head = (head + 1) % RING_BUF_SIZE;
         if (head == tail) {
             tail = (tail + 1) % RING_BUF_SIZE;

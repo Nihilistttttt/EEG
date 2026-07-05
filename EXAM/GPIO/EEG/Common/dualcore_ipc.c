@@ -905,12 +905,11 @@ void DualCore_V5F_MainLoopProcess(void)
         seq = 0u;
     }
 
-    IPC_WriteMSG(IPC_MSG0, (((uint32_t)checksum) << 16) | (seq & 0x0000FFFFu));
+    IPC_WriteMSG(IPC_MSG1, (((uint32_t)checksum) << 16) | (seq & 0x0000FFFFu));
 
     DUALCORE_FENCE();
 
-    IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, ENABLE);
-    IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, ENABLE);
+    IPC_ITConfig(IPC_CH1, IPC_CH_Sta_Bit0, ENABLE);
 }
 #endif
 
@@ -1008,12 +1007,21 @@ void DualCore_IPC_Init_V3F(void)
     IPC_Config(IPC_CH0, IPC_TxCID1, IPC_RxCID0);
     IPC_CH0_Lock();
 
+    IPC_Config(IPC_CH1, IPC_TxCID1, IPC_RxCID0);
+    IPC_CH1_Lock();
+
     IPC_WriteMSG(IPC_MSG0, 0);
     IPC_SetFlagStatus(IPC_CH0, IPC_CH_Sta_Bit0);
     IPC_ClearFlagStatus(IPC_CH0, IPC_CH_Sta_Bit1);
 
+    IPC_ClearFlagStatus(IPC_CH1, IPC_CH_Sta_Bit0);
+    IPC_ClearFlagStatus(IPC_CH1, IPC_CH_Sta_Bit1);
+
     NVIC_SetPriority(IPC_CH0_IRQn, (1 << 7) | (1 << 4));
     NVIC_EnableIRQ(IPC_CH0_IRQn);
+
+    NVIC_SetPriority(IPC_CH1_IRQn, (1 << 7) | (2 << 4));
+    NVIC_EnableIRQ(IPC_CH1_IRQn);
 
     g_ipc_v3f_ready = 1;
 #endif
@@ -1045,8 +1053,17 @@ void DualCore_IPC_Init_V5F(void)
     IPC_ClearFlagStatus(IPC_CH0, IPC_CH_Sta_Bit1);
     NVIC_ClearPendingIRQ(IPC_CH0_IRQn);
 
+    IPC_ITConfig(IPC_CH1, IPC_CH_Sta_Bit0, DISABLE);
+    IPC_ITConfig(IPC_CH1, IPC_CH_Sta_Bit1, DISABLE);
+    IPC_ClearFlagStatus(IPC_CH1, IPC_CH_Sta_Bit0);
+    IPC_ClearFlagStatus(IPC_CH1, IPC_CH_Sta_Bit1);
+    NVIC_ClearPendingIRQ(IPC_CH1_IRQn);
+
     NVIC_SetPriority(IPC_CH0_IRQn, (2 << 5) | (0 << 4));
     NVIC_EnableIRQ(IPC_CH0_IRQn);
+
+    NVIC_SetPriority(IPC_CH1_IRQn, (2 << 5) | (1 << 4));
+    NVIC_EnableIRQ(IPC_CH1_IRQn);
 
     g_ipc_v5f_ready = 1;
 #endif
@@ -1186,8 +1203,30 @@ uint32_t DualCore_IPC_GetLastV5FInferCount(void){ return g_ipc_v3f_last_v5f_infe
 void IPC_CH0_Handler(void)
 {
 #if defined(Core_V3F)
+    if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit1) != RESET) {
+        IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, DISABLE);
+    }
+
+#elif defined(Core_V5F)
     if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit0) != RESET) {
-        uint32_t ack_pack = IPC_ReadMSG(IPC_MSG0);
+        IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, DISABLE);
+    }
+    if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit1) != RESET) {
+        uint32_t addr = IPC_ReadMSG(IPC_MSG0);
+        if (addr >= 0x20110000u && addr <= 0x2017FFFFu) {
+            g_ipc_v5f_pending_share_addr = addr;
+            g_ipc_v5f_pending_flag = 1u;
+        }
+    }
+    IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, DISABLE);
+#endif
+}
+
+void IPC_CH1_Handler(void)
+{
+#if defined(Core_V3F)
+    if (IPC_GetITStatus(IPC_CH1, IPC_CH_Sta_Bit0) != RESET) {
+        uint32_t ack_pack = IPC_ReadMSG(IPC_MSG1);
         uint32_t ack_seq_low = (ack_pack & 0x0000FFFFu);
         uint32_t ack_cs   = ((ack_pack >> 16) & 0x0000FFFFu);
         uint32_t slot_idx = ack_seq_low % DUALCORE_IPC_FRAME_SLOT_NUM;
@@ -1200,19 +1239,8 @@ void IPC_CH0_Handler(void)
 
         if ((ack_seq & 0x0000FFFFu) != ack_seq_low) {
             ack_seq = ack_seq_low;
-        }
-        hist_idx = ack_seq % DUALCORE_IPC_TX_HISTORY_SIZE;
-        tx_cs = g_ipc_v3f_tx_checksum_hist[hist_idx];
+}
 
-        g_ipc_v3f_ack_count       = ack_seq;
-        g_ipc_v3f_ack_checksum    = ack_cs;
-        g_ipc_v3f_ack_tx_checksum = tx_cs;
-
-        if (tx_cs == ack_cs) {
-            g_ipc_v3f_checksum_ok++;
-        } else {
-            g_ipc_v3f_checksum_bad++;
-        }
 
         DUALCORE_FENCE();
 
@@ -1232,7 +1260,7 @@ void IPC_CH0_Handler(void)
         g_ipc_v3f_last_v3f_ch0 = g_ipc_v3f_tx_ch_hist[hist_idx][0];
         g_ipc_v3f_last_v5f_ch0 = slot->v5f_ch_code[0];
         g_ipc_v3f_last_v5f_uv0_x1000 = slot->v5f_uv_x1000[0];
-        g_ipc_v3f_last_v5f_pre0_x1000 = slot->v5f_pre_x1000[0];
+        g_ipc_v3f_last_v5f_pre0_x1000 = slot->v5f_pre0_x1000[0];
         g_ipc_v3f_last_v5f_filt0_x1000 = slot->v5f_filt_x1000[0];
         g_ipc_v3f_last_v5f_sample_count = slot->v5f_sample_count;
         g_ipc_v3f_last_v5f_window_count = slot->v5f_window_count;
@@ -1255,21 +1283,17 @@ void IPC_CH0_Handler(void)
             g_ipc_v3f_parse_bad++;
         }
 
-        IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, DISABLE);
+        IPC_ITConfig(IPC_CH1, IPC_CH_Sta_Bit0, DISABLE);
     }
 
 #elif defined(Core_V5F)
-    if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit0) != RESET) {
-        IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, DISABLE);
+    if (IPC_GetITStatus(IPC_CH1, IPC_CH_Sta_Bit0) != RESET) {
+        IPC_ITConfig(IPC_CH1, IPC_CH_Sta_Bit0, DISABLE);
     }
-    if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit1) != RESET) {
-        uint32_t addr = IPC_ReadMSG(IPC_MSG0);
-        if (addr >= 0x20110000u && addr <= 0x2017FFFFu) {
-            g_ipc_v5f_pending_share_addr = addr;
-            g_ipc_v5f_pending_flag = 1u;
-        }
+    if (IPC_GetITStatus(IPC_CH1, IPC_CH_Sta_Bit1) != RESET) {
+        IPC_ITConfig(IPC_CH1, IPC_CH_Sta_Bit1, DISABLE);
     }
-    IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, DISABLE);
 #endif
 }
+
 

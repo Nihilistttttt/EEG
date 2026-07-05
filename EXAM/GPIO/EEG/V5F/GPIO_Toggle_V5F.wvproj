@@ -17,6 +17,7 @@
 			"calibrateSupport": false,
 			"calibrateCommand": "",
 			"UIConfigSupport": false,
+			"UIConfigCommand": "",
 			"externalFlashSupport": false
 		},
 		"linkedFolders": [
@@ -115,7 +116,7 @@
 					"do_not_inline_functions": false,
 					"assume_freestanding_environment": false,
 					"disable_builtin": false,
-					"single_precision_constants": false,
+					"single_precision_constants": true,
 					"position_independent_code": false,
 					"link_time_optimizer": false,
 					"disable_loop_invariant_move": false,
@@ -374,7 +375,6 @@
 					"vector_cryptography_extensions": "",
 					"integer_ABI": "ilp32",
 					"floating_point_ABI": "single",
-					"single_precision_constants": true,
 					"tuning": "default",
 					"code_model": "default",
 					"small_data_limit": 8,

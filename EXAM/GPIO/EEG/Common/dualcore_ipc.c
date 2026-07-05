@@ -1012,7 +1012,7 @@ void DualCore_IPC_Init_V3F(void)
     IPC_SetFlagStatus(IPC_CH0, IPC_CH_Sta_Bit0);
     IPC_ClearFlagStatus(IPC_CH0, IPC_CH_Sta_Bit1);
 
-    NVIC_SetPriority(IPC_CH0_IRQn, 0 << 7);
+    NVIC_SetPriority(IPC_CH0_IRQn, (1 << 7) | (1 << 4));
     NVIC_EnableIRQ(IPC_CH0_IRQn);
 
     g_ipc_v3f_ready = 1;
@@ -1045,7 +1045,7 @@ void DualCore_IPC_Init_V5F(void)
     IPC_ClearFlagStatus(IPC_CH0, IPC_CH_Sta_Bit1);
     NVIC_ClearPendingIRQ(IPC_CH0_IRQn);
 
-    NVIC_SetPriority(IPC_CH0_IRQn, 0 << 5);
+    NVIC_SetPriority(IPC_CH0_IRQn, (2 << 5) | (0 << 4));
     NVIC_EnableIRQ(IPC_CH0_IRQn);
 
     g_ipc_v5f_ready = 1;

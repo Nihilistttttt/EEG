@@ -1,22 +1,22 @@
 #include "hal_gpio.h"
 #include "ch32h417.h"
 
-/* ¶Ë¿ÚÓ³Éä±í */
+/* ï¿½Ë¿ï¿½Ó³ï¿½ï¿½ï¿½ */
 static GPIO_TypeDef* const s_gpio_ports[] = {
     GPIOA, GPIOB, GPIOC, GPIOD, GPIOE, GPIOF
 };
 #define NUM_PORTS (sizeof(s_gpio_ports) / sizeof(s_gpio_ports[0]))
 
-/* ¶Ë¿ÚÊ±ÖÓÊ¹ÄÜÑÚÂë */
+/* ï¿½Ë¿ï¿½Ê±ï¿½ï¿½Ê¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static const uint32_t s_gpio_rcc[] = {
     RCC_HB2Periph_GPIOA, RCC_HB2Periph_GPIOB, RCC_HB2Periph_GPIOC,
     RCC_HB2Periph_GPIOD, RCC_HB2Periph_GPIOE, RCC_HB2Periph_GPIOF
 };
 
-/* Íâ²¿ÖÐ¶Ï»Øµ÷º¯Êý±í£¨×î¶à16ÌõÏß£© */
+/* ï¿½â²¿ï¿½Ð¶Ï»Øµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½16ï¿½ï¿½ï¿½ß£ï¿½ */
 static void (*s_exti_callback[16])(void) = { NULL };
 
-/* ¸¨Öúº¯Êý£º»ñÈ¡Òý½Å±àºÅºÍ¶Ë¿ÚË÷Òý */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½Å±ï¿½ÅºÍ¶Ë¿ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static inline uint8_t get_pin_num(uint32_t enc) {
     return (uint8_t)(enc & 0xFFFF);
 }
@@ -24,14 +24,14 @@ static inline uint8_t get_port_idx(uint32_t enc) {
     return (uint8_t)((enc >> 16) & 0xFF);
 }
 
-/* ========== Ê±ÖÓÊ¹ÄÜ ========== */
+/* ========== Ê±ï¿½ï¿½Ê¹ï¿½ï¿½ ========== */
 void GPIO_ClockEnable(uint8_t port_index) {
     if (port_index < NUM_PORTS) {
         RCC_HB2PeriphClockCmd(s_gpio_rcc[port_index], ENABLE);
     }
 }
 
-/* ========== Òý½Å³õÊ¼»¯ ========== */
+/* ========== ï¿½ï¿½ï¿½Å³ï¿½Ê¼ï¿½ï¿½ ========== */
 void Hal_GPIO_Init(uint32_t pin_enc, Hal_GPIO_Mode_t mode,
                    Hal_GPIO_Speed_t speed, uint8_t af_num) {
     uint8_t port_idx = get_port_idx(pin_enc);
@@ -42,18 +42,18 @@ void Hal_GPIO_Init(uint32_t pin_enc, Hal_GPIO_Mode_t mode,
     uint16_t pin_mask = 1UL << pin;
     GPIO_InitTypeDef init = {0};
 
-    /* ÏÈÔÝÊ±ÅäÖÃÎªÊäÈë¸¡¿Õ£¬±ÜÃâ³åÍ» */
+    /* ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿½ï¿½ë¸¡ï¿½Õ£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í» */
     init.GPIO_Pin = pin_mask;
     init.GPIO_Mode = GPIO_Mode_IN_FLOATING;
     init.GPIO_Speed = GPIO_Speed_Very_High;
     GPIO_Init(gpio, &init);
 
-    /* ÈôÎª¸´ÓÃ¹¦ÄÜ£¬ÅäÖÃ AF */
+    /* ï¿½ï¿½Îªï¿½ï¿½ï¿½Ã¹ï¿½ï¿½Ü£ï¿½ï¿½ï¿½ï¿½ï¿½ AF */
     if (mode == HAL_GPIO_MODE_AF_PP || mode == HAL_GPIO_MODE_AF_OD || mode == HAL_GPIO_MODE_AF_INPUT) {
         GPIO_PinAFConfig(gpio, pin, af_num);
     }
 
-    /* ¸ù¾ÝÓÃ»§Ä£Ê½ÉèÖÃ GPIO */
+    /* ï¿½ï¿½ï¿½ï¿½ï¿½Ã»ï¿½Ä£Ê½ï¿½ï¿½ï¿½ï¿½ GPIO */
     switch (mode) {
         case HAL_GPIO_MODE_INPUT:      init.GPIO_Mode = GPIO_Mode_IN_FLOATING; break;
         case HAL_GPIO_MODE_INPUT_PU:   init.GPIO_Mode = GPIO_Mode_IPU; break;
@@ -62,7 +62,7 @@ void Hal_GPIO_Init(uint32_t pin_enc, Hal_GPIO_Mode_t mode,
         case HAL_GPIO_MODE_OUTPUT_OD:  init.GPIO_Mode = GPIO_Mode_Out_OD; break;
         case HAL_GPIO_MODE_AF_PP:      init.GPIO_Mode = GPIO_Mode_AF_PP; break;
         case HAL_GPIO_MODE_AF_OD:      init.GPIO_Mode = GPIO_Mode_AF_OD; break;
-        case HAL_GPIO_MODE_AF_INPUT:   init.GPIO_Mode = GPIO_Mode_IN_FLOATING; break; // ¸´ÓÃÊäÈë£¬ÓÃ¸¡¿ÕÊäÈëÄ£Ê½
+        case HAL_GPIO_MODE_AF_INPUT:   init.GPIO_Mode = GPIO_Mode_IN_FLOATING; break; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ë£¬ï¿½Ã¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£Ê½
     }
 
     switch (speed) {
@@ -75,7 +75,7 @@ void Hal_GPIO_Init(uint32_t pin_enc, Hal_GPIO_Mode_t mode,
     GPIO_Init(gpio, &init);
 }
 
-/* ========== ¶ÁÐ´²Ù×÷ ========== */
+/* ========== ï¿½ï¿½Ð´ï¿½ï¿½ï¿½ï¿½ ========== */
 void Hal_GPIO_Write(uint32_t pin_enc, uint8_t level) {
     uint8_t port_idx = get_port_idx(pin_enc);
     uint8_t pin = get_pin_num(pin_enc);
@@ -116,20 +116,20 @@ uint8_t Hal_GPIO_Read(uint32_t pin_enc) {
     return (GPIO_ReadInputDataBit(s_gpio_ports[port_idx], 1UL << pin) != Bit_RESET) ? 1 : 0;
 }
 
-/* ========== ÖÐ¶ÏÅäÖÃ ========== */
+/* ========== ï¿½Ð¶ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 void Hal_GPIO_IRQ_Config(uint32_t pin_enc, Hal_GPIO_IRQ_Trigger_t trigger,
                          uint8_t preempt_priority, uint8_t sub_priority,
                          void (*callback)(void)) {
     uint8_t pin = get_pin_num(pin_enc);
     if (pin > 15) return;
 
-    /* ±£´æ»Øµ÷º¯Êý */
+    /* ï¿½ï¿½ï¿½ï¿½Øµï¿½ï¿½ï¿½ï¿½ï¿½ */
     s_exti_callback[pin] = callback;
 
-    /* ½« GPIO Òý½ÅÁ¬½Óµ½ EXTI Ïß */
+    /* ï¿½ï¿½ GPIO ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Óµï¿½ EXTI ï¿½ï¿½ */
     GPIO_EXTILineConfig(get_port_idx(pin_enc), pin);
 
-    /* ÅäÖÃ EXTI ÖÐ¶Ï²ÎÊý */
+    /* ï¿½ï¿½ï¿½ï¿½ EXTI ï¿½Ð¶Ï²ï¿½ï¿½ï¿½ */
     EXTI_InitTypeDef exti_init = {0};
     exti_init.EXTI_Line = 1UL << pin;
     exti_init.EXTI_Mode = EXTI_Mode_Interrupt;
@@ -148,12 +148,12 @@ void Hal_GPIO_IRQ_Config(uint32_t pin_enc, Hal_GPIO_IRQ_Trigger_t trigger,
     }
     EXTI_Init(&exti_init);
 
-    /* Çå¿Õ¿ÉÄÜµÄÀúÊ·¹ÒÆðÎ» */
+    /* ï¿½ï¿½Õ¿ï¿½ï¿½Üµï¿½ï¿½ï¿½Ê·ï¿½ï¿½ï¿½ï¿½Î» */
     EXTI_ClearITPendingBit(1UL << pin);
 
-    /* ÅäÖÃ NVIC ÖÐ¶ÏÓÅÏÈ¼¶ºÍÊ¹ÄÜ */
+    /* ï¿½ï¿½ï¿½ï¿½ NVIC ï¿½Ð¶ï¿½ï¿½ï¿½ï¿½È¼ï¿½ï¿½ï¿½Ê¹ï¿½ï¿½ */
     IRQn_Type irq_num = (pin <= 7) ? EXTI7_0_IRQn : EXTI15_8_IRQn;
-    uint8_t priority = (preempt_priority << 4) | (sub_priority & 0x0F);
+    uint8_t priority = (preempt_priority << 7) | (sub_priority << 4);
     NVIC_SetPriority(irq_num, priority);
     NVIC_EnableIRQ(irq_num);
 }
@@ -180,7 +180,7 @@ void Hal_GPIO_IRQ_ClearPending(uint32_t pin_enc) {
     }
 }
 
-/* ========== ÖÐ¶Ï·þÎñº¯Êý£¨CH32H417 Ö»ÓÐÁ½¸ö EXTI ÖÐ¶ÏÏòÁ¿£© ========== */
+/* ========== ï¿½Ð¶Ï·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CH32H417 Ö»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ EXTI ï¿½Ð¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 void EXTI7_0_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 void EXTI7_0_IRQHandler(void) {
     uint32_t pending = EXTI->INTFR & 0xFF;

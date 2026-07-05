@@ -1,18 +1,18 @@
 #include "Serial.h"
-#include "Config.h"          // ÒýÈëËùÓÐÅäÖÃºê
-/* ========== RX »º³åÇø ========== */
+#include "Config.h"          // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ãºï¿½
+/* ========== RX ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 static uint8_t USART_Debug_RxPacket[SERIAL_DEBUG_RX_BUF_SIZE];
 static uint8_t USART_Debug_RxPacketBuf[SERIAL_DEBUG_RX_BUF_SIZE];
 
 static uint8_t USART_Wifi_RxPacket[SERIAL_WIFI_RX_BUF_SIZE];
 static uint8_t USART_Wifi_RxPacketBuf[SERIAL_WIFI_RX_BUF_SIZE];
 
-/* ========== TX »·ÐÎ»º³åÇø ========== */
+/* ========== TX ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 static uint8_t USART_Debug_TxRing[SERIAL_DEBUG_TX_RING_SIZE];
 static uint8_t USART_Wifi_TxRing[SERIAL_WIFI_TX_RING_SIZE];
 
 
-/* ========== ¿ØÖÆ¿é ========== */
+/* ========== ï¿½ï¿½ï¿½Æ¿ï¿½ ========== */
 Serial_CtrlBlock Serial_Ctrl[2] = {
     [SERIAL_PORT_DEBUG] = {
         .UARTx          = SERIAL_DEBUG_USART_INSTANCE,
@@ -66,7 +66,7 @@ Serial_CtrlBlock Serial_Ctrl[2] = {
     }
 };
 
-/* ========== Ë½ÓÐº¯ÊýÉùÃ÷ ========== */
+/* ========== Ë½ï¿½Ðºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 static void Serial_Clock_Init(Serial_Port port);
 static void Serial_GPIO_Init(Serial_Port port);
 static void Serial_USART_Init(Serial_Port port);
@@ -81,10 +81,10 @@ static void Serial_TxDMA_Done(Serial_Port port);
 
 static void USART_IRQ_Handler(Serial_Port port);
 
-/* ========== Ê±ÖÓ³õÊ¼»¯ ========== */
+/* ========== Ê±ï¿½Ó³ï¿½Ê¼ï¿½ï¿½ ========== */
 static void Serial_Clock_Init(Serial_Port port)
 {
-    /* Ê¹ÄÜ AFIO Ê±ÖÓ */
+    /* Ê¹ï¿½ï¿½ AFIO Ê±ï¿½ï¿½ */
     AFIO_ClockEnable();
     if (port == SERIAL_PORT_DEBUG) {
         USART_ClockEnable(SERIAL_DEBUG_USART_INSTANCE);
@@ -99,14 +99,14 @@ static void Serial_Clock_Init(Serial_Port port)
     }
 }
 
-/* ========== GPIO ³õÊ¼»¯£¨Ê¹ÓÃ Hal_GPIO£© ========== */
+/* ========== GPIO ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½Ê¹ï¿½ï¿½ Hal_GPIOï¿½ï¿½ ========== */
 static void Serial_GPIO_Init(Serial_Port port)
 {
     if (port == SERIAL_PORT_DEBUG) {
-        /* TX Òý½Å£º¸´ÓÃÍÆÍì */
+        /* TX ï¿½ï¿½ï¿½Å£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
         Hal_GPIO_Init(SERIAL_DEBUG_TX_PIN_ENC, HAL_GPIO_MODE_AF_PP,
                       HAL_GPIO_SPEED_VERY_HIGH, SERIAL_DEBUG_TX_AF);
-        /* RX Òý½Å£ºÉÏÀ­ÊäÈë */
+        /* RX ï¿½ï¿½ï¿½Å£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
         Hal_GPIO_Init(SERIAL_DEBUG_RX_PIN_ENC, HAL_GPIO_MODE_AF_PP,
                       HAL_GPIO_SPEED_VERY_HIGH, SERIAL_DEBUG_RX_AF);
     } else {
@@ -117,7 +117,7 @@ static void Serial_GPIO_Init(Serial_Port port)
     }
 }
 
-/* ========== USART ³õÊ¼»¯ ========== */
+/* ========== USART ï¿½ï¿½Ê¼ï¿½ï¿½ ========== */
 static void Serial_USART_Init(Serial_Port port)
 {
     USART_InitTypeDef s = {0};
@@ -133,7 +133,7 @@ static void Serial_USART_Init(Serial_Port port)
     USART_Init(p->UARTx, &s);
 }
 
-/* ========== RX DMA ³õÊ¼»¯ ========== */
+/* ========== RX DMA ï¿½ï¿½Ê¼ï¿½ï¿½ ========== */
 static void Serial_RX_DMA_Init(Serial_Port port)
 {
     Serial_CtrlBlock *p = &Serial_Ctrl[port];
@@ -157,7 +157,7 @@ static void Serial_RX_DMA_Init(Serial_Port port)
     DMA_MuxChannelConfig(p->RxDMAMUX_Channel, p->RxDMA_Request);
 }
 
-/* ========== TX DMA ³õÊ¼»¯ ========== */
+/* ========== TX DMA ï¿½ï¿½Ê¼ï¿½ï¿½ ========== */
 static void Serial_TX_DMA_Init(Serial_Port port)
 {
     Serial_CtrlBlock *p = &Serial_Ctrl[port];
@@ -184,26 +184,26 @@ static void Serial_TX_DMA_Init(Serial_Port port)
     DMA_ITConfig(p->TxDMA_Channel, DMA_IT_TE, ENABLE);
 }
 
-/* ========== NVIC ³õÊ¼»¯ ========== */
+/* ========== NVIC ï¿½ï¿½Ê¼ï¿½ï¿½ ========== */
 static void Serial_NVIC_Init(Serial_Port port)
 {
     USART_ITConfig(Serial_Ctrl[port].UARTx, USART_IT_IDLE, ENABLE);
 
     if (port == SERIAL_PORT_DEBUG) {
-        NVIC_SetPriority(SERIAL_DEBUG_USART_IRQn, 1);      
+        NVIC_SetPriority(SERIAL_DEBUG_USART_IRQn, (1 << 7) | (2 << 4));
         NVIC_EnableIRQ(SERIAL_DEBUG_USART_IRQn);
-        NVIC_SetPriority(SERIAL_DEBUG_TX_DMA_IRQn, 2);    
+        NVIC_SetPriority(SERIAL_DEBUG_TX_DMA_IRQn, (1 << 7) | (3 << 4));
         NVIC_EnableIRQ(SERIAL_DEBUG_TX_DMA_IRQn);
     } else {
-        NVIC_SetPriority(SERIAL_WIFI_USART_IRQn, 1);
+        NVIC_SetPriority(SERIAL_WIFI_USART_IRQn, (1 << 7) | (2 << 4));
         NVIC_EnableIRQ(SERIAL_WIFI_USART_IRQn);
-        NVIC_SetPriority(SERIAL_WIFI_TX_DMA_IRQn, 2);
+        NVIC_SetPriority(SERIAL_WIFI_TX_DMA_IRQn, (1 << 7) | (3 << 4));
         NVIC_EnableIRQ(SERIAL_WIFI_TX_DMA_IRQn);
     }
 }
 
 
-/* ========== Æô¶¯ USART + RX DMA ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ USART + RX DMA ========== */
 static void Serial_CMD_Init(Serial_Port port)
 {
     Serial_CtrlBlock *p = &Serial_Ctrl[port];
@@ -216,7 +216,7 @@ static void Serial_CMD_Init(Serial_Port port)
     USART_Cmd(p->UARTx, ENABLE);
 }
 
-/* ========== ¹«¹²³õÊ¼»¯ ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ ========== */
 void Serial_Init(Serial_Port port)
 {
     Serial_Clock_Init(port);
@@ -228,7 +228,7 @@ void Serial_Init(Serial_Port port)
     Serial_CMD_Init(port);
 }
 
-/* ========== ×èÈû·¢ËÍº¯Êý£º±£Áô ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Íºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 void Serial_SendByte(Serial_Port port, uint8_t byte)
 {
     USART_SendData(Serial_Ctrl[port].UARTx, byte);
@@ -263,7 +263,7 @@ void Serial_SendNumber(Serial_Port port, uint32_t number, uint8_t len)
     }
 }
 
-/* ========== TX ring Ê¹ÓÃÁ¿ ========== */
+/* ========== TX ring Ê¹ï¿½ï¿½ï¿½ï¿½ ========== */
 static uint16_t Serial_TxUsedRaw(Serial_CtrlBlock *p)
 {
     if (p->TxHead >= p->TxTail) {
@@ -290,7 +290,7 @@ uint8_t Serial_IsTxBusy(Serial_Port port)
     return Serial_Ctrl[port].TxBusy;
 }
 
-/* ========== Æô¶¯Ò»´Î DMA ·¢ËÍ ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ DMA ï¿½ï¿½ï¿½ï¿½ ========== */
 static void Serial_TxKick(Serial_Port port)
 {
     Serial_CtrlBlock *p = &Serial_Ctrl[port];
@@ -332,7 +332,7 @@ static void Serial_TxKick(Serial_Port port)
     DMA_Cmd(p->TxDMA_Channel, ENABLE);
 }
 
-/* ========== DMA ·Ç×èÈû·¢ËÍ ========== */
+/* ========== DMA ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 uint16_t Serial_SendArray_DMA(Serial_Port port, const uint8_t *array, uint16_t len)
 {
     Serial_CtrlBlock *p = &Serial_Ctrl[port];
@@ -367,7 +367,7 @@ uint16_t Serial_SendArray_DMA(Serial_Port port, const uint8_t *array, uint16_t l
     return len;
 }
 
-/* ========== printf£ºÄ¬ÈÏ×ß DMA ========== */
+/* ========== printfï¿½ï¿½Ä¬ï¿½ï¿½ï¿½ï¿½ DMA ========== */
 void Serial_Printf(Serial_Port port, char *format, ...)
 {
     char buf[TX_BUF_SIZE];
@@ -408,7 +408,7 @@ void Serial_Dbg_Printf(char *format, ...)
     (void)Serial_SendArray_DMA(SERIAL_PORT_DEBUG, (const uint8_t *)buf, (uint16_t)len);
 }
 
-/* ========== ½ÓÊÕ²éÑ¯ ========== */
+/* ========== ï¿½ï¿½ï¿½Õ²ï¿½Ñ¯ ========== */
 uint8_t Serial_IsDataReady(Serial_Port port)
 {
     return Serial_Ctrl[port].DataReady;
@@ -427,7 +427,7 @@ uint16_t Serial_GetDataPacket(Serial_Port port, uint8_t **buf)
     return 0;
 }
 
-/* ========== USART IDLE ÖÐ¶Ï´¦Àí ========== */
+/* ========== USART IDLE ï¿½Ð¶Ï´ï¿½ï¿½ï¿½ ========== */
 static void USART_IRQ_Handler(Serial_Port port)
 {
     Serial_CtrlBlock *p = &Serial_Ctrl[port];
@@ -453,7 +453,7 @@ static void USART_IRQ_Handler(Serial_Port port)
         DMA_SetCurrDataCounter(p->RxDMA_Channel, p->RxBufSize);
 
         /*
-         * Èç¹ûÄãµÄ DMA_Channel_TypeDef Ã»ÓÐ MADDR ×Ö¶Î£¬ÕâÀïÒ²ÒªÍ¬²½ÐÞ¸Ä¡£
+         * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ DMA_Channel_TypeDef Ã»ï¿½ï¿½ MADDR ï¿½Ö¶Î£ï¿½ï¿½ï¿½ï¿½ï¿½Ò²ÒªÍ¬ï¿½ï¿½ï¿½Þ¸Ä¡ï¿½
          */
         p->RxDMA_Channel->MADDR = (uint32_t)p->RxPacket;
 
@@ -461,7 +461,7 @@ static void USART_IRQ_Handler(Serial_Port port)
     }
 }
 
-/* ========== TX DMA Íê³É´¦Àí ========== */
+/* ========== TX DMA ï¿½ï¿½É´ï¿½ï¿½ï¿½ ========== */
 static void Serial_TxDMA_Done(Serial_Port port)
 {
     Serial_CtrlBlock *p = &Serial_Ctrl[port];
@@ -480,7 +480,7 @@ static void Serial_TxDMA_Done(Serial_Port port)
     Serial_TxKick(port);
 }
 
-/* ========== USART ÖÐ¶Ïº¯Êý ========== */
+/* ========== USART ï¿½Ð¶Ïºï¿½ï¿½ï¿½ ========== */
 void USART1_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 void USART1_IRQHandler(void)
 {
@@ -493,7 +493,7 @@ void USART2_IRQHandler(void)
     USART_IRQ_Handler(SERIAL_PORT_WIFI);
 }
 
-/* ========== DMA TX ÖÐ¶Ïº¯Êý£¨Ê¹ÓÃÅäÖÃºê£© ========== */
+/* ========== DMA TX ï¿½Ð¶Ïºï¿½ï¿½ï¿½ï¿½ï¿½Ê¹ï¿½ï¿½ï¿½ï¿½ï¿½Ãºê£© ========== */
 void DMA1_Channel4_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 void DMA1_Channel4_IRQHandler(void)
 {

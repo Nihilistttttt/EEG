@@ -46,9 +46,10 @@ void Timer_1ms_Init(void)
     TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
 
     /*
-     * 优先级不要高于ADS1299的DRDY/DMA中断。
+     * V3F 2级嵌套: (preempt<<7)|(sub<<4)
+     * 抢占1(低), 子优先级4: 低于ADS1299 DMA(子0)和IPC(子1)
      */
-    NVIC_SetPriority(TIM2_IRQn, 2);
+    NVIC_SetPriority(TIM2_IRQn, (1 << 7) | (4 << 4));
     NVIC_EnableIRQ(TIM2_IRQn);
 
     TIM_Cmd(TIM2, ENABLE);

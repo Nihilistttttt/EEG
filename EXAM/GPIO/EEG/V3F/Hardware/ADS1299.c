@@ -213,10 +213,10 @@ static void ADS1299_DMA_Init (void) {
     DMA_ClearITPendingBit (ADS1299_DMA_INSTANCE, ADS1299_TX_DMA_TC_FLAG);
     DMA_ClearITPendingBit (ADS1299_DMA_INSTANCE, ADS1299_TX_DMA_TE_FLAG);
 
-    NVIC_SetPriority (ADS1299_RX_DMA_IRQn, 1);
+    NVIC_SetPriority (ADS1299_RX_DMA_IRQn, (1 << 7) | (0 << 4));
     NVIC_EnableIRQ (ADS1299_RX_DMA_IRQn);
 
-    NVIC_SetPriority (ADS1299_TX_DMA_IRQn, 1);
+    NVIC_SetPriority (ADS1299_TX_DMA_IRQn, (1 << 7) | (0 << 4));
     NVIC_EnableIRQ (ADS1299_TX_DMA_IRQn);
 
     g_ads1299_spi_dma_busy = 0;

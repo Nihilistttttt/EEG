@@ -1149,13 +1149,14 @@ static void ICM42605_DMA_Init(void)
     DMA_ClearITPendingBit(ICM42605_DMA_INSTANCE, ICM42605_TX_DMA_TE_FLAG);
 
     /*
-     * ADS1299 DMA优先级建议为1。
-     * ICM DMA完成中断放低一些，避免抢脑电DMA。
+     * V3F 2级嵌套: (preempt<<7)|(sub<<4)
+     * ADS1299 DRDY: 抢占0(最高), ADS1299 DMA: 抢占1子0
+     * ICM DMA: 抢占1子5, 低于脑电DMA
      */
-    NVIC_SetPriority(ICM42605_RX_DMA_IRQn, 3);
+    NVIC_SetPriority(ICM42605_RX_DMA_IRQn, (1 << 7) | (5 << 4));
     NVIC_EnableIRQ(ICM42605_RX_DMA_IRQn);
 
-    NVIC_SetPriority(ICM42605_TX_DMA_IRQn, 3);
+    NVIC_SetPriority(ICM42605_TX_DMA_IRQn, (1 << 7) | (5 << 4));
     NVIC_EnableIRQ(ICM42605_TX_DMA_IRQn);
 }
 

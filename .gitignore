@@ -1,0 +1,50 @@
+# ============ Build Artifacts ============
+**/obj/
+**/*.o
+**/*.d
+**/*.elf
+**/*.bin
+**/*.hex
+**/*.map
+**/*.lst
+**/*.su
+
+# ============ IDE Cache ============
+.arts/
+.codeartsdoer/
+.merkle-snapshot.json
+**/.mrs/
+**/.settings/
+**/.classpath
+**/.project
+
+# ============ Python ============
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# ============ Android Build ============
+**/build/
+**/.gradle/
+**/local.properties
+**/*.apk
+**/*.aab
+
+# ============ Large Binary / Training Data ============
+direction_24d_pycharm/data/
+python_csp/data/
+*.joblib
+
+# ============ PDF Manuals ============
+*.pdf
+
+# ============ System Files ============
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# ============ Backup Folders ============
+EEG_BAK_*/

@@ -1,0 +1,168 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/surface_base"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/channel_container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical" />
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="6dp"
+        app:cardElevation="3dp"
+        app:cardBackgroundColor="@color/surface_mid"
+        app:strokeColor="@color/surface_overlay"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp">
+
+            <View
+                android:id="@+id/status_indicator"
+                android:layout_width="6dp"
+                android:layout_height="6dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/bg_status_indicator" />
+
+            <TextView
+                android:id="@+id/tv_status"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="2"
+                android:text="等待连接..."
+                android:textColor="@color/text_secondary"
+                android:textSize="10sp" />
+
+            <TextView
+                android:text="X轴"
+                style="@style/ControlLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:id="@+id/tv_x_range"
+                style="@style/ParamChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="2.05 s" />
+
+            <TextView
+                android:text="波形"
+                style="@style/ControlLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp" />
+
+            <TextView
+                android:id="@+id/tv_wave_label_count"
+                style="@style/ParamChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="7" />
+
+            <TextView
+                android:text="x"
+                style="@style/ControlLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:id="@+id/tv_wave_range"
+                style="@style/ParamChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="500uV" />
+
+            <TextView
+                android:text="频谱"
+                style="@style/ControlLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp" />
+
+            <TextView
+                android:id="@+id/tv_spectrum_range"
+                style="@style/ParamChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="500 uV" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="20dp"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:background="@color/surface_overlay" />
+
+            <TextView
+                android:id="@+id/tv_instant_state"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="瞬时: -"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                android:id="@+id/tv_trend_state"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="趋势: -"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_pause_resume"
+                style="@style/ControlButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:minWidth="52dp"
+                android:text="暂停"
+                android:textSize="12sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_set_ip"
+                style="@style/ControlButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:minWidth="52dp"
+                android:layout_marginStart="4dp"
+                android:text="UDP"
+                android:textSize="12sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_training"
+                style="@style/ControlButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:minWidth="52dp"
+                android:layout_marginStart="4dp"
+                android:text="训练"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</LinearLayout>

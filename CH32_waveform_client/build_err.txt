@@ -1,0 +1,77 @@
+﻿> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:compileDebugAidl NO-SOURCE
+> Task :app:compileDebugRenderscript NO-SOURCE
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+
+> Task :app:compileDebugJavaWithJavac FAILED
+gradlew.bat : D:\Libraries\Projects\AndroidStudioProjects\CH32_waveform\app\src\main\java\com\nihilisttt\udptest\GameFr
+agment.java:117: 错误: 无法为最终变量canvasBgPaint分配值
+所在位置 行:1 字符: 90
++ ... udio\\jre"; & "D:\\Libraries\\Projects\\AndroidStudioProjects\\CH32_w ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (D:\Libraries\Pr...anvasBgPaint分配值:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+            canvasBgPaint = new Paint();
+            ^
+D:\Libraries\Projects\AndroidStudioProjects\CH32_waveform\app\src\main\java\com\nihilisttt\udptest\GameFragment.java:12
+1: 错误: 无法为最终变量notePaint分配值
+            notePaint = new Paint();
+            ^
+D:\Libraries\Projects\AndroidStudioProjects\CH32_waveform\app\src\main\java\com\nihilisttt\udptest\GameFragment.java:12
+6: 错误: 无法为最终变量linePaint分配值
+            linePaint = new Paint();
+            ^
+D:\Libraries\Projects\AndroidStudioProjects\CH32_waveform\app\src\main\java\com\nihilisttt\udptest\GameFragment.java:13
+1: 错误: 无法为最终变量textPaint分配值
+            textPaint = new Paint();
+            ^
+D:\Libraries\Projects\AndroidStudioProjects\CH32_waveform\app\src\main\java\com\nihilisttt\udptest\GameFragment.java:13
+6: 错误: 无法为最终变量lifePaint分配值
+            lifePaint = new Paint();
+            ^
+D:\Libraries\Projects\AndroidStudioProjects\CH32_waveform\app\src\main\java\com\nihilisttt\udptest\GameFragment.java:14
+1: 错误: 无法为最终变量speedPaint分配值
+            speedPaint = new Paint();
+            ^
+D:\Libraries\Projects\AndroidStudioProjects\CH32_waveform\app\src\main\java\com\nihilisttt\udptest\MonitorFragment.java
+:118: 错误: 不兼容的类型: 从float转换到int可能会有损失
+            waveCard.setStrokeWidth(0.5f);
+                                    ^
+D:\Libraries\Projects\AndroidStudioProjects\CH32_waveform\app\src\main\java\com\nihilisttt\udptest\MonitorFragment.java
+:186: 错误: 不兼容的类型: 从float转换到int可能会有损失
+                specCard.setStrokeWidth(0.5f);
+                                        ^
+注: 某些消息已经过简化; 请使用 -Xdiags:verbose 重新编译以获得完整输出
+8 个错误
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugJavaWithJavac'.
+> Compilation failed; see the compiler error output for details.
+
+* Try:
+Run with --stacktrace option to get the stack trace. Run with --info or --debug option to get more log output. Run with
+ --scan to get full insights.
+
+* Get more help at https://help.gradle.org
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 8.0.
+Use '--warning-mode all' to show the individual deprecation warnings.
+See https://docs.gradle.org/7.0.2/userguide/command_line_interface.html#sec:command_line_warnings
+
+BUILD FAILED in 3s
+12 actionable tasks: 1 executed, 11 up-to-date

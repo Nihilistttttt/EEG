@@ -159,6 +159,8 @@ static volatile uint32_t g_ipc_v5f_last_checksum   = 0;
 static volatile uint32_t g_ipc_v5f_window_count    = 0;
 static volatile uint16_t g_ipc_v5f_window_samples  = 0;
 static volatile uint8_t  g_ipc_v5f_ready           = 0;
+static volatile uint8_t  g_ipc_v5f_pending_flag    = 0;
+static volatile uint32_t g_ipc_v5f_pending_share_addr = 0;
 static volatile uint8_t  g_ipc_v5f_last_frame[DUALCORE_IPC_FRAME_LEN];
 static volatile uint32_t g_ipc_v5f_fft_count = 0;
 static volatile uint8_t  g_ipc_v5f_feature_valid = 0;
@@ -815,6 +817,101 @@ static void DualCore_V5F_ProcessPreprocess(volatile DualCore_IPC_FrameSlot_t *sl
     slot->v5f_confidence = g_ipc_v5f_confidence;
     slot->v5f_infer_count = g_ipc_v5f_infer_count;
 }
+
+void DualCore_V5F_MainLoopProcess(void)
+{
+    uint32_t share_addr;
+    uint16_t checksum = 0;
+    uint32_t seq = 0;
+    uint32_t latest_seq = 0;
+    uint32_t start_seq = 0;
+    uint32_t latest_idx = 0;
+    uint32_t status = 0;
+    int32_t ch_data[DUALCORE_ADS1299_CHANNEL_NUM];
+    uint16_t i;
+    uint16_t c;
+    uint8_t processed_any = 0u;
+
+    if (!g_ipc_v5f_pending_flag) {
+        return;
+    }
+
+    g_ipc_v5f_pending_flag = 0u;
+    share_addr = g_ipc_v5f_pending_share_addr;
+
+    if (share_addr < 0x20110000u || share_addr > 0x2017FFFFu) {
+        share_addr = 0u;
+    }
+
+    if (g_ipc_v5f_ready && share_addr != 0u) {
+        volatile DualCore_IPC_FrameSlot_t *latest_slot = (volatile DualCore_IPC_FrameSlot_t *)share_addr;
+        volatile DualCore_IPC_FrameSlot_t *base_slot;
+
+        DUALCORE_FENCE();
+
+        latest_seq = latest_slot->seq;
+        latest_idx = latest_seq % DUALCORE_IPC_FRAME_SLOT_NUM;
+        base_slot = latest_slot - latest_idx;
+
+        start_seq = g_ipc_v5f_last_seq + 1u;
+        if (latest_seq >= DUALCORE_IPC_FRAME_SLOT_NUM) {
+            uint32_t oldest_valid_seq = latest_seq - DUALCORE_IPC_FRAME_SLOT_NUM + 1u;
+            if (start_seq < oldest_valid_seq) {
+                start_seq = oldest_valid_seq;
+            }
+        }
+
+        for (seq = start_seq; seq <= latest_seq; seq++) {
+            volatile DualCore_IPC_FrameSlot_t *slot = &base_slot[seq % DUALCORE_IPC_FRAME_SLOT_NUM];
+
+            DUALCORE_FENCE();
+            if (slot->seq != seq) {
+                continue;
+            }
+
+            for (i = 0; i < DUALCORE_IPC_FRAME_LEN; i++) {
+                g_ipc_v5f_last_frame[i] = slot->frame[i];
+            }
+
+            checksum = DualCore_IPC_Checksum16(g_ipc_v5f_last_frame, DUALCORE_IPC_FRAME_LEN);
+            DualCore_ADS1299_ParseRawFrame(g_ipc_v5f_last_frame, &status, ch_data);
+
+            g_ipc_v5f_recv_count++;
+
+            slot->v5f_status = status;
+            for (c = 0; c < DUALCORE_ADS1299_ACTIVE_CH_NUM; c++) {
+                slot->v5f_ch_code[c] = ch_data[c];
+            }
+
+            DualCore_V5F_ProcessPreprocess(slot, ch_data);
+
+            DUALCORE_FENCE();
+            slot->v5f_parse_valid = 1u;
+
+            g_ipc_v5f_last_seq = seq;
+            g_ipc_v5f_last_checksum = checksum;
+            processed_any = 1u;
+        }
+
+        if (!processed_any) {
+            seq = latest_seq;
+            checksum = 0xDDDDu;
+        } else {
+            seq = g_ipc_v5f_last_seq;
+            checksum = (uint16_t)g_ipc_v5f_last_checksum;
+        }
+    } else {
+        checksum = 0xEEEEu;
+        seq = 0u;
+    }
+
+    IPC_WriteMSG(IPC_MSG0, (((uint32_t)checksum) << 16) | (seq & 0x0000FFFFu));
+
+    DUALCORE_FENCE();
+
+    IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, ENABLE);
+    IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, ENABLE);
+}
 #endif
 
 void IPC_Config(IPC_Channel_TypeDef IPC_CHx, IPC_TxCID_TypeDef IPC_TxCIDx, IPC_RxCID_TypeDef IPC_RxCIDx)
@@ -933,12 +1030,20 @@ void DualCore_IPC_Init_V5F(void)
     g_ipc_v5f_ready = 0;
     g_ipc_v5f_window_count = 0;
     g_ipc_v5f_window_samples = 0;
+    g_ipc_v5f_pending_flag = 0;
+    g_ipc_v5f_pending_share_addr = 0;
 
     for (i = 0; i < DUALCORE_IPC_FRAME_LEN; i++) {
         g_ipc_v5f_last_frame[i] = 0;
     }
 
     DualCore_V5F_ResetDSP();
+
+    IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, DISABLE);
+    IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, DISABLE);
+    IPC_ClearFlagStatus(IPC_CH0, IPC_CH_Sta_Bit0);
+    IPC_ClearFlagStatus(IPC_CH0, IPC_CH_Sta_Bit1);
+    NVIC_ClearPendingIRQ(IPC_CH0_IRQn);
 
     NVIC_SetPriority(IPC_CH0_IRQn, 0 << 5);
     NVIC_EnableIRQ(IPC_CH0_IRQn);
@@ -1154,88 +1259,17 @@ void IPC_CH0_Handler(void)
     }
 
 #elif defined(Core_V5F)
-    if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit1) != RESET) {
-        uint32_t share_addr = IPC_ReadMSG(IPC_MSG0);
-        uint16_t checksum = 0;
-        uint32_t seq = 0;
-        uint32_t latest_seq = 0;
-        uint32_t start_seq = 0;
-        uint32_t latest_idx = 0;
-        uint32_t status = 0;
-        int32_t ch_data[DUALCORE_ADS1299_CHANNEL_NUM];
-        uint16_t i;
-        uint16_t c;
-        uint8_t processed_any = 0u;
-
-        if (g_ipc_v5f_ready && share_addr != 0u) {
-            volatile DualCore_IPC_FrameSlot_t *latest_slot = (volatile DualCore_IPC_FrameSlot_t *)share_addr;
-            volatile DualCore_IPC_FrameSlot_t *base_slot;
-
-            DUALCORE_FENCE();
-
-            latest_seq = latest_slot->seq;
-            latest_idx = latest_seq % DUALCORE_IPC_FRAME_SLOT_NUM;
-            base_slot = latest_slot - latest_idx;
-
-            start_seq = g_ipc_v5f_last_seq + 1u;
-            if (latest_seq >= DUALCORE_IPC_FRAME_SLOT_NUM) {
-                uint32_t oldest_valid_seq = latest_seq - DUALCORE_IPC_FRAME_SLOT_NUM + 1u;
-                if (start_seq < oldest_valid_seq) {
-                    start_seq = oldest_valid_seq;
-                }
-            }
-
-            for (seq = start_seq; seq <= latest_seq; seq++) {
-                volatile DualCore_IPC_FrameSlot_t *slot = &base_slot[seq % DUALCORE_IPC_FRAME_SLOT_NUM];
-
-                DUALCORE_FENCE();
-                if (slot->seq != seq) {
-                    continue;
-                }
-
-                for (i = 0; i < DUALCORE_IPC_FRAME_LEN; i++) {
-                    g_ipc_v5f_last_frame[i] = slot->frame[i];
-                }
-
-                checksum = DualCore_IPC_Checksum16(g_ipc_v5f_last_frame, DUALCORE_IPC_FRAME_LEN);
-                DualCore_ADS1299_ParseRawFrame(g_ipc_v5f_last_frame, &status, ch_data);
-
-                g_ipc_v5f_recv_count++;
-
-                slot->v5f_status = status;
-                for (c = 0; c < DUALCORE_ADS1299_ACTIVE_CH_NUM; c++) {
-                    slot->v5f_ch_code[c] = ch_data[c];
-                }
-
-                DualCore_V5F_ProcessPreprocess(slot, ch_data);
-
-                DUALCORE_FENCE();
-                slot->v5f_parse_valid = 1u;
-
-                g_ipc_v5f_last_seq = seq;
-                g_ipc_v5f_last_checksum = checksum;
-                processed_any = 1u;
-            }
-
-            if (!processed_any) {
-                seq = latest_seq;
-                checksum = 0xDDDDu;
-            } else {
-                seq = g_ipc_v5f_last_seq;
-                checksum = (uint16_t)g_ipc_v5f_last_checksum;
-            }
-        } else {
-            checksum = 0xEEEEu;
-            seq = 0u;
-        }
-
-        IPC_WriteMSG(IPC_MSG0, (((uint32_t)checksum) << 16) | (seq & 0x0000FFFFu));
-
-        DUALCORE_FENCE();
-
-        IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, DISABLE);
-        IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, ENABLE);
+    if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit0) != RESET) {
+        IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, DISABLE);
     }
+    if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit1) != RESET) {
+        uint32_t addr = IPC_ReadMSG(IPC_MSG0);
+        if (addr >= 0x20110000u && addr <= 0x2017FFFFu) {
+            g_ipc_v5f_pending_share_addr = addr;
+            g_ipc_v5f_pending_flag = 1u;
+        }
+    }
+    IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, DISABLE);
 #endif
 }
 

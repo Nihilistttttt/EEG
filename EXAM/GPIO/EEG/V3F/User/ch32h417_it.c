@@ -10,17 +10,12 @@
 * microcontroller manufactured by Nanjing Qinheng Microelectronics.
 *******************************************************************************/
 #include "ch32h417_it.h"
+#include "debug.h"
+#include "Serial.h"
 
 void NMI_Handler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 void HardFault_Handler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 
-/*********************************************************************
- * @fn      NMI_Handler
- *
- * @brief   This function handles NMI exception.
- *
- * @return  none
- */
 void NMI_Handler(void)
 {
   while (1)
@@ -28,15 +23,17 @@ void NMI_Handler(void)
   }
 }
 
-/*********************************************************************
- * @fn      HardFault_Handler
- *
- * @brief   This function handles Hard Fault exception.
- *
- * @return  none
- */
 void HardFault_Handler(void)
 {
+  uint32_t mepc   = __get_MEPC();
+  uint32_t mcause = __get_MCAUSE();
+  uint32_t mtval  = __get_MTVAL();
+
+  Serial_Init(SERIAL_PORT_DEBUG);
+  Serial_Printf(SERIAL_PORT_DEBUG, "\r\n[V3F HardFault] MEPC=0x%08lX MCAUSE=0x%08lX MTVAL=0x%08lX\r\n",
+                (unsigned long)mepc, (unsigned long)mcause, (unsigned long)mtval);
+
+  Delay_Ms(100);
   NVIC_SystemReset();
   while (1)
   {

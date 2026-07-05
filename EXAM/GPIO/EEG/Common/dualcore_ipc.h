@@ -20,6 +20,7 @@ void DualCore_IPC_Init_V3F(void);
 void DualCore_IPC_Init_V5F(void);
 void DualCore_IPC_NotifyFromV3F(void);
 void DualCore_IPC_SendFrameFromV3F(const uint8_t *frame, uint16_t len);
+void DualCore_V5F_MainLoopProcess(void);
 
 uint32_t DualCore_IPC_GetNotifyCount(void);
 uint32_t DualCore_IPC_GetAckCount(void);

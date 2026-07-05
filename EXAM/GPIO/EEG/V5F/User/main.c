@@ -32,5 +32,6 @@ int main(void)
 
     while (1)
     {
+        DualCore_V5F_MainLoopProcess();
     }
 }

@@ -10,17 +10,13 @@
 * microcontroller manufactured by Nanjing Qinheng Microelectronics.
 *******************************************************************************/
 #include "ch32h417_it.h"
+#include "ch32h417_ipc.h"
+
+#define V5F_FAULT_MAGIC  0xDEADF00Du
 
 void NMI_Handler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 void HardFault_Handler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 
-/*********************************************************************
- * @fn      NMI_Handler
- *
- * @brief   This function handles NMI exception.
- *
- * @return  none
- */
 void NMI_Handler(void)
 {
   while (1)
@@ -28,15 +24,16 @@ void NMI_Handler(void)
   }
 }
 
-/*********************************************************************
- * @fn      HardFault_Handler
- *
- * @brief   This function handles Hard Fault exception.
- *
- * @return  none
- */
 void HardFault_Handler(void)
 {
+  uint32_t mepc   = __get_MEPC();
+  uint32_t mcause = __get_MCAUSE();
+  uint32_t mtval  = __get_MTVAL();
+
+  IPC_WriteMSG(IPC_MSG2, V5F_FAULT_MAGIC);
+  IPC_WriteMSG(IPC_MSG3, mepc);
+  IPC_WriteMSG(IPC_MSG1, mtval);
+  __asm volatile ("fence iorw, iorw" ::: "memory");
   NVIC_SystemReset();
   while (1)
   {

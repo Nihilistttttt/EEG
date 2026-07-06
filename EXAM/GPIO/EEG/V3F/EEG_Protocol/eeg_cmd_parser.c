@@ -89,6 +89,7 @@ void Parse_Command(const char *cmd)
     if (strcmp(clean_cmd, "STOP") == 0) {
         g_trial_state = TRIAL_DONE;
         g_paused = 1;
+        EEG_FFT_ResetInferState();
         Serial_Printf(SERIAL_PORT_DEBUG, "TASK,STOPPED\r\n");
         return;
     }

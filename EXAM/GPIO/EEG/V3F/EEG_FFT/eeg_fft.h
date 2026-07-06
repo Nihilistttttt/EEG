@@ -54,6 +54,7 @@ typedef struct {
 } FFT_Data_t;
 
 typedef struct {
+    int DeltaStart, DeltaEnd;
     int ThetaStart, ThetaEnd;
     int AlphaStart, AlphaEnd;
     int BetaStart, BetaEnd;
@@ -96,14 +97,14 @@ extern RingBuffer_t RingBufFiltered;
 extern FFT_Data_t FFT_Data;
 extern FFT_Data_t FFT_DataFiltered;
 extern BandIndices_t BandIdx;
-extern float theta_pow_ch0, alpha_pow_ch0, beta_pow_ch0;
-extern float theta_pow_ch1, alpha_pow_ch1, beta_pow_ch1;
-extern float theta_pow_ch2, alpha_pow_ch2, beta_pow_ch2;
-extern float theta_pow_ch3, alpha_pow_ch3, beta_pow_ch3;
+extern float delta_pow_ch0, theta_pow_ch0, alpha_pow_ch0, beta_pow_ch0;
+extern float delta_pow_ch1, theta_pow_ch1, alpha_pow_ch1, beta_pow_ch1;
+extern float delta_pow_ch2, theta_pow_ch2, alpha_pow_ch2, beta_pow_ch2;
+extern float delta_pow_ch3, theta_pow_ch3, alpha_pow_ch3, beta_pow_ch3;
 extern float norm_factor;
 extern AttnEma_t attn_ema[2];
 extern AttnEma_t relax_ema[2];
-extern AttnEma_t blink_ema[2];
+
 extern uint8_t instant_state, trend_state;
 extern int New_Samples_Count;
 

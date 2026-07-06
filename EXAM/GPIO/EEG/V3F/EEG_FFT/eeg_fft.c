@@ -13,11 +13,16 @@
 #include <stdio.h>
 
 extern uint8_t g_eeg_app_mode;
+extern uint8_t g_paused;
 
 #define DIR_DEBUG_POWER_PRINT       0
 #define DIR_1S_TEST_TEXT_ONLY       0
 #define DIR_DECISION_ROWS           4
 #define DIR_RESULT_DT_MS            2000
+
+#define ARTIFACT_THRESHOLD_UV       200.0f
+#define BAD_WINDOW_THRESHOLD        0.3f
+#define BAD_WINDOW_LIMIT            5
 
 static const float Hanning_Window[256] = {
     0.0000000f, 0.0001518f, 0.0006070f, 0.0013654f, 0.0024265f, 0.0037897f, 0.0054542f, 0.0074189f,
@@ -82,21 +87,20 @@ static uint16_t fft_src_start;
 static FFT_ProcState target_state_after_buffer;
 static int8_t buffer_counter = 0;
 
-float theta_pow_ch0, alpha_pow_ch0, beta_pow_ch0;
-float theta_pow_ch1, alpha_pow_ch1, beta_pow_ch1;
-float theta_pow_ch2, alpha_pow_ch2, beta_pow_ch2;
-float theta_pow_ch3, alpha_pow_ch3, beta_pow_ch3;
-float cur_attn0, cur_attn1;
-float cur_relax0, cur_relax1;
-float cur_blink0, cur_blink1;
+float delta_pow_ch0, theta_pow_ch0, alpha_pow_ch0, beta_pow_ch0;
+float delta_pow_ch1, theta_pow_ch1, alpha_pow_ch1, beta_pow_ch1;
+float delta_pow_ch2, theta_pow_ch2, alpha_pow_ch2, beta_pow_ch2;
+float delta_pow_ch3, theta_pow_ch3, alpha_pow_ch3, beta_pow_ch3;
+
+static AttentionEngine_t g_attn_engine;
+static AttentionOutput_t g_attn_output;
+static float g_raw_attn_scores[2];
+static float g_raw_relax_scores[2];
+
 uint8_t instant_state, trend_state;
 
-static AttnHistory_t attn_hist[2];
-static AttnHistory_t relax_hist[2];
-static AttnHistory_t blink_hist[2];
 AttnEma_t attn_ema[2];
 AttnEma_t relax_ema[2];
-AttnEma_t blink_ema[2];
 
 float sum_win_sq = 0.0f;
 float norm_factor;
@@ -160,16 +164,17 @@ static void Compute_Band_Indices(float f_low, float f_high, float bin_width,
 
 static void Apply_Freq_Filter(float *mags)
 {
-    for (int i = 0; i < 3; i++) {
+    int i;
+    for (i = 0; i < 3; i++) {
         mags[i] *= DC_Window[i];
     }
-    for (int i = 49, j = 0; i <= 53; i++, j++) {
-        mags[i] *= Notch_Window[j];
+    for (i = 49; i <= 53; i++) {
+        mags[i] *= Notch_Window[i - 49];
     }
-    for (int i = 62, j = 0; i <= 68; i++, j++) {
-        mags[i] *= HF_Window[j];
+    for (i = 62; i <= 68; i++) {
+        mags[i] *= HF_Window[i - 62];
     }
-    for (int i = 69; i < (FFT_SIZE / 2 + 1); i++) {
+    for (i = 69; i < (FFT_SIZE / 2 + 1); i++) {
         mags[i] = 0.0f;
     }
 }
@@ -208,50 +213,19 @@ static void Show_Trend_State(uint8_t Trend_State)
     }
 }
 
-static uint8_t Judge_Attn_State(float v0, float v1, float ema0, float ema1, float eps)
+static uint8_t Judge_Attn_State(float attn_score, float relax_score, float confidence)
 {
-    if (ema0 < eps)
-        ema0 = eps;
-    if (ema1 < eps)
-        ema1 = eps;
-
-    int invalid0 = (v0 < eps) ? 1 : 0;
-    int invalid1 = (v1 < eps) ? 1 : 0;
-
-    if (invalid0 && invalid1)
+    if (confidence < 0.15f)
         return STATE_NEUTRAL;
-    if (invalid0) {
-        if (v1 > ema1)
-            return STATE_FOCUS;
-        if (v1 < ema1)
-            return STATE_RELAX;
-        return STATE_NEUTRAL;
-    }
-    if (invalid1) {
-        if (v0 > ema0)
-            return STATE_FOCUS;
-        if (v0 < ema0)
-            return STATE_RELAX;
-        return STATE_NEUTRAL;
-    }
 
-    if (v0 > ema0 && v1 > ema1)
+    if (attn_score > 60.0f && attn_score > relax_score)
         return STATE_FOCUS;
-    if (v0 < ema0 && v1 < ema1)
+    if (relax_score > 60.0f && relax_score > attn_score)
         return STATE_RELAX;
 
-    int ch0_up = (v0 > ema0 * 1.05f) ? 1 : 0;
-    int ch1_up = (v1 > ema1 * 1.05f) ? 1 : 0;
-    int ch0_down = (v0 < ema0 * 0.95f) ? 1 : 0;
-    int ch1_down = (v1 < ema1 * 0.95f) ? 1 : 0;
-
-    if (ch0_up && !ch1_down)
+    if (attn_score > 55.0f && attn_score > relax_score + 5.0f)
         return STATE_FOCUS;
-    if (ch1_up && !ch0_down)
-        return STATE_FOCUS;
-    if (ch0_down && !ch1_up)
-        return STATE_RELAX;
-    if (ch1_down && !ch0_up)
+    if (relax_score > 55.0f && relax_score > attn_score + 5.0f)
         return STATE_RELAX;
 
     return STATE_NEUTRAL;
@@ -264,21 +238,41 @@ void EEG_FFT_Init(void)
         while (1);
 
     const float bin_width = SAMPLE_RATE / FFT_SIZE;
+    Compute_Band_Indices(1.0f, 4.0f, bin_width, &BandIdx.DeltaStart, &BandIdx.DeltaEnd);
     Compute_Band_Indices(4.0f, 8.0f, bin_width, &BandIdx.ThetaStart, &BandIdx.ThetaEnd);
     Compute_Band_Indices(8.0f, 13.0f, bin_width, &BandIdx.AlphaStart, &BandIdx.AlphaEnd);
     Compute_Band_Indices(13.0f, 30.0f, bin_width, &BandIdx.BetaStart, &BandIdx.BetaEnd);
 
-    for (int i = 0; i < FFT_SIZE; i++) {
+    int i;
+    for (i = 0; i < FFT_SIZE; i++) {
         sum_win_sq += Hanning_Window[i] * Hanning_Window[i];
     }
     norm_factor = SAMPLE_RATE * sum_win_sq;
 
-    memset(attn_hist, 0, sizeof(attn_hist));
-    memset(relax_hist, 0, sizeof(relax_hist));
-    memset(blink_hist, 0, sizeof(blink_hist));
     memset(attn_ema, 0, sizeof(attn_ema));
     memset(relax_ema, 0, sizeof(relax_ema));
-    memset(blink_ema, 0, sizeof(blink_ema));
+
+    attention_engine_init(&g_attn_engine, NULL);
+    memset(&g_attn_output, 0, sizeof(g_attn_output));
+    g_raw_attn_scores[0] = 50.0f;
+    g_raw_attn_scores[1] = 50.0f;
+    g_raw_relax_scores[0] = 50.0f;
+    g_raw_relax_scores[1] = 50.0f;
+}
+
+static float compute_artifact_from_ringbuf(RingBuffer_t *rb, uint16_t start_idx)
+{
+    int count = 0;
+    int i;
+    for (i = 0; i < FFT_SIZE; i++) {
+        uint16_t idx = (start_idx + i) & (FFT_SIZE - 1);
+        float v0 = fabsf(rb->CH0[idx]);
+        float v1 = fabsf(rb->CH1[idx]);
+        if (v0 > ARTIFACT_THRESHOLD_UV || v1 > ARTIFACT_THRESHOLD_UV) {
+            count++;
+        }
+    }
+    return (float)count / (float)FFT_SIZE;
 }
 
 uint8_t Process_FFT_Step(void)
@@ -315,7 +309,8 @@ uint8_t Process_FFT_Step(void)
         EEG_CalcMeanAndSlope(ch_a_src, start, &ch_a_mean, &ch_a_slope);
         EEG_CalcMeanAndSlope(ch_b_src, start, &ch_b_mean, &ch_b_slope);
 
-        for (int j = 0; j < FFT_SIZE; j++) {
+        int j;
+        for (j = 0; j < FFT_SIZE; j++) {
             uint16_t idx = (start + j) & (FFT_SIZE - 1);
             float w = Hanning_Window[j];
             float xa = EEG_RemoveMeanAndLinearTrend(ch_a_src[idx], ch_a_mean, ch_a_slope, j);
@@ -340,7 +335,8 @@ uint8_t Process_FFT_Step(void)
 
         ch_a_mags[0] = fabsf(Cplx_Output[0].r);
         ch_b_mags[0] = fabsf(Cplx_Output[0].i);
-        for (int k = 1; k < 128; k++) {
+        int k;
+        for (k = 1; k < 128; k++) {
             float Zkr = Cplx_Output[k].r;
             float Zki = Cplx_Output[k].i;
             int nk = FFT_SIZE - k;
@@ -367,8 +363,9 @@ uint8_t Process_FFT_Step(void)
         break;
     }
 
-    case FFT_STEP_FREQ_FILTER:
-        for (uint8_t ch = 0; ch < NUM_CHANNELS; ch++) {
+    case FFT_STEP_FREQ_FILTER: {
+        uint8_t ch;
+        for (ch = 0; ch < NUM_CHANNELS; ch++) {
             Apply_Freq_Filter(FFT_Data_GetMags(&FFT_Data, ch));
         }
         proc_channel = 0;
@@ -378,6 +375,7 @@ uint8_t Process_FFT_Step(void)
         buffer_counter = 0;
         fft_step = FFT_STEP_SEND_BUFFER;
         break;
+    }
 
     case FFT_STEP_SEND_FREQ_SPECTRUM: {
         float *mags = (raw_send_channel == 0) ? FFT_Data.CH2Mags : FFT_Data.CH3Mags;
@@ -414,41 +412,65 @@ uint8_t Process_FFT_Step(void)
 
     case FFT_STEP_BAND_POWER: {
         BandPowers_t bp0 = compute_band_powers(FFT_Data.CH0Mags, FFT_SIZE,
+                                                BandIdx.DeltaStart, BandIdx.DeltaEnd,
                                                 BandIdx.ThetaStart, BandIdx.ThetaEnd,
                                                 BandIdx.AlphaStart, BandIdx.AlphaEnd,
                                                 BandIdx.BetaStart, BandIdx.BetaEnd,
                                                 norm_factor, SAMPLE_RATE);
         BandPowers_t bp1 = compute_band_powers(FFT_Data.CH1Mags, FFT_SIZE,
+                                                BandIdx.DeltaStart, BandIdx.DeltaEnd,
                                                 BandIdx.ThetaStart, BandIdx.ThetaEnd,
                                                 BandIdx.AlphaStart, BandIdx.AlphaEnd,
                                                 BandIdx.BetaStart, BandIdx.BetaEnd,
                                                 norm_factor, SAMPLE_RATE);
         BandPowers_t bp2 = compute_band_powers(FFT_Data.CH2Mags, FFT_SIZE,
+                                                BandIdx.DeltaStart, BandIdx.DeltaEnd,
                                                 BandIdx.ThetaStart, BandIdx.ThetaEnd,
                                                 BandIdx.AlphaStart, BandIdx.AlphaEnd,
                                                 BandIdx.BetaStart, BandIdx.BetaEnd,
                                                 norm_factor, SAMPLE_RATE);
         BandPowers_t bp3 = compute_band_powers(FFT_Data.CH3Mags, FFT_SIZE,
+                                                BandIdx.DeltaStart, BandIdx.DeltaEnd,
                                                 BandIdx.ThetaStart, BandIdx.ThetaEnd,
                                                 BandIdx.AlphaStart, BandIdx.AlphaEnd,
                                                 BandIdx.BetaStart, BandIdx.BetaEnd,
                                                 norm_factor, SAMPLE_RATE);
-        theta_pow_ch0 = bp0.theta_power; alpha_pow_ch0 = bp0.alpha_power; beta_pow_ch0 = bp0.beta_power;
-        theta_pow_ch1 = bp1.theta_power; alpha_pow_ch1 = bp1.alpha_power; beta_pow_ch1 = bp1.beta_power;
-        theta_pow_ch2 = bp2.theta_power; alpha_pow_ch2 = bp2.alpha_power; beta_pow_ch2 = bp2.beta_power;
-        theta_pow_ch3 = bp3.theta_power; alpha_pow_ch3 = bp3.alpha_power; beta_pow_ch3 = bp3.beta_power;
+
+        delta_pow_ch0 = bp0.delta_power; theta_pow_ch0 = bp0.theta_power; alpha_pow_ch0 = bp0.alpha_power; beta_pow_ch0 = bp0.beta_power;
+        delta_pow_ch1 = bp1.delta_power; theta_pow_ch1 = bp1.theta_power; alpha_pow_ch1 = bp1.alpha_power; beta_pow_ch1 = bp1.beta_power;
+        delta_pow_ch2 = bp2.delta_power; theta_pow_ch2 = bp2.theta_power; alpha_pow_ch2 = bp2.alpha_power; beta_pow_ch2 = bp2.beta_power;
+        delta_pow_ch3 = bp3.delta_power; theta_pow_ch3 = bp3.theta_power; alpha_pow_ch3 = bp3.alpha_power; beta_pow_ch3 = bp3.beta_power;
 
         fft_step = FFT_STEP_ATTENTION;
         break;
     }
 
     case FFT_STEP_ATTENTION: {
-        cur_attn0  = compute_attention_feature(theta_pow_ch2, alpha_pow_ch2, beta_pow_ch2);
-        cur_attn1  = compute_attention_feature(theta_pow_ch3, alpha_pow_ch3, beta_pow_ch3);
-        cur_relax0 = compute_relaxation_feature(theta_pow_ch2, alpha_pow_ch2, beta_pow_ch2);
-        cur_relax1 = compute_relaxation_feature(theta_pow_ch3, alpha_pow_ch3, beta_pow_ch3);
-        cur_blink0 = compute_blink_feature(dummy_blink_stats.blink_rate, dummy_blink_stats.slow_blink_ratio);
-        cur_blink1 = cur_blink0;
+        float artifact_ratio = compute_artifact_from_ringbuf(&RingBuf, fft_src_start);
+
+        BandPowers_t fused_powers;
+        fused_powers.delta_power  = 0.4f * (delta_pow_ch0 + delta_pow_ch1) +
+                                    0.6f * (delta_pow_ch2 + delta_pow_ch3);
+        fused_powers.theta_power = 0.4f * (theta_pow_ch0 + theta_pow_ch1) +
+                                   0.6f * (theta_pow_ch2 + theta_pow_ch3);
+        fused_powers.alpha_power = 0.4f * (alpha_pow_ch0 + alpha_pow_ch1) +
+                                   0.6f * (alpha_pow_ch2 + alpha_pow_ch3);
+        fused_powers.beta_power  = 0.4f * (beta_pow_ch0 + beta_pow_ch1) +
+                                   0.6f * (beta_pow_ch2 + beta_pow_ch3);
+
+        g_attn_output = attention_engine_process(&g_attn_engine,
+                                                  &fused_powers,
+                                                  artifact_ratio,
+                                                  &dummy_blink_stats,
+                                                  BAD_WINDOW_THRESHOLD,
+                                                  BAD_WINDOW_LIMIT,
+                                                  0.0f);
+
+        g_raw_attn_scores[0] = g_raw_attn_scores[1] = g_attn_output.attention_score;
+        g_raw_relax_scores[0] = g_raw_relax_scores[1] = g_attn_output.relaxation_score;
+
+        attn_ema[0].Value = attn_ema[1].Value = g_attn_output.attention_score;
+        relax_ema[0].Value = relax_ema[1].Value = g_attn_output.relaxation_score;
 
         float theta_arr[NUM_CHANNELS] = {theta_pow_ch0, theta_pow_ch1, theta_pow_ch2, theta_pow_ch3};
         float alpha_arr[NUM_CHANNELS] = {alpha_pow_ch0, alpha_pow_ch1, alpha_pow_ch2, alpha_pow_ch3};
@@ -461,79 +483,45 @@ uint8_t Process_FFT_Step(void)
         } else if (g_eeg_app_mode == EEG_APP_MODE_COLLECT_CSP) {
             Direction_AutoCollectCSPProcess(&RingBufFiltered);
         } else if (g_eeg_app_mode == EEG_APP_MODE_INFER) {
-            uint32_t v5f_pred = DualCore_IPC_GetLastV5FPred();
-            uint32_t v5f_infer_valid = DualCore_IPC_GetLastV5FInferValid();
-            int32_t v5f_score_l = DualCore_IPC_GetLastV5FScoreLeft();
-            int32_t v5f_score_r = DualCore_IPC_GetLastV5FScoreRight();
-            int32_t v5f_conf = DualCore_IPC_GetLastV5FConfidence();
-            uint32_t v5f_trained = DualCore_IPC_GetLastV5FModelTrained();
-            uint32_t v5f_infer_cnt = DualCore_IPC_GetLastV5FInferCount();
+            if (!g_paused) {
+                uint32_t v5f_pred = DualCore_IPC_GetLastV5FPred();
+                uint32_t v5f_infer_valid = DualCore_IPC_GetLastV5FInferValid();
+                int32_t v5f_score_l = DualCore_IPC_GetLastV5FScoreLeft();
+                int32_t v5f_score_r = DualCore_IPC_GetLastV5FScoreRight();
+                int32_t v5f_conf = DualCore_IPC_GetLastV5FConfidence();
+                uint32_t v5f_trained = DualCore_IPC_GetLastV5FModelTrained();
+                uint32_t v5f_infer_cnt = DualCore_IPC_GetLastV5FInferCount();
 
-            if (v5f_infer_valid && v5f_infer_cnt != s_last_infer_cnt) {
-                s_last_infer_cnt = v5f_infer_cnt;
-                s_infer_row_tick++;
-                if (s_infer_row_tick >= DIR_DECISION_ROWS) {
-                    s_infer_row_tick = 0;
-                    const char *pred_str = (v5f_pred == 0u) ? "LEFT" : ((v5f_pred == 1u) ? "RIGHT" : "UNKNOWN");
-                    Serial_Printf(DIR_TEXT_PORT,
-                                  "RESULT,src=V5F,window=%lu,dt_ms=%u,win_rows=%u,INTENT=%s,S_LEFT=%ld,S_RIGHT=%ld,CONF=%ld,trained=%d\r\n",
-                                  (unsigned long)s_result_window,
-                                  (unsigned int)DIR_RESULT_DT_MS,
-                                  (unsigned int)DIR_DECISION_ROWS,
-                                  pred_str,
-                                  (long)v5f_score_l,
-                                  (long)v5f_score_r,
-                                  (long)v5f_conf,
-                                  (int)v5f_trained);
-                    s_result_window++;
+                if (v5f_infer_valid && v5f_infer_cnt != s_last_infer_cnt) {
+                    s_last_infer_cnt = v5f_infer_cnt;
+                    s_infer_row_tick++;
+                    if (s_infer_row_tick >= DIR_DECISION_ROWS) {
+                        s_infer_row_tick = 0;
+                        const char *pred_str = (v5f_pred == 0u) ? "LEFT" : ((v5f_pred == 1u) ? "RIGHT" : "UNKNOWN");
+                        Serial_Printf(DIR_TEXT_PORT,
+                                      "RESULT,src=V5F,window=%lu,dt_ms=%u,win_rows=%u,INTENT=%s,S_LEFT=%ld,S_RIGHT=%ld,CONF=%ld,trained=%d\r\n",
+                                      (unsigned long)s_result_window,
+                                      (unsigned int)DIR_RESULT_DT_MS,
+                                      (unsigned int)DIR_DECISION_ROWS,
+                                      pred_str,
+                                      (long)v5f_score_l,
+                                      (long)v5f_score_r,
+                                      (long)v5f_conf,
+                                      (int)v5f_trained);
+                        s_result_window++;
+                    }
                 }
             }
         }
-
-#if DIR_DEBUG_POWER_PRINT
-        Serial_Printf(DIR_TEXT_PORT,
-                      "DBGPWR_P15,cp3_mu=%ld,cp4_mu=%ld,c3_mu=%ld,c4_mu=%ld,cp3_beta=%ld,cp4_beta=%ld,c3_beta=%ld,c4_beta=%ld,rest_valid=%d\r\n",
-                      (long)(alpha_pow_ch0 * 1000000000000000.0f),
-                      (long)(alpha_pow_ch1 * 1000000000000000.0f),
-                      (long)(alpha_pow_ch2 * 1000000000000000.0f),
-                      (long)(alpha_pow_ch3 * 1000000000000000.0f),
-                      (long)(beta_pow_ch0 * 1000000000000000.0f),
-                      (long)(beta_pow_ch1 * 1000000000000000.0f),
-                      (long)(beta_pow_ch2 * 1000000000000000.0f),
-                      (long)(beta_pow_ch3 * 1000000000000000.0f),
-                      dir_rest_valid);
-#endif
-
-        fft_step = FFT_STEP_NORMALIZE;
-        break;
-    }
-
-    case FFT_STEP_NORMALIZE: {
-        float a0 = normalize_attention(cur_attn0, &attn_hist[0]);
-        float a1 = normalize_attention(cur_attn1, &attn_hist[1]);
-        float r0 = normalize_attention(cur_relax0, &relax_hist[0]);
-        float r1 = normalize_attention(cur_relax1, &relax_hist[1]);
-        float b0 = 100.0f - normalize_attention(cur_blink0, &blink_hist[0]);
-        float b1 = 100.0f - normalize_attention(cur_blink1, &blink_hist[1]);
-
-        const float alpha = 0.25f;
-        #define EMA_UPDATE(ema, val) do { \
-            if ((ema).Count == 0) (ema).Value = (val); \
-            else (ema).Value = ema_smooth((val), (ema).Value, alpha); \
-            (ema).Count++; } while(0)
-
-        EMA_UPDATE(attn_ema[0], a0);  EMA_UPDATE(attn_ema[1], a1);
-        EMA_UPDATE(relax_ema[0], r0); EMA_UPDATE(relax_ema[1], r1);
-        EMA_UPDATE(blink_ema[0], b0); EMA_UPDATE(blink_ema[1], b1);
 
         fft_step = FFT_STEP_UPDATE_TREND;
         break;
     }
 
     case FFT_STEP_UPDATE_TREND:
-        if (attn_ema[0].Value > 1e-6f && attn_ema[1].Value > 1e-6f) {
-            TrendWin.CH0[TrendWin.Idx] = attn_ema[0].Value;
-            TrendWin.CH1[TrendWin.Idx] = attn_ema[1].Value;
+        if (g_attn_output.attention_score > 1e-6f) {
+            TrendWin.CH0[TrendWin.Idx] = g_attn_output.attention_score;
+            TrendWin.CH1[TrendWin.Idx] = g_attn_output.relaxation_score;
             TrendWin.Idx = (TrendWin.Idx + 1) % TREND_WINDOW_SIZE;
             if (TrendWin.Count < TREND_WINDOW_SIZE) TrendWin.Count++;
         }
@@ -541,13 +529,28 @@ uint8_t Process_FFT_Step(void)
         break;
 
     case FFT_STEP_JUDGE_STATE: {
-        const float epsilon = 1e-6f;
-        instant_state = Judge_Attn_State(attn_ema[0].Value, attn_ema[1].Value, attn_ema[0].Value, attn_ema[1].Value, epsilon);
+        instant_state = Judge_Attn_State(g_attn_output.attention_score,
+                                          g_attn_output.relaxation_score,
+                                          g_attn_output.attention_confidence);
         trend_state = STATE_NEUTRAL;
         if (TrendWin.Count > 0) {
-            float sum0=0,sum1=0;
-            for (int i=0;i<TrendWin.Count;i++) { sum0 += TrendWin.CH0[i]; sum1 += TrendWin.CH1[i]; }
-            trend_state = Judge_Attn_State(sum0/TrendWin.Count, sum1/TrendWin.Count, attn_ema[0].Value, attn_ema[1].Value, epsilon);
+            float sum_attn = 0.0f, sum_relax = 0.0f;
+            int i;
+            for (i = 0; i < TrendWin.Count; i++) {
+                sum_attn += TrendWin.CH0[i];
+                sum_relax += TrendWin.CH1[i];
+            }
+            float avg_attn = sum_attn / (float)TrendWin.Count;
+            float avg_relax = sum_relax / (float)TrendWin.Count;
+            float diff = avg_attn - avg_relax;
+            float strength = fabsf(diff);
+            if (strength < 8.0f) {
+                trend_state = STATE_NEUTRAL;
+            } else if (diff > 0.0f) {
+                trend_state = STATE_FOCUS;
+            } else {
+                trend_state = STATE_RELAX;
+            }
         }
         Show_Trend_State(trend_state);
         fft_step = FFT_STEP_SEND_FOCUS;
@@ -581,8 +584,11 @@ uint8_t Process_FFT_Step(void)
         break;
 
     case FFT_STEP_SEND_FOCUS:
-        Send_Focus(attn_ema[0].Value, attn_ema[1].Value, attn_ema[0].Value, attn_ema[1].Value, trend_state, instant_state);
-        Update_OLED_Scores(attn_ema[0].Value, relax_ema[0].Value, blink_ema[0].Value, attn_ema[1].Value, relax_ema[1].Value, blink_ema[1].Value);
+        Send_Focus(g_attn_output.attention_score, g_attn_output.relaxation_score,
+                   g_attn_output.attention_confidence, g_attn_output.relaxation_confidence,
+                   trend_state, instant_state);
+        Update_OLED_Scores(g_attn_output.attention_score, g_attn_output.relaxation_score, g_attn_output.blink_score,
+                           g_attn_output.attention_confidence, g_attn_output.relaxation_confidence, g_attn_output.blink_score);
         fft_step = FFT_STEP_SEND_FILT_SPECTRUM;
         break;
 
@@ -605,7 +611,8 @@ void Process_FFT(void)
 void Update_Waveform(float new_val)
 {
     uint8_t y = Map_To_Y(new_val);
-    for (int j = 0; j < 127; j++) Wave_Buf[j] = Wave_Buf[j + 1];
+    int j;
+    for (j = 0; j < 127; j++) Wave_Buf[j] = Wave_Buf[j + 1];
     Wave_Buf[127] = y;
 }
 

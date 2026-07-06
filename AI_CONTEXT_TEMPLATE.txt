@@ -40,7 +40,7 @@
 |------|------|--------|------|
 | CH32H417 V3F核 | 采集主控+外设管理 | C, RISC-V, SPI/DMA/USART | 稳定运行 |
 | CH32H417 V5F核 | 信号处理+推理后端 | C, RISC-V, FPU, FFT | IPC已通 |
-| Android客户端 | 波形显示+训练控制+推理展示 | 待定(Kotlin推荐) | 旧版Java待重构 |
+| Android客户端 | 波形显示+训练控制+推理展示 | Java, TCP/WiFi, 无USB | 旧版Java待重构 |
 
 ================================================================================
   第二部分：技术栈与系统架构
@@ -218,7 +218,15 @@ REST(5s) → LEFT(试次) → REST → RIGHT(试次) → REST → ... 重复
 - 修改原则: 只改用户要求的部分, 不做未授权修改
 - 必须参考官方示例: EXAM/CPU/IPC/IPC/Common/hardware.c
 
-## 5.3 Git规范
+## 5.3 Android客户端开发约束
+
+- 语言: Java (不使用Kotlin)
+- 通信方式: TCP/WiFi (沿用旧版41002/41003端口, 不使用USB串口)
+- 禁止: 不使用USB 2.0/3.0通信, 不考虑FreeRTOS移植
+- 架构: 基于现有MVC+观察者模式渐进式重构, 不做破坏性重写
+- 兼容: 保留旧版TcpServerManager帧协议(HDLC-like)和DataDispatcher分发机制
+
+## 5.4 Git规范
 
 - 提交格式: `<type>(<scope>): <subject>`
   - type: feat/fix/refactor/docs/chore
@@ -226,7 +234,7 @@ REST(5s) → LEFT(试次) → REST → RIGHT(试次) → REST → ... 重复
 - 不要擅自提交, 只有用户说验证通过再保留
 - 标签: v3.1-fpu, v3.2-ipc-split, v3.3-dma-doublebuf, v3.4-nvic-priority
 
-## 5.4 职责边界
+## 5.5 职责边界
 
 | 角色 | 范围 | 可修改目录 |
 |------|------|-----------|
@@ -234,7 +242,7 @@ REST(5s) → LEFT(试次) → REST → RIGHT(试次) → REST → ... 重复
 | Android AI | Android客户端 | CH32_waveform_client/ 或新建目录 |
 | 共享 | 协议/文档 | docs/ (待建) |
 
-## 5.5 IPC开发铁律（必须遵守）
+## 5.6 IPC开发铁律（必须遵守）
 
 1. V5F发ACK必须在Handler内(非主循环), 防止自触中断风暴
 2. V3F Handler DISABLE Bit0必须在if块内(条件性), 防止误杀ACK
@@ -255,7 +263,7 @@ REST(5s) → LEFT(试次) → REST → RIGHT(试次) → REST → ... 重复
 | 3 | V5F ACK延迟1帧 | V3F读到的结果总是上一帧的 | 低(可接受) |
 | 4 | Signal_Analysis.c 2450行未拆分 | 维护困难 | 中 |
 | 5 | dualcore_ipc.c 1297行未拆分 | 维护困难 | 中 |
-| 6 | Android客户端为旧版Java | 功能不全, 需重构 | 高 |
+| 6 | Android客户端为旧版Java | 功能不全, 需重构(保持Java+TCP/WiFi, 不用Kotlin/USB) | 高 |
 
 ## 6.2 已踩过的坑（新AI必读）
 
@@ -287,8 +295,8 @@ Phase 2 (架构重构):
   - 共享信号处理算法提取
 
 Phase 3 (功能增强):
-  - USB/ETH数据传输
-  - Android应用重构
+  - ETH数据传输(不使用USB)
+  - Android应用重构(保持Java+TCP/WiFi)
   - 训练流程优化
 
 Phase 4 (未来扩展):

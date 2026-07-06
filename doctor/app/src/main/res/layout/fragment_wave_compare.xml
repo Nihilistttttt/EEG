@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="4dp"
+    android:background="@color/surface_base">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginEnd="2dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="2dp"
+            app:cardBackgroundColor="@color/surface_low"
+            app:strokeColor="@color/surface_overlay"
+            app:strokeWidth="0.5dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:padding="4dp">
+
+                <TextView
+                    style="@style/ChannelLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Ch0 原始波形" />
+
+                <com.nihilisttt.eegdoctor.WaveformView
+                    android:id="@+id/raw_wave_ch0"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    app:waveColor="@color/wave_ch0"
+                    app:channelIndex="0" />
+
+                <TextView
+                    style="@style/ChannelLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Ch0 时域滤波波形" />
+
+                <com.nihilisttt.eegdoctor.WaveformView
+                    android:id="@+id/filt_wave_ch0"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    app:waveColor="@color/wave_filtered"
+                    app:channelIndex="0" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="2dp"
+            app:cardBackgroundColor="@color/surface_low"
+            app:strokeColor="@color/surface_overlay"
+            app:strokeWidth="0.5dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:padding="4dp">
+
+                <TextView
+                    style="@style/ChannelLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Ch1 原始波形" />
+
+                <com.nihilisttt.eegdoctor.WaveformView
+                    android:id="@+id/raw_wave_ch1"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    app:waveColor="@color/wave_ch1"
+                    app:channelIndex="1" />
+
+                <TextView
+                    style="@style/ChannelLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Ch1 时域滤波波形" />
+
+                <com.nihilisttt.eegdoctor.WaveformView
+                    android:id="@+id/filt_wave_ch1"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    app:waveColor="@color/wave_filtered"
+                    app:channelIndex="1" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="4dp"
+        app:cardBackgroundColor="@color/surface_mid"
+        app:strokeColor="@color/surface_overlay"
+        app:strokeWidth="0.5dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="8dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:text="X轴"
+                style="@style/ControlLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:id="@+id/tv_x_range"
+                style="@style/ParamChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="2.048 s"
+                android:layout_marginEnd="16dp" />
+
+            <TextView
+                android:text="波形"
+                style="@style/ControlLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:id="@+id/tv_wave_label_count"
+                style="@style/ParamChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="7"
+                android:layout_marginStart="4dp" />
+
+            <TextView
+                android:text="x"
+                style="@style/ControlLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:id="@+id/tv_wave_range"
+                style="@style/ParamChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="500uV" />
+
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</LinearLayout>

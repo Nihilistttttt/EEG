@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/surface_base">
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        app:cardCornerRadius="0dp"
+        app:cardElevation="1dp"
+        app:cardBackgroundColor="@color/surface_low"
+        app:strokeColor="@color/surface_overlay"
+        app:strokeWidth="0.5dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="10dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tv_attn_info"
+                style="@style/StatusText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Attn0: --- | Attn1: ---" />
+
+            <TextView
+                android:id="@+id/tv_focus_label_count"
+                style="@style/FocusValueText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="5" />
+
+            <TextView
+                style="@style/ControlLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=" 标签 " />
+
+            <TextView
+                android:id="@+id/tv_focus_range"
+                style="@style/FocusValueText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1.00 Focus" />
+
+            <TextView
+                android:id="@+id/tv_focus_x_range"
+                style="@style/FocusValueText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="20.0 s" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_margin="4dp"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="2dp"
+        app:cardBackgroundColor="@color/surface_low"
+        app:strokeColor="@color/surface_overlay"
+        app:strokeWidth="0.5dp">
+
+        <com.nihilisttt.eegdoctor.FocusChartView
+            android:id="@+id/focus_chart"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:focusColor="@color/focus_line" />
+    </com.google.android.material.card.MaterialCardView>
+</LinearLayout>

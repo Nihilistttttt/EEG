@@ -1,0 +1,314 @@
+================================================================================
+  EEG双核脑电采集与SSVEP训练系统 — AI协作上下文文档 v1.0
+  生成日期: 2026-07-06 | 仓库: https://github.com/Nihilistttttt/EEG.git
+================================================================================
+
+>>> 初始提示词（复制以下内容作为新AI会话的第一条消息）<<<
+
+---
+你现在是本项目的协作开发者。请仔细阅读下方完整文档，然后执行以下步骤：
+
+1. 用你自己的话简述你对项目架构、当前状态和核心挑战的理解（不超过200字）
+2. 列出你认为最关键的3个待解决问题，并按紧急程度排序
+3. 等待我的具体任务指令后再开始编码
+
+重要约束：
+- 你只负责本文档"职责边界"中定义的范围，不要越界修改其他模块
+- 修改代码前必须先阅读相关源文件，理解现有代码风格和约定
+- 任何修改必须遵循本文档"开发规范"中的所有规则
+- 如遇不确定的决策点，必须向我确认后再行动
+---
+
+================================================================================
+  第一部分：项目概述
+================================================================================
+
+## 1.1 核心目标
+
+构建一套完整的脑电波(EEG)采集与稳态视觉诱发电位(SSVEP)方向识别训练系统，
+实现从信号采集、特征提取、模型训练到实时推理的全链路闭环。
+
+## 1.2 业务背景
+
+- 应用场景：SSVEP脑机接口(BCI)方向识别（左/右手想象运动）
+- 用户流程：佩戴EEG头带 → 校准采集 → 训练模型 → 实时推理反馈
+- 核心指标：方向识别准确率、推理延迟、系统稳定性
+
+## 1.3 系统组成
+
+| 组件 | 角色 | 技术栈 | 状态 |
+|------|------|--------|------|
+| CH32H417 V3F核 | 采集主控+外设管理 | C, RISC-V, SPI/DMA/USART | 稳定运行 |
+| CH32H417 V5F核 | 信号处理+推理后端 | C, RISC-V, FPU, FFT | IPC已通 |
+| Android客户端 | 波形显示+训练控制+推理展示 | 待定(Kotlin推荐) | 旧版Java待重构 |
+
+================================================================================
+  第二部分：技术栈与系统架构
+================================================================================
+
+## 2.1 硬件平台
+
+- MCU: CH32H417 (沁恒, RISC-V双核)
+  - V3F: 100MHz, 2级抢占优先级(3位), 管理外设和采集
+  - V5F: 100MHz, 8级抢占优先级(3位), 专注DSP和推理
+  - 双核共享RAM: 0x20110000~0x2017FFFF
+- ADC: ADS1299 (TI, 8通道24位EEG前端, SPI, 最高16kSPS)
+- IMU: ICM42605 (TDK, 6轴, SPI)
+- 显示: 0.96" OLED (SPI, SSD1306)
+- 通信: USART0(DEBUG 115200) + USART1(WiFi/ESP8266)
+- 调试: WCH-Link SWD
+
+## 2.2 双核IPC通信架构
+
+```
+V3F (采集+外设主控)              V5F (信号处理+推理后端)
+┌──────────────────┐              ┌──────────────────┐
+│ ADS1299 SPI+DMA  │              │                  │
+│ Ring Buffer      │───IPC CH0──→ │ FFT 256pt        │
+│ V3F自身推理       │   Bit1通知   │ 特征提取(24维)    │
+│ OLED/Serial/WiFi │   Bit0 ACK← │ CSP/方向分类器    │
+│ ICM42605 IMU     │              │ 结果写共享slot    │
+└──────────────────┘              └──────────────────┘
+         │                                │
+         └──── 共享RAM 64-slot帧环形缓冲区 ────┘
+```
+
+IPC关键机制:
+- 通道: IPC_CH0, TxCID1(V5F发)/RxCID0(V3F收)
+- Bit1: V3F→V5F通知 | Bit0: V5F→V3F ACK
+- ENA/STS/ISR: 全局共享, ISR = ENA & STS (只读)
+- AutoEN: 写ENA 0→1自动设STS, 1→1不触发(重要!)
+- MSG[0..3]: 4个32位消息寄存器
+
+## 2.3 信号处理流水线
+
+```
+ADS1299原始帧(27字节)
+  → 代码转电压(uV×1000)
+  → 漂移去除(减均值)
+  → 50Hz陷波(IIR)
+  → 带通滤波(5-40Hz Butterworth)
+  → 256点FFT(125样本hop)
+  → 24维特征(theta/mu/beta频段功率比)
+  → LDA方向分类器(LEFT/RIGHT)
+```
+
+## 2.4 串口协议
+
+命令(下行):
+  MODE,SET,<n>     - 设置模式(1=COLLECT, 2=INFER, 3=CALIBRATE)
+  MODE,TRAIN       - 开始训练
+  MODE,TEST         - 开始测试
+  TRIAL,LEFT        - 左手试次
+  TRIAL,RIGHT       - 右手试次
+
+数据(上行):
+  DIRCSV,<label>,<ch0>,...,<ch7>,<feat0>,...,<feat23>
+  DIRCFG,<config_json>
+  RESULT,window=<n>,dt_ms=<n>,win_rows=<n>,INTENT=<LEFT|RIGHT>,S_LEFT=<n>,S_RIGHT=<n>,CONF=<n>,trained=<0|1>
+  IPCDIAG,ack=<n>,notify=<n>,ok=<n>,bad=<n>,v5fhb=<n>,ENA=<X>,STS=<X>,ISR=<X>
+
+================================================================================
+  第三部分：目录结构与模块划分
+================================================================================
+
+```
+EEG/
+├── EXAM/
+│   ├── GPIO/EEG/                         ← 主项目
+│   │   ├── Common/
+│   │   │   ├── dualcore_ipc.c            ← IPC核心(1297行, 待拆分)
+│   │   │   └── dualcore_ipc.h            ← IPC公共接口
+│   │   ├── V3F/
+│   │   │   ├── Hardware/
+│   │   │   │   ├── Signal_Analysis.c     ← 采集+推理主循环(2450行, 待拆分)
+│   │   │   │   ├── ADS1299.c/h           ← EEG ADC驱动(SPI+DMA)
+│   │   │   │   ├── ICM42605.c/h          ← IMU驱动(SPI)
+│   │   │   │   ├── Serial.c/h            ← 多端口串口
+│   │   │   │   ├── OLED.c/h              ← SSD1306显示
+│   │   │   │   ├── Timer_1ms.c/h         ← 定时器
+│   │   │   │   └── hal_gpio.c            ← GPIO+中断配置
+│   │   │   └── User/
+│   │   │       ├── main.c                ← V3F入口(96行)
+│   │   │       └── ch32h417_it.c         ← V3F中断处理
+│   │   ├── V5F/
+│   │   │   ├── Hardware/hardware.c       ← V5F硬件初始化(空)
+│   │   │   └── User/
+│   │   │       ├── main.c                ← V5F入口(37行)
+│   │   │       └── ch32h417_it.c         ← V5F HardFault诊断
+│   │   └── python_csp/                   ← CSP模型训练脚本
+│   ├── CPU/IPC/IPC/Common/hardware.c     ← ★官方IPC示例(必须参考)
+│   └── SRC/                              ← CH32H417 HAL/驱动库
+│       ├── Peripheral/src/ch32h417_ipc.c ← IPC底层驱动
+│       └── Core/core_riscv.h             ← IPC_Type定义
+├── CH32_waveform_client/                 ← 旧版Android客户端(Java, 待重构)
+├── ROADMAP.md                            ← 长期规划
+└── PROJECT_CONTEXT.md                    ← 项目上下文(本文档的补充)
+```
+
+模块依赖关系:
+  Signal_Analysis.c → dualcore_ipc.c → ch32h417_ipc.c (HAL)
+  Signal_Analysis.c → ADS1299.c → SPI+DMA
+  Signal_Analysis.c → Serial.c → USART
+  Signal_Analysis.c → ICM42605.c → SPI
+  V5F main.c → dualcore_ipc.c (仅V5F部分)
+
+================================================================================
+  第四部分：核心业务逻辑与数据流
+================================================================================
+
+## 4.1 采集主循环 (Signal_Analysis.c)
+
+```
+ADS1299 DRDY中断 → DMA搬运帧到ring_buffer → 主循环取出帧
+  → 写入IPC共享slot → 发IPC通知给V5F
+  → V3F自身: 代码转电压→滤波→FFT→特征→推理
+  → 串口输出DIRCSV/DIRCFG/RESULT
+  → OLED显示方向结果
+```
+
+## 4.2 V5F处理流程 (dualcore_ipc.c)
+
+```
+IPC CH0中断 → Handler设pending_flag → 主循环DualCore_V5F_MainLoopProcess()
+  → 读共享slot帧数据 → 解析8通道代码
+  → 代码转电压→漂移去除→50Hz陷波→带通滤波
+  → 125样本hop累积→256点FFT→24维特征
+  → LDA分类器推理(LEFT/RIGHT)
+  → 结果写回共享slot → 设ack_ready → 下次Handler内发ACK
+```
+
+## 4.3 IPC通信时序（已验证通过）
+
+```
+时间 →
+V3F: ──ENABLE Bit1──────────────────────────────ENABLE Bit1────
+V5F:       ──Handler:DISABLE Bit1+设flag──  ──Handler:DISABLE Bit1+发ACK(Bit0)──
+V3F:                                              ──Handler:处理ACK+DISABLE Bit0──
+V5F主循环:              ──DSP+推理+设ack_ready──
+```
+
+关键: V5F的ACK在Handler内发送(MIE=0不自触中断), 延迟1帧
+
+## 4.4 训练流程
+
+```
+REST(5s) → LEFT(试次) → REST → RIGHT(试次) → REST → ... 重复
+每试次: 采集2s数据 → 提取特征 → 累积到训练集
+训练触发: 累积足够样本 → LDA拟合 → 模型参数更新
+测试: 使用训练好的模型实时推理 → 输出LEFT/RIGHT+置信度
+```
+
+================================================================================
+  第五部分：开发与部署规范
+================================================================================
+
+## 5.1 开发环境
+
+- IDE: MounRiver Studio (WCH官方, 无Makefile, 通过.project配置编译)
+- 工具链: WCH RISC-V GCC
+- 调试器: WCH-Link SWD
+- 串口工具: 115200bps, 8N1
+
+## 5.2 代码规范
+
+- 语言: C (嵌入式, 无OS, 裸机)
+- 命名: UPPER_SNAKE_CASE常量, camelCase函数, g_prefix全局变量
+- 注释: 不主动添加注释, 除非用户要求
+- 修改原则: 只改用户要求的部分, 不做未授权修改
+- 必须参考官方示例: EXAM/CPU/IPC/IPC/Common/hardware.c
+
+## 5.3 Git规范
+
+- 提交格式: `<type>(<scope>): <subject>`
+  - type: feat/fix/refactor/docs/chore
+  - scope: ipc/ads1299/android/protocol/oled/serial
+- 不要擅自提交, 只有用户说验证通过再保留
+- 标签: v3.1-fpu, v3.2-ipc-split, v3.3-dma-doublebuf, v3.4-nvic-priority
+
+## 5.4 职责边界
+
+| 角色 | 范围 | 可修改目录 |
+|------|------|-----------|
+| 下位机AI | V3F/V5F固件 | EXAM/GPIO/EEG/ |
+| Android AI | Android客户端 | CH32_waveform_client/ 或新建目录 |
+| 共享 | 协议/文档 | docs/ (待建) |
+
+## 5.5 IPC开发铁律（必须遵守）
+
+1. V5F发ACK必须在Handler内(非主循环), 防止自触中断风暴
+2. V3F Handler DISABLE Bit0必须在if块内(条件性), 防止误杀ACK
+3. V5F发ACK前必须 DISABLE→ENABLE→SetFlagStatus 三步, 确保STS=1
+4. V5F Init不能ClearFlagStatus(Bit0), 保留V3F设置的STS
+5. 禁止在IPC ENABLE操作周围使用NVIC_DisableIRQ+busy-wait(会死锁)
+
+================================================================================
+  第六部分：当前已知限制与后续迭代规划
+================================================================================
+
+## 6.1 已知限制
+
+| # | 限制 | 影响 | 优先级 |
+|---|------|------|--------|
+| 1 | 共享slot无HSEM互斥保护 | parse_ok仅25%, V5F写slot时V3F可能读到不一致数据 | 高 |
+| 2 | ENA寄存器read-modify-write非原子 | 双核并发写ENA可能丢失更新 | 中 |
+| 3 | V5F ACK延迟1帧 | V3F读到的结果总是上一帧的 | 低(可接受) |
+| 4 | Signal_Analysis.c 2450行未拆分 | 维护困难 | 中 |
+| 5 | dualcore_ipc.c 1297行未拆分 | 维护困难 | 中 |
+| 6 | Android客户端为旧版Java | 功能不全, 需重构 | 高 |
+
+## 6.2 已踩过的坑（新AI必读）
+
+1. **中断风暴**: V5F从主循环ENABLE Bit0→触发自身CH0 Handler→不清Bit0→无限重入
+   修复: ACK改为Handler内发送
+
+2. **误杀ACK**: V3F Handler无条件DISABLE Bit0→清除V5F刚设的ENA→V3F永远检测不到ACK
+   修复: DISABLE移回if块内
+
+3. **STS=0问题**: V5F Init清STS Bit0 + AutoEN在ENA已为1时不触发 → ISR=0 → V3F无中断
+   修复: 移除ClearFlagStatus + DISABLE+ENABLE+SetFlagStatus
+
+4. **NVIC死锁**: 双方NVIC_DisableIRQ+busy-wait互相等待对方清ENA位
+   修复: 不用NVIC屏蔽, 改Handler内发ACK
+
+5. **CH0/CH1分用**: 尝试过CH0通知+CH1 ACK, 调试代价远超收益, 已回退到CH0单通道
+
+## 6.3 迭代规划
+
+Phase 1 (稳定性):
+  - HSEM互斥保护共享帧槽
+  - ENA竞态修复
+  - 序号单调性检查 + CRC32校验
+  - 24小时压力测试
+
+Phase 2 (架构重构):
+  - Signal_Analysis.c拆分(2450行→6模块)
+  - dualcore_ipc.c拆分(1297行→多模块)
+  - 共享信号处理算法提取
+
+Phase 3 (功能增强):
+  - USB/ETH数据传输
+  - Android应用重构
+  - 训练流程优化
+
+Phase 4 (未来扩展):
+  - 在线学习/自适应模型
+  - 多模态融合(EEG+IMU)
+  - 低功耗优化
+
+================================================================================
+  附录：快速上手检查清单
+================================================================================
+
+新AI会话启动时, 建议按以下顺序阅读源码:
+
+1. EXAM/GPIO/EEG/V3F/User/main.c          — V3F启动流程(96行)
+2. EXAM/GPIO/EEG/V5F/User/main.c          — V5F启动流程(37行)
+3. EXAM/GPIO/EEG/Common/dualcore_ipc.h    — IPC公共接口(62行)
+4. EXAM/CPU/IPC/IPC/Common/hardware.c     — 官方IPC示例(119行, 必读)
+5. EXAM/GPIO/EEG/Common/dualcore_ipc.c    — IPC核心实现(1297行)
+6. EXAM/GPIO/EEG/V3F/Hardware/Signal_Analysis.c — 采集主循环(2450行)
+
+当前正常诊断基线:
+  ack≈notify, v5fhb=notify(1:1), ENA=0, STS=1, ISR=0
+  ok/bad≈25%(因无HSEM), V5F推理结果: INTENT=LEFT/RIGHT, trained=1

@@ -21,8 +21,9 @@ public class FocusChartView extends View {
     private static final int MAX_POINTS = 5000;
     private static final int DEFAULT_X_MAX_POINTS = 500;
 
-    private float mYRange = 1.0f;
-    private int mLabelCount = 0;
+    private static final float Y_MIN = 0.0f;
+    private static final float Y_MAX = 1.0f;
+    private static final float Y_TICK_STEP = 0.05f;
 
     private int mXMaxPoints = DEFAULT_X_MAX_POINTS;
 
@@ -42,8 +43,8 @@ public class FocusChartView extends View {
     private static final int MODE_SLOW_TRACK = 2;
     private int currentMode = MODE_FIX;
 
-    private float fixCenterOffset = 0f;
-    private float slowTargetCenter = 0f;
+    private float fixCenterOffset = 0.5f;
+    private float slowTargetCenter = 0.5f;
     private int slowOffsetCount = 0;
     private static final float SLOW_THRESHOLD_RATIO = 0.5f;
     private static final int SLOW_SETTLE_SAMPLES = 200;
@@ -132,6 +133,8 @@ public class FocusChartView extends View {
         float left = 100f;
         float touchX = event.getX();
         if (touchX < left + 40) {
+            float top = 10f, bottom = height - 50f;
+            float yScale = (bottom - top) / (Y_MAX - Y_MIN);
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
                     lastTouchY = event.getY();
@@ -140,12 +143,10 @@ public class FocusChartView extends View {
                 case MotionEvent.ACTION_MOVE:
                     if (isDragging) {
                         float deltaY = event.getY() - lastTouchY;
-                        float top = 10f, bottom = height - 50f;
-                        float yMin = fixCenterOffset - mYRange;
-                        float yMax = fixCenterOffset + mYRange;
-                        float yScale = (bottom - top) / (yMax - yMin);
                         float deltaVolt = deltaY / yScale;
                         fixCenterOffset += deltaVolt;
+                        if (fixCenterOffset - (Y_MAX - Y_MIN) / 2 < Y_MIN) fixCenterOffset = Y_MIN + (Y_MAX - Y_MIN) / 2;
+                        if (fixCenterOffset + (Y_MAX - Y_MIN) / 2 > Y_MAX) fixCenterOffset = Y_MAX - (Y_MAX - Y_MIN) / 2;
                         lastTouchY = event.getY();
                         invalidate();
                     }
@@ -159,16 +160,7 @@ public class FocusChartView extends View {
         return super.onTouchEvent(event);
     }
 
-    public void setYRange(float range) {
-        if (range > 0) {
-            mYRange = range;
-            slowTargetCenter = computeWindowAverage();
-            slowOffsetCount = 0;
-            invalidate();
-        }
-    }
-
-    public float getYRange() { return mYRange; }
+    public float getYRange() { return (Y_MAX - Y_MIN) / 2; }
 
     public void setXMaxPoints(int points) {
         if (points > 0 && points <= MAX_POINTS) {
@@ -178,13 +170,6 @@ public class FocusChartView extends View {
     }
 
     public int getXMaxPoints() { return mXMaxPoints; }
-
-    public void setLabelCount(int count) {
-        if (count > 0) {
-            mLabelCount = count;
-            invalidate();
-        }
-    }
 
     public void addPoint(float value) {
         lock.lock();
@@ -197,7 +182,7 @@ public class FocusChartView extends View {
 
     private float computeWindowAverage() {
         lock.lock();
-        if (pointCount == 0) { lock.unlock(); return 0f; }
+        if (pointCount == 0) { lock.unlock(); return 0.5f; }
         int startIdx = (pointCount < mXMaxPoints) ? 0 : pointCount - mXMaxPoints;
         float sum = 0f;
         int count = 0;
@@ -206,7 +191,7 @@ public class FocusChartView extends View {
             sum += buffer[idx];
             count++;
         }
-        float avg = (count > 0) ? sum / count : 0f;
+        float avg = (count > 0) ? sum / count : 0.5f;
         lock.unlock();
         return avg;
     }
@@ -241,7 +226,7 @@ public class FocusChartView extends View {
         float avg = computeWindowAverage();
 
         if (currentMode == MODE_SLOW_TRACK) {
-            float threshold = mYRange * SLOW_THRESHOLD_RATIO;
+            float threshold = (Y_MAX - Y_MIN) / 2 * SLOW_THRESHOLD_RATIO;
             if (Math.abs(avg - slowTargetCenter) > threshold) {
                 slowOffsetCount++;
                 if (slowOffsetCount >= SLOW_SETTLE_SAMPLES) {
@@ -258,30 +243,23 @@ public class FocusChartView extends View {
         else if (currentMode == MODE_TRACK) centerVal = avg;
         else centerVal = slowTargetCenter;
 
-        final float yMin = centerVal - mYRange;
-        final float yMax = centerVal + mYRange;
+        float halfRange = (Y_MAX - Y_MIN) / 2;
+        final float yMin = centerVal - halfRange;
+        final float yMax = centerVal + halfRange;
         float yScale = (bottom - top) / (yMax - yMin);
-        float centerY = bottom - (centerVal - yMin) * yScale;
 
         int visibleStart = (pointCount < mXMaxPoints) ? 0 : pointCount - mXMaxPoints;
         int visibleCount = pointCount - visibleStart;
         float xScale = (right - left) / (visibleCount - 1 > 0 ? visibleCount - 1 : 1);
 
-        float yTickSpacing;
-        if (mLabelCount > 0) {
-            yTickSpacing = (yMax - yMin) / (mLabelCount - 1);
-        } else {
-            yTickSpacing = niceNum(mYRange / 3.0f, true);
-        }
-        float yTick = (float) Math.floor(yMin / yTickSpacing) * yTickSpacing;
-        while (yTick <= yMax + yTickSpacing * 0.5f) {
+        for (float yTick = 0; yTick <= 1.001f; yTick += Y_TICK_STEP) {
             float y = bottom - (yTick - yMin) * yScale;
+            if (y < top - 1 || y > bottom + 1) continue;
             canvas.drawLine(left, y, right, y, gridPaint);
             canvas.drawLine(left - 5, y, left, y, axisPaint);
             String label = String.format("%.0f", yTick * 100);
             float tw = textPaint.measureText(label);
             canvas.drawText(label, left - 15 - tw, y + 5, textPaint);
-            yTick += yTickSpacing;
         }
 
         float xTickSpacing = niceNum(visibleCount / 5.0f, true);
@@ -298,6 +276,7 @@ public class FocusChartView extends View {
         }
 
         canvas.drawLine(left, top, left, bottom, axisPaint);
+        float centerY = bottom - (0.5f - yMin) * yScale;
         canvas.drawLine(left, centerY, right, centerY, axisPaint);
 
         lock.lock();

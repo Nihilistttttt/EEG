@@ -4,6 +4,7 @@ import com.nihilisttt.eegdoctor.R;
 
 import android.app.AlertDialog;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -87,12 +88,14 @@ public class WaveCompareFragment extends Fragment implements DataListener {
     public void onResume() {
         super.onResume();
         DataDispatcher.getInstance().addListener(this);
+        Log.d("WaveCompare", "onResume: listener added");
     }
 
     @Override
-    public void onDestroyView() {
-        super.onDestroyView();
+    public void onPause() {
+        super.onPause();
         DataDispatcher.getInstance().removeListener(this);
+        Log.d("WaveCompare", "onPause: listener removed");
     }
 
     // ==================== 波形控制方法 ====================
@@ -239,12 +242,12 @@ public class WaveCompareFragment extends Fragment implements DataListener {
 
     @Override
     public void onWaveData(int cmd, float ch0, float ch1) {
-        if (cmd == 0x04) {          // 原始波形
-            rawCh0.addPoint(ch0);
-            rawCh1.addPoint(ch1);
-        } else if (cmd == 0x10) {   // 时域滤波后波形
-            filtCh0.addPoint(ch0);
-            filtCh1.addPoint(ch1);
+        if (cmd == 0x04) {
+            if (rawCh0 != null) rawCh0.addPoint(ch0);
+            if (rawCh1 != null) rawCh1.addPoint(ch1);
+        } else if (cmd == 0x10) {
+            if (filtCh0 != null) filtCh0.addPoint(ch0);
+            if (filtCh1 != null) filtCh1.addPoint(ch1);
         }
     }
 

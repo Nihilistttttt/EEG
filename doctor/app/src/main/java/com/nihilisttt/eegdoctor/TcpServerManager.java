@@ -509,8 +509,13 @@ public class TcpServerManager {
             }
         }
 
+        private int textLineLogCounter = 0;
         private void parseTextLine(String line) {
             if (line.isEmpty()) return;
+            textLineLogCounter++;
+            if (textLineLogCounter % 250 == 0 || line.startsWith("TASK") || line.startsWith("READY") || line.startsWith("MODE_SET_OK")) {
+                Log.i("TCP", "parseTextLine: " + line);
+            }
             if (line.startsWith("DIRCSV,")) {
                 EegFrame frame = EegFrame.fromDirCsv(line);
                 if (frame != null) {

@@ -1,6 +1,14 @@
 NeuroWave 医生端 版本更新日志
 ================================
 
+v0.4.0 (2026-07-06)
+- TrainingFragment重命名为SsvepTrainingFragment, 明确SSVEP训练
+- 新增MiTrainingFragment: 运动想象训练(想象左手/右手)
+- 页面列表: 脑电监测/专注度/波形对比/频谱对比/SSVEP训练/MI训练/方向识别
+- FocusChartView: Y轴固定0-100, 步长5画刻度线+标注, 去掉标签数/Y范围选项
+- 新增SsvepDetector: FFT频谱分析+CCA典型相关分析, 支持8Hz/12Hz检测
+- SsvepDetector: FFT基2蝶形运算, CCA参考信号3次谐波, detectByFft/detectByCca
+
 v0.3.0 (2026-07-06)
 - TrainingFragment: MI范式→SSVEP范式(视觉闪烁刺激,左8Hz/右12Hz)
 - 训练时序: 本地计时→下位机TASK,DONE信号驱动

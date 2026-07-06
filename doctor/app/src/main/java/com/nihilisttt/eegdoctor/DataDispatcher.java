@@ -2,88 +2,137 @@ package com.nihilisttt.eegdoctor;
 
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class DataDispatcher {
+    private static final String TAG = "DataDispatcher";
     private static final DataDispatcher INSTANCE = new DataDispatcher();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final List<DataListener> listeners = new CopyOnWriteArrayList<>();
 
     public static DataDispatcher getInstance() { return INSTANCE; }
 
-    public void addListener(DataListener listener) { listeners.add(listener); }
-    public void removeListener(DataListener listener) { listeners.remove(listener); }
+    public void addListener(DataListener listener) {
+        listeners.add(listener);
+        Log.d(TAG, "addListener: " + listener.getClass().getSimpleName() + ", total=" + listeners.size());
+    }
+    public void removeListener(DataListener listener) {
+        listeners.remove(listener);
+        Log.d(TAG, "removeListener: " + listener.getClass().getSimpleName() + ", total=" + listeners.size());
+    }
 
     public void postWaveData(int cmd, float ch0, float ch1) {
         mainHandler.post(() -> {
-            for (DataListener l : listeners) l.onWaveData(cmd, ch0, ch1);
+            for (DataListener l : listeners) {
+                try { l.onWaveData(cmd, ch0, ch1); }
+                catch (Exception e) { Log.e(TAG, "onWaveData error in " + l.getClass().getSimpleName(), e); }
+            }
         });
     }
 
     public void postSpectrumData(int cmd, float[] mags) {
         mainHandler.post(() -> {
-            for (DataListener l : listeners) l.onSpectrumData(cmd, mags);
+            for (DataListener l : listeners) {
+                try { l.onSpectrumData(cmd, mags); }
+                catch (Exception e) { Log.e(TAG, "onSpectrumData error in " + l.getClass().getSimpleName(), e); }
+            }
         });
     }
 
     public void postFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {
         mainHandler.post(() -> {
-            for (DataListener l : listeners) l.onFocusData(attn0, attn1, ema0, ema1, trend, instant);
+            for (DataListener l : listeners) {
+                try { l.onFocusData(attn0, attn1, ema0, ema1, trend, instant); }
+                catch (Exception e) { Log.e(TAG, "onFocusData error in " + l.getClass().getSimpleName(), e); }
+            }
         });
     }
 
     public void postEegFrame(EegFrame frame) {
         mainHandler.post(() -> {
-            for (DataListener l : listeners) l.onEegFrame(frame);
+            for (DataListener l : listeners) {
+                try { l.onEegFrame(frame); }
+                catch (Exception e) { Log.e(TAG, "onEegFrame error in " + l.getClass().getSimpleName(), e); }
+            }
         });
     }
 
     public void postInferenceResult(InferenceResult result) {
         mainHandler.post(() -> {
-            for (DataListener l : listeners) l.onInferenceResult(result);
+            for (DataListener l : listeners) {
+                try { l.onInferenceResult(result); }
+                catch (Exception e) { Log.e(TAG, "onInferenceResult error in " + l.getClass().getSimpleName(), e); }
+            }
         });
     }
 
     public void postIpcDiag(IpcDiagInfo diag) {
         mainHandler.post(() -> {
-            for (DataListener l : listeners) l.onIpcDiag(diag);
+            for (DataListener l : listeners) {
+                try { l.onIpcDiag(diag); }
+                catch (Exception e) { Log.e(TAG, "onIpcDiag error in " + l.getClass().getSimpleName(), e); }
+            }
         });
     }
 
     public void postDirConfig(String configJson) {
         mainHandler.post(() -> {
-            for (DataListener l : listeners) l.onDirConfig(configJson);
+            for (DataListener l : listeners) {
+                try { l.onDirConfig(configJson); }
+                catch (Exception e) { Log.e(TAG, "onDirConfig error in " + l.getClass().getSimpleName(), e); }
+            }
         });
     }
 
     public void postTaskStart(String side) {
         mainHandler.post(() -> {
-            for (DataListener l : listeners) l.onTaskStart(side);
+            Log.d(TAG, "postTaskStart: " + side);
+            for (DataListener l : listeners) {
+                try { l.onTaskStart(side); }
+                catch (Exception e) { Log.e(TAG, "onTaskStart error in " + l.getClass().getSimpleName(), e); }
+            }
         });
     }
 
     public void postTaskDone() {
         mainHandler.post(() -> {
-            for (DataListener l : listeners) l.onTaskDone();
+            Log.d(TAG, "postTaskDone");
+            for (DataListener l : listeners) {
+                try { l.onTaskDone(); }
+                catch (Exception e) { Log.e(TAG, "onTaskDone error in " + l.getClass().getSimpleName(), e); }
+            }
         });
     }
 
     public void postReadyTrain() {
         mainHandler.post(() -> {
-            for (DataListener l : listeners) l.onReadyTrain();
+            Log.d(TAG, "postReadyTrain");
+            for (DataListener l : listeners) {
+                try { l.onReadyTrain(); }
+                catch (Exception e) { Log.e(TAG, "onReadyTrain error in " + l.getClass().getSimpleName(), e); }
+            }
         });
     }
 
     public void postReadyTest() {
         mainHandler.post(() -> {
-            for (DataListener l : listeners) l.onReadyTest();
+            Log.d(TAG, "postReadyTest");
+            for (DataListener l : listeners) {
+                try { l.onReadyTest(); }
+                catch (Exception e) { Log.e(TAG, "onReadyTest error in " + l.getClass().getSimpleName(), e); }
+            }
         });
     }
 
     public void postModeSetOk(int mode) {
         mainHandler.post(() -> {
-            for (DataListener l : listeners) l.onModeSetOk(mode);
+            Log.d(TAG, "postModeSetOk: mode=" + mode);
+            for (DataListener l : listeners) {
+                try { l.onModeSetOk(mode); }
+                catch (Exception e) { Log.e(TAG, "onModeSetOk error in " + l.getClass().getSimpleName(), e); }
+            }
         });
     }
 }

@@ -17,7 +17,10 @@ import androidx.core.content.ContextCompat;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import android.util.Log;
+
 public class WaveformView extends View {
+    private static final String TAG = "WaveformView";
     private static final int MAX_POINTS = 5000;
     private static final float SAMPLE_RATE = 250.0f;
     private float mYRange = 0.5f;
@@ -26,6 +29,7 @@ public class WaveformView extends View {
     private float[] buffer = new float[MAX_POINTS];
     private int writeIdx = 0;
     private int pointCount = 0;
+    private int logCounter = 0;
     private Paint paint, glowPaint;
     private Lock lock = new ReentrantLock();
 
@@ -209,6 +213,10 @@ public class WaveformView extends View {
         writeIdx = (writeIdx + 1) % MAX_POINTS;
         if (pointCount < MAX_POINTS) pointCount++;
         lock.unlock();
+        logCounter++;
+        if (logCounter % 500 == 0) {
+            Log.d(TAG, "addPoint: count=" + pointCount + " val=" + value + " range=" + mYRange);
+        }
         postInvalidate();
     }
 

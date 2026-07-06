@@ -3,6 +3,7 @@ package com.nihilisttt.eegdoctor;
 import com.nihilisttt.eegdoctor.R;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -76,17 +77,19 @@ public class InferenceFragment extends Fragment implements DataListener {
     public void onResume() {
         super.onResume();
         DataDispatcher.getInstance().addListener(this);
+        Log.d("Inference", "onResume: listener added");
     }
 
     @Override
-    public void onDestroyView() {
-        super.onDestroyView();
+    public void onPause() {
+        super.onPause();
         DataDispatcher.getInstance().removeListener(this);
+        Log.d("Inference", "onPause: listener removed");
     }
 
     @Override
     public void onInferenceResult(InferenceResult result) {
-        if (!isInferencing) return;
+        if (!isInferencing || tvDirection == null || tvConfidence == null) return;
 
         String intent = result.getIntent();
         if ("LEFT".equals(intent)) {

@@ -5,6 +5,7 @@ import com.nihilisttt.eegdoctor.R;
 import android.app.AlertDialog;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -316,18 +317,20 @@ public class MainFragment extends Fragment implements DataListener {
     public void onResume() {
         super.onResume();
         DataDispatcher.getInstance().addListener(this);
+        Log.d("MainFragment", "onResume: listener added, views=" + (waveCh0 != null));
     }
 
     @Override
-    public void onDestroyView() {
-        super.onDestroyView();
+    public void onPause() {
+        super.onPause();
         DataDispatcher.getInstance().removeListener(this);
+        Log.d("MainFragment", "onPause: listener removed");
     }
 
     // ==================== DataListener 回调 ====================
     @Override
     public void onWaveData(int cmd, float ch0, float ch1) {
-        if (cmd == 0x04 && !isPaused) {
+        if (cmd == 0x04 && !isPaused && waveCh0 != null && waveCh1 != null) {
             waveCh0.addPoint(ch0);
             waveCh1.addPoint(ch1);
         }
@@ -335,7 +338,7 @@ public class MainFragment extends Fragment implements DataListener {
 
     @Override
     public void onSpectrumData(int cmd, float[] mags) {
-        if (!isPaused) {
+        if (!isPaused && spectrumCh0 != null && spectrumCh1 != null) {
             if (cmd == 0x07) {
                 spectrumCh0.updateSpectrum(mags);
             } else if (cmd == 0x06) {
@@ -347,6 +350,7 @@ public class MainFragment extends Fragment implements DataListener {
     @Override
     public void onFocusData(float attn0, float attn1, float ema0, float ema1,
                             int trend, int instant) {
+        if (attnCh0 == null || attnCh1 == null || tvInstantState == null || tvTrendState == null) return;
         String[] stateText = {"放松", "平静", "专注"};
         int[] stateColors = {
             ContextCompat.getColor(requireContext(), R.color.accent_error),

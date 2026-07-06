@@ -49,12 +49,14 @@ public class SpectrumCompareFragment extends Fragment implements DataListener {
     public void onResume() {
         super.onResume();
         DataDispatcher.getInstance().addListener(this);
+        Log.d("SpectrumCompare", "onResume: listener added");
     }
 
     @Override
-    public void onDestroyView() {
-        super.onDestroyView();
+    public void onPause() {
+        super.onPause();
         DataDispatcher.getInstance().removeListener(this);
+        Log.d("SpectrumCompare", "onPause: listener removed");
     }
 
     /**
@@ -64,17 +66,13 @@ public class SpectrumCompareFragment extends Fragment implements DataListener {
      */
     @Override
     public void onSpectrumData(int cmd, float[] mags) {
-        //Log.d("Spectrum", "cmd " + Integer.toHexString(cmd) + " len=" + mags.length + " first=" + mags[0]);
         switch (cmd) {
-            // 原始频谱
-            case 0x03: rawSpecCh0.updateSpectrum(mags); break;
-            case 0x02: rawSpecCh1.updateSpectrum(mags); break;
-            // 频域滤波频谱
-            case 0x07: freqSpecCh0.updateSpectrum(mags); break;
-            case 0x06: freqSpecCh1.updateSpectrum(mags); break;
-            // 时域滤波频谱
-            case 0x09: filtSpecCh0.updateSpectrum(mags); break;
-            case 0x08: filtSpecCh1.updateSpectrum(mags); break;
+            case 0x03: if (rawSpecCh0 != null) rawSpecCh0.updateSpectrum(mags); break;
+            case 0x02: if (rawSpecCh1 != null) rawSpecCh1.updateSpectrum(mags); break;
+            case 0x07: if (freqSpecCh0 != null) freqSpecCh0.updateSpectrum(mags); break;
+            case 0x06: if (freqSpecCh1 != null) freqSpecCh1.updateSpectrum(mags); break;
+            case 0x09: if (filtSpecCh0 != null) filtSpecCh0.updateSpectrum(mags); break;
+            case 0x08: if (filtSpecCh1 != null) filtSpecCh1.updateSpectrum(mags); break;
         }
     }
 

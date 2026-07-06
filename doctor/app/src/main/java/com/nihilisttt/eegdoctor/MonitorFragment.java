@@ -6,6 +6,7 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -397,28 +398,31 @@ public class MonitorFragment extends Fragment implements DataListener {
     public void onResume() {
         super.onResume();
         DataDispatcher.getInstance().addListener(this);
+        Log.d("MonitorFragment", "onResume: listener added, waveViews=" + waveformViews.size());
     }
 
     @Override
-    public void onDestroyView() {
-        super.onDestroyView();
+    public void onPause() {
+        super.onPause();
         DataDispatcher.getInstance().removeListener(this);
+        Log.d("MonitorFragment", "onPause: listener removed");
     }
 
     @Override
     public void onWaveData(int cmd, float ch0, float ch1) {
         if (cmd == 0x04 && !isPaused) {
-            if (waveformViews.size() > 0) waveformViews.get(0).addPoint(ch0);
-            if (waveformViews.size() > 1) waveformViews.get(1).addPoint(ch1);
+            if (waveformViews.size() > 0 && waveformViews.get(0) != null) waveformViews.get(0).addPoint(ch0);
+            if (waveformViews.size() > 1 && waveformViews.get(1) != null) waveformViews.get(1).addPoint(ch1);
         }
     }
 
     @Override
     public void onEegFrame(EegFrame frame) {
         if (isPaused) return;
+        if (waveformViews.isEmpty()) return;
         float[] ch = frame.getChannels();
         for (int i = 0; i < waveformViews.size() && i < ch.length; i++) {
-            waveformViews.get(i).addPoint(ch[i]);
+            if (waveformViews.get(i) != null) waveformViews.get(i).addPoint(ch[i]);
         }
     }
 
@@ -433,15 +437,16 @@ public class MonitorFragment extends Fragment implements DataListener {
     @Override
     public void onFocusData(float attn0, float attn1, float ema0, float ema1,
                             int trend, int instant) {
+        if (tvInstantState == null || tvTrendState == null) return;
         String[] stateText = {"放松", "平静", "专注"};
         int[] stateColors = {
             ContextCompat.getColor(requireContext(), R.color.accent_error),
             ContextCompat.getColor(requireContext(), R.color.accent_warning),
             ContextCompat.getColor(requireContext(), R.color.accent_success)
         };
-        if (attnViews.size() > 0)
+        if (attnViews.size() > 0 && attnViews.get(0) != null)
             attnViews.get(0).setText(String.format(Locale.getDefault(), "专注度: %.3f", attn0));
-        if (attnViews.size() > 1)
+        if (attnViews.size() > 1 && attnViews.get(1) != null)
             attnViews.get(1).setText(String.format(Locale.getDefault(), "专注度: %.3f", attn1));
         String instantStr = (instant >= 0 && instant < stateText.length) ? stateText[instant] : "?";
         String trendStr = (trend >= 0 && trend < stateText.length) ? stateText[trend] : "?";

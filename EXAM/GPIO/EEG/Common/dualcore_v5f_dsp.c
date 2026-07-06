@@ -36,27 +36,43 @@ uint16_t g_v5f_step_count = 0;
 static uint8_t  g_v5f_fft_cfg_ready = 0;
 
 DualCore_DriftRemove_t g_v5f_drift[DUALCORE_ADS1299_ACTIVE_CH_NUM];
-DualCore_IIR_SOS_t     g_v5f_notch[DUALCORE_ADS1299_ACTIVE_CH_NUM];
-DualCore_IIR_SOS_t     g_v5f_bandpass[DUALCORE_ADS1299_ACTIVE_CH_NUM];
+DualCore_IIR_SOS_Coeff_t g_v5f_notch_coeff = {
+    .Sec = {
+        {.b0 = 0.9794827610f, .b1 = -0.6053536377f, .b2 = 0.9794827610f, .a1 = -0.6053536377f, .a2 = 0.9589655220f},
+        {.b0 = 0.9794827610f, .b1 = -0.6053536377f, .b2 = 0.9794827610f, .a1 = -0.6053536377f, .a2 = 0.9589655220f},
+    },
+    .NumSections = 2
+};
 
-static float DualCore_IIR_Step(float input, DualCore_IIR_Biquad_t *filt)
+DualCore_IIR_SOS_Coeff_t g_v5f_bandpass_coeff = {
+    .Sec = {
+        {.b0 = 0.93637848f, .b1 = -1.87275696f, .b2 = 0.93637848f, .a1 = -1.95979169f, .a2 = 0.96227012f},
+        {.b0 = 1.0f, .b1 = -2.0f, .b2 = 1.0f, .a1 = -1.90886498f, .a2 = 0.91127901f},
+    },
+    .NumSections = 2
+};
+
+DualCore_IIR_SOS_State_t g_v5f_notch_state[DUALCORE_ADS1299_ACTIVE_CH_NUM] = {0};
+DualCore_IIR_SOS_State_t g_v5f_bandpass_state[DUALCORE_ADS1299_ACTIVE_CH_NUM] = {0};
+
+static float DualCore_IIR_Step(float input, const DualCore_IIR_Coeff_t *coeff, DualCore_IIR_State_t *state)
 {
-    float wn = input - filt->a1 * filt->w1 - filt->a2 * filt->w2;
-    float out = filt->b0 * wn + filt->b1 * filt->w1 + filt->b2 * filt->w2;
+    float wn = input - coeff->a1 * state->w1 - coeff->a2 * state->w2;
+    float out = coeff->b0 * wn + coeff->b1 * state->w1 + coeff->b2 * state->w2;
 
-    filt->w2 = filt->w1;
-    filt->w1 = wn;
+    state->w2 = state->w1;
+    state->w1 = wn;
 
     return out;
 }
 
-float DualCore_IIR_SOS_Step(float input, DualCore_IIR_SOS_t *filt)
+float DualCore_IIR_SOS_Step(float input, const DualCore_IIR_SOS_Coeff_t *coeff, DualCore_IIR_SOS_State_t *state)
 {
     float tmp = input;
     uint8_t i;
 
-    for (i = 0; i < filt->NumSections; i++) {
-        tmp = DualCore_IIR_Step(tmp, &filt->Sec[i]);
+    for (i = 0; i < coeff->NumSections; i++) {
+        tmp = DualCore_IIR_Step(tmp, &coeff->Sec[i], &state->Sec[i]);
     }
 
     return tmp;
@@ -77,22 +93,24 @@ float DualCore_RemoveRealtimeDrift(float x, DualCore_DriftRemove_t *st)
     return y;
 }
 
-void DualCore_InitOneNotch(DualCore_IIR_SOS_t *f)
+void DualCore_InitOneNotch(DualCore_IIR_SOS_Coeff_t *c, DualCore_IIR_SOS_State_t *s)
 {
-    f->NumSections = 2;
-    f->Sec[0].b0 = 0.9794827610f; f->Sec[0].b1 = -0.6053536377f; f->Sec[0].b2 = 0.9794827610f;
-    f->Sec[0].a1 = -0.6053536377f; f->Sec[0].a2 = 0.9589655220f;  f->Sec[0].w1 = 0.0f; f->Sec[0].w2 = 0.0f;
-    f->Sec[1].b0 = 0.9794827610f; f->Sec[1].b1 = -0.6053536377f; f->Sec[1].b2 = 0.9794827610f;
-    f->Sec[1].a1 = -0.6053536377f; f->Sec[1].a2 = 0.9589655220f;  f->Sec[1].w1 = 0.0f; f->Sec[1].w2 = 0.0f;
+    c->Sec[0].b0 = 0.9794827610f; c->Sec[0].b1 = -0.6053536377f; c->Sec[0].b2 = 0.9794827610f;
+    c->Sec[0].a1 = -0.6053536377f; c->Sec[0].a2 = 0.9589655220f;
+    c->Sec[1].b0 = 0.9794827610f; c->Sec[1].b1 = -0.6053536377f; c->Sec[1].b2 = 0.9794827610f;
+    c->Sec[1].a1 = -0.6053536377f; c->Sec[1].a2 = 0.9589655220f;
+    c->NumSections = 2;
+    memset(s, 0, sizeof(*s));
 }
 
-void DualCore_InitOneBandpass(DualCore_IIR_SOS_t *f)
+void DualCore_InitOneBandpass(DualCore_IIR_SOS_Coeff_t *c, DualCore_IIR_SOS_State_t *s)
 {
-    f->NumSections = 2;
-    f->Sec[0].b0 = 0.93637848f; f->Sec[0].b1 = -1.87275696f; f->Sec[0].b2 = 0.93637848f;
-    f->Sec[0].a1 = -1.95979169f; f->Sec[0].a2 = 0.96227012f;  f->Sec[0].w1 = 0.0f; f->Sec[0].w2 = 0.0f;
-    f->Sec[1].b0 = 1.0f;        f->Sec[1].b1 = -2.0f;        f->Sec[1].b2 = 1.0f;
-    f->Sec[1].a1 = -1.90886498f; f->Sec[1].a2 = 0.91127901f; f->Sec[1].w1 = 0.0f; f->Sec[1].w2 = 0.0f;
+    c->Sec[0].b0 = 0.93637848f; c->Sec[0].b1 = -1.87275696f; c->Sec[0].b2 = 0.93637848f;
+    c->Sec[0].a1 = -1.95979169f; c->Sec[0].a2 = 0.96227012f;
+    c->Sec[1].b0 = 1.0f;        c->Sec[1].b1 = -2.0f;        c->Sec[1].b2 = 1.0f;
+    c->Sec[1].a1 = -1.90886498f; c->Sec[1].a2 = 0.91127901f;
+    c->NumSections = 2;
+    memset(s, 0, sizeof(*s));
 }
 
 static float DualCore_V5F_SafePower(float p)
@@ -491,8 +509,8 @@ void DualCore_V5F_DSP_Reset(void)
     for (c = 0; c < DUALCORE_ADS1299_ACTIVE_CH_NUM; c++) {
         g_v5f_drift[c].drift_base = 0.0f;
         g_v5f_drift[c].init = 0;
-        DualCore_InitOneNotch(&g_v5f_notch[c]);
-        DualCore_InitOneBandpass(&g_v5f_bandpass[c]);
+        DualCore_InitOneNotch(&g_v5f_notch_coeff, &g_v5f_notch_state[c]);
+        DualCore_InitOneBandpass(&g_v5f_bandpass_coeff, &g_v5f_bandpass_state[c]);
         for (i = 0; i < DUALCORE_V5F_FFT_SIZE; i++) {
             g_v5f_ring[c][i] = 0.0f;
         }

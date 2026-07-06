@@ -44,14 +44,24 @@
 
 typedef struct
 {
-    float b0, b1, b2, a1, a2, w1, w2;
-} DualCore_IIR_Biquad_t;
+    float b0, b1, b2, a1, a2;
+} DualCore_IIR_Coeff_t;
 
 typedef struct
 {
-    DualCore_IIR_Biquad_t Sec[4];
+    float w1, w2;
+} DualCore_IIR_State_t;
+
+typedef struct
+{
+    DualCore_IIR_Coeff_t Sec[4];
     uint8_t NumSections;
-} DualCore_IIR_SOS_t;
+} DualCore_IIR_SOS_Coeff_t;
+
+typedef struct
+{
+    DualCore_IIR_State_t Sec[4];
+} DualCore_IIR_SOS_State_t;
 
 typedef struct
 {

@@ -51,8 +51,8 @@ static void DualCore_V5F_ProcessPreprocess(volatile DualCore_IPC_FrameSlot_t *sl
         int32_t uv_x1000 = DualCore_ADS1299_CodeToMicroVoltX1000(ch_data[c]);
         float volt = (float)uv_x1000 / 1000000000.0f;
         float drift = DualCore_RemoveRealtimeDrift(volt, &g_v5f_drift[c]);
-        float pre = DualCore_IIR_SOS_Step(drift, &g_v5f_notch[c]);
-        float filt = DualCore_IIR_SOS_Step(pre, &g_v5f_bandpass[c]);
+        float pre = DualCore_IIR_SOS_Step(drift, &g_v5f_notch_coeff, &g_v5f_notch_state[c]);
+        float filt = DualCore_IIR_SOS_Step(pre, &g_v5f_bandpass_coeff, &g_v5f_bandpass_state[c]);
 
         slot->v5f_uv_x1000[c] = uv_x1000;
         slot->v5f_pre_x1000[c] = DualCore_FloatVoltToMicroVoltX1000(pre);

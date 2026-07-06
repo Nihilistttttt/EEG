@@ -141,10 +141,10 @@ void Signal_Analysis_Start(void)
         float drift_ch3 = EEG_RemoveRealtimeDrift(val_ch3, &AB_Drift_CH3);
 
 #if AB_REALTIME_NOTCH_ENABLE
-        float ab_pre_ch0 = IIR_SOS_Step(drift_ch0, &Notch_CH0);
-        float ab_pre_ch1 = IIR_SOS_Step(drift_ch1, &Notch_CH1);
-        float ab_pre_ch2 = IIR_SOS_Step(drift_ch2, &Notch_CH2);
-        float ab_pre_ch3 = IIR_SOS_Step(drift_ch3, &Notch_CH3);
+        float ab_pre_ch0 = IIR_SOS_Step(drift_ch0, &g_notch_coeff, &g_notch_state[0]);
+        float ab_pre_ch1 = IIR_SOS_Step(drift_ch1, &g_notch_coeff, &g_notch_state[1]);
+        float ab_pre_ch2 = IIR_SOS_Step(drift_ch2, &g_notch_coeff, &g_notch_state[2]);
+        float ab_pre_ch3 = IIR_SOS_Step(drift_ch3, &g_notch_coeff, &g_notch_state[3]);
 #else
         float ab_pre_ch0 = drift_ch0;
         float ab_pre_ch1 = drift_ch1;
@@ -152,10 +152,10 @@ void Signal_Analysis_Start(void)
         float ab_pre_ch3 = drift_ch3;
 #endif
 
-        float filtered_ch0 = IIR_SOS_Step(ab_pre_ch0, &Bandpass_CH0);
-        float filtered_ch1 = IIR_SOS_Step(ab_pre_ch1, &Bandpass_CH1);
-        float filtered_ch2 = IIR_SOS_Step(ab_pre_ch2, &Bandpass_CH2);
-        float filtered_ch3 = IIR_SOS_Step(ab_pre_ch3, &Bandpass_CH3);
+        float filtered_ch0 = IIR_SOS_Step(ab_pre_ch0, &g_bandpass_coeff, &g_bandpass_state[0]);
+        float filtered_ch1 = IIR_SOS_Step(ab_pre_ch1, &g_bandpass_coeff, &g_bandpass_state[1]);
+        float filtered_ch2 = IIR_SOS_Step(ab_pre_ch2, &g_bandpass_coeff, &g_bandpass_state[2]);
+        float filtered_ch3 = IIR_SOS_Step(ab_pre_ch3, &g_bandpass_coeff, &g_bandpass_state[3]);
 
         RingBufFiltered.CH0[RingBufFiltered.WriteIdx] = filtered_ch0;
         RingBufFiltered.CH1[RingBufFiltered.WriteIdx] = filtered_ch1;

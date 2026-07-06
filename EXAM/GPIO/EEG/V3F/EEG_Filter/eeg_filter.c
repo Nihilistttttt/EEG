@@ -8,63 +8,24 @@
 #define WAVE_DISPLAY_REMOVE_BASELINE     1
 #define WAVE_DISPLAY_BASELINE_ALPHA      0.005f
 
-IIR_SOS_t Bandpass_CH0 = {
-    .Sec = {
-        {.b0 = 0.93637848f, .b1 = -1.87275696f, .b2 = 0.93637848f, .a1 = -1.95979169f, .a2 = 0.96227012f, .w1 = 0, .w2 = 0},
-        {.b0 = 1.0f, .b1 = -2.0f, .b2 = 1.0f, .a1 = -1.90886498f, .a2 = 0.91127901f, .w1 = 0, .w2 = 0}},
-    .NumSections = 2
-};
-IIR_SOS_t Bandpass_CH1 = {
-    .Sec = {
-        {.b0 = 0.93637848f, .b1 = -1.87275696f, .b2 = 0.93637848f, .a1 = -1.95979169f, .a2 = 0.96227012f, .w1 = 0, .w2 = 0},
-        {.b0 = 1.0f, .b1 = -2.0f, .b2 = 1.0f, .a1 = -1.90886498f, .a2 = 0.91127901f, .w1 = 0, .w2 = 0}},
-    .NumSections = 2
-};
-
-IIR_SOS_t Bandpass_CH2 = {
-    .Sec = {
-        {.b0 = 0.93637848f, .b1 = -1.87275696f, .b2 = 0.93637848f, .a1 = -1.95979169f, .a2 = 0.96227012f, .w1 = 0, .w2 = 0},
-        {.b0 = 1.0f, .b1 = -2.0f, .b2 = 1.0f, .a1 = -1.90886498f, .a2 = 0.91127901f, .w1 = 0, .w2 = 0}},
-    .NumSections = 2
-};
-
-IIR_SOS_t Bandpass_CH3 = {
-    .Sec = {
-        {.b0 = 0.93637848f, .b1 = -1.87275696f, .b2 = 0.93637848f, .a1 = -1.95979169f, .a2 = 0.96227012f, .w1 = 0, .w2 = 0},
-        {.b0 = 1.0f, .b1 = -2.0f, .b2 = 1.0f, .a1 = -1.90886498f, .a2 = 0.91127901f, .w1 = 0, .w2 = 0}},
-    .NumSections = 2
-};
-
-IIR_SOS_t Notch_CH0 = {
-    .Sec = {
-        {.b0 = 0.9794827610f, .b1 = -0.6053536377f, .b2 = 0.9794827610f, .a1 = -0.6053536377f, .a2 = 0.9589655220f, .w1 = 0, .w2 = 0},
-        {.b0 = 0.9794827610f, .b1 = -0.6053536377f, .b2 = 0.9794827610f, .a1 = -0.6053536377f, .a2 = 0.9589655220f, .w1 = 0, .w2 = 0},
+IIR_SOS_Coeff_t g_notch_coeff = {
+    .sec = {
+        {.b0 = 0.9794827610f, .b1 = -0.6053536377f, .b2 = 0.9794827610f, .a1 = -0.6053536377f, .a2 = 0.9589655220f},
+        {.b0 = 0.9794827610f, .b1 = -0.6053536377f, .b2 = 0.9794827610f, .a1 = -0.6053536377f, .a2 = 0.9589655220f},
     },
-    .NumSections = 2
-};
-IIR_SOS_t Notch_CH1 = {
-    .Sec = {
-        {.b0 = 0.9794827610f, .b1 = -0.6053536377f, .b2 = 0.9794827610f, .a1 = -0.6053536377f, .a2 = 0.9589655220f, .w1 = 0, .w2 = 0},
-        {.b0 = 0.9794827610f, .b1 = -0.6053536377f, .b2 = 0.9794827610f, .a1 = -0.6053536377f, .a2 = 0.9589655220f, .w1 = 0, .w2 = 0},
-    },
-    .NumSections = 2
+    .num_sections = 2
 };
 
-IIR_SOS_t Notch_CH2 = {
-    .Sec = {
-        {.b0 = 0.9794827610f, .b1 = -0.6053536377f, .b2 = 0.9794827610f, .a1 = -0.6053536377f, .a2 = 0.9589655220f, .w1 = 0, .w2 = 0},
-        {.b0 = 0.9794827610f, .b1 = -0.6053536377f, .b2 = 0.9794827610f, .a1 = -0.6053536377f, .a2 = 0.9589655220f, .w1 = 0, .w2 = 0},
+IIR_SOS_Coeff_t g_bandpass_coeff = {
+    .sec = {
+        {.b0 = 0.93637848f, .b1 = -1.87275696f, .b2 = 0.93637848f, .a1 = -1.95979169f, .a2 = 0.96227012f},
+        {.b0 = 1.0f, .b1 = -2.0f, .b2 = 1.0f, .a1 = -1.90886498f, .a2 = 0.91127901f},
     },
-    .NumSections = 2
+    .num_sections = 2
 };
 
-IIR_SOS_t Notch_CH3 = {
-    .Sec = {
-        {.b0 = 0.9794827610f, .b1 = -0.6053536377f, .b2 = 0.9794827610f, .a1 = -0.6053536377f, .a2 = 0.9589655220f, .w1 = 0, .w2 = 0},
-        {.b0 = 0.9794827610f, .b1 = -0.6053536377f, .b2 = 0.9794827610f, .a1 = -0.6053536377f, .a2 = 0.9589655220f, .w1 = 0, .w2 = 0},
-    },
-    .NumSections = 2
-};
+IIR_SOS_State_t g_notch_state[NUM_CHANNELS] = {0};
+IIR_SOS_State_t g_bandpass_state[NUM_CHANNELS] = {0};
 
 EEG_DriftRemove_t AB_Drift_CH0 = {0.0f, 0};
 EEG_DriftRemove_t AB_Drift_CH1 = {0.0f, 0};
@@ -75,21 +36,22 @@ static float wave_display_base_ch0 = 0.0f;
 static float wave_display_base_ch1 = 0.0f;
 static uint8_t wave_display_base_ready = 0;
 
-float IIR_Step(float input, IIR_Biquad_t *filt)
+float IIR_Step(float input, const IIR_Coeff_t *coeff, IIR_State_t *state)
 {
-    float wn = input - filt->a1 * filt->w1 - filt->a2 * filt->w2;
-    float out = filt->b0 * wn + filt->b1 * filt->w1 + filt->b2 * filt->w2;
-    filt->w2 = filt->w1;
-    filt->w1 = wn;
+    float wn = input - coeff->a1 * state->w1 - coeff->a2 * state->w2;
+    float out = coeff->b0 * wn + coeff->b1 * state->w1 + coeff->b2 * state->w2;
+    state->w2 = state->w1;
+    state->w1 = wn;
     return out;
 }
 
-float IIR_SOS_Step(float input, IIR_SOS_t *filt)
+float IIR_SOS_Step(float input, const IIR_SOS_Coeff_t *coeff, IIR_SOS_State_t *state)
 {
     float tmp = input;
+    uint8_t i;
 #pragma GCC unroll 4
-    for (uint8_t i = 0; i < filt->NumSections; i++) {
-        tmp = IIR_Step(tmp, &filt->Sec[i]);
+    for (i = 0; i < coeff->num_sections; i++) {
+        tmp = IIR_Step(tmp, &coeff->sec[i], &state->sec[i]);
     }
     return tmp;
 }
@@ -135,8 +97,9 @@ void EEG_CalcMeanAndSlope(float *src, uint16_t start, float *out_mean, float *ou
     float sum_xy = 0.0f;
     const float center = ((float)EEG_FILTER_FFT_SIZE - 1.0f) * 0.5f;
     const float sum_x2 = ((float)EEG_FILTER_FFT_SIZE * ((float)EEG_FILTER_FFT_SIZE * (float)EEG_FILTER_FFT_SIZE - 1.0f)) / 12.0f;
+    int j;
 
-    for (int j = 0; j < EEG_FILTER_FFT_SIZE; j++) {
+    for (j = 0; j < EEG_FILTER_FFT_SIZE; j++) {
         uint16_t idx = (start + j) & (EEG_FILTER_FFT_SIZE - 1);
         float y = src[idx];
         float x = (float)j - center;

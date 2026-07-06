@@ -8,13 +8,15 @@
 void DualCore_V5F_DSP_Init(void);
 void DualCore_V5F_DSP_Reset(void);
 
-float DualCore_IIR_SOS_Step(float input, DualCore_IIR_SOS_t *filt);
+float DualCore_IIR_SOS_Step(float input, const DualCore_IIR_SOS_Coeff_t *coeff, DualCore_IIR_SOS_State_t *state);
 float DualCore_RemoveRealtimeDrift(float x, DualCore_DriftRemove_t *st);
 void DualCore_V5F_ComputeFFTFeature(void);
 
 extern DualCore_DriftRemove_t g_v5f_drift[DUALCORE_ADS1299_ACTIVE_CH_NUM];
-extern DualCore_IIR_SOS_t     g_v5f_notch[DUALCORE_ADS1299_ACTIVE_CH_NUM];
-extern DualCore_IIR_SOS_t     g_v5f_bandpass[DUALCORE_ADS1299_ACTIVE_CH_NUM];
+extern DualCore_IIR_SOS_Coeff_t g_v5f_notch_coeff;
+extern DualCore_IIR_SOS_Coeff_t g_v5f_bandpass_coeff;
+extern DualCore_IIR_SOS_State_t g_v5f_notch_state[DUALCORE_ADS1299_ACTIVE_CH_NUM];
+extern DualCore_IIR_SOS_State_t g_v5f_bandpass_state[DUALCORE_ADS1299_ACTIVE_CH_NUM];
 
 extern float    g_v5f_ring[DUALCORE_ADS1299_ACTIVE_CH_NUM][DUALCORE_V5F_FFT_SIZE];
 extern uint16_t g_v5f_ring_write_idx;

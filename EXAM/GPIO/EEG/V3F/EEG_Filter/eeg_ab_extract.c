@@ -17,6 +17,7 @@ static long AB_RoundToLong(float x)
     return (long)(x - 0.5f);
 }
 
+static long AB_LogRatioScaled(float a, float b) __attribute__((unused));
 static long AB_LogRatioScaled(float a, float b)
 {
     float aa = a;
@@ -26,6 +27,7 @@ static long AB_LogRatioScaled(float a, float b)
     return AB_RoundToLong(logf(aa / bb) * AB_RATIO_SCALE);
 }
 
+static long AB_PowerToDb100(float p) __attribute__((unused));
 static long AB_PowerToDb100(float p)
 {
     p = Direction_SafePower(p);

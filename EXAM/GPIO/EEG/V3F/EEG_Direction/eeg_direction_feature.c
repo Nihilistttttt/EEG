@@ -116,14 +116,6 @@ void Direction_BuildRawFeature(float feature[DIR_FEAT_DIM_LOCAL],
     feature[23] = Direction_LogRatio(beta[1], beta[3])  * DIR_FEATURE_SCALE;
 }
 
-void Direction_BuildFeature(float feature[DIR_FEAT_DIM_LOCAL],
-                            float theta_pow[NUM_CHANNELS],
-                            float alpha_pow[NUM_CHANNELS],
-                            float beta_pow[NUM_CHANNELS])
-{
-    Direction_BuildRawFeature(feature, theta_pow, alpha_pow, beta_pow);
-
-}
 
 void Direction_PrintFeatureHeader(void)
 {

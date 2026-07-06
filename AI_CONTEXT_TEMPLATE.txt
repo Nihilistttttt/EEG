@@ -265,7 +265,54 @@ REST(5s) → LEFT(试次) → REST → RIGHT(试次) → REST → ... 重复
 | 5 | dualcore_ipc.c 1297行未拆分 | 维护困难 | 中 |
 | 6 | Android客户端为旧版Java | 功能不全, 需重构(保持Java+TCP/WiFi, 不用Kotlin/USB) | 高 |
 
-## 6.2 已踩过的坑（新AI必读）
+## 6.2 验证状态跟踪
+
+> 本机无法编译验证Android代码, 需另一台电脑验证。所有修改必须在此表中记录验证状态。
+> 状态: ✅已验证 | ⚠️待验证 | ❌验证失败
+
+### 医生端 (doctor) — com.nihilisttt.eegdoctor
+
+| # | 模块/文件 | 变更内容 | 状态 | 备注 |
+|---|----------|---------|------|------|
+| 1 | 包名重构 | com.nihilisttt.udptest → com.nihilisttt.eegdoctor (24个Java文件+6个XML+测试目录) | ⚠️待验证 | |
+| 2 | R资源import | 15个使用R的文件新增 import com.nihilisttt.eegdoctor.R | ⚠️待验证 | package与R不同包时必须显式import |
+| 3 | XML自定义View包名 | 6个布局文件中17处 com.nihilisttt.udptest.XxxView → com.nihilisttt.eegdoctor.XxxView | ⚠️待验证 | |
+| 4 | FrameParser文本行协议 | STATE_HEADER分支新增DIRCSV/RESULT/IPCDIAG/DIRCFG解析, 二进制帧路径不变 | ⚠️待验证 | switch-case结构保持, 仅在HEADER分支新增 |
+| 5 | 患者端转发 | TcpServerManager新增41004端口(患者数据转发)+41005端口(患者命令接收) | ⚠️待验证 | |
+| 6 | handlePatientCommand | 接收患者端命令并调用sendToDevice()转发给下位机 | ⚠️待验证 | |
+| 7 | DataListener扩展 | 新增4个default回调: onEegFrame/onInferenceResult/onIpcDiag/onDirConfig | ⚠️待验证 | default方法向后兼容旧实现 |
+| 8 | DataDispatcher扩展 | 新增4个post方法对应新回调 | ⚠️待验证 | |
+| 9 | CommandSender | 下行命令发送器(MODE/SET/TRIAL), TCP连接41002端口 | ⚠️待验证 | |
+| 10 | EegFrame/InferenceResult/IpcDiagInfo | 数据模型类+文本行解析 | ⚠️待验证 | |
+| 11 | TrainingFragment | SSVEP训练页面(REST→LEFT→REST→RIGHT循环) | ⚠️待验证 | |
+| 12 | InferenceFragment | 方向推理页面(LEFT/RIGHT+置信度) | ⚠️待验证 | |
+| 13 | ChannelConfig.getDefault8Channel() | 8通道配置(Fp1-O2) | ⚠️待验证 | |
+| 14 | MonitorFragment.onEegFrame | 8通道EegFrame数据驱动波形更新 | ⚠️待验证 | |
+| 15 | 应用名/图标/主题 | NeuroWave 医生, 十字+脑电波图标, Theme.EegDoctor | ⚠️待验证 | |
+
+### 患者端 (patient) — com.nihilisttt.eegpatient
+
+| # | 模块/文件 | 变更内容 | 状态 | 备注 |
+|---|----------|---------|------|------|
+| 1 | 整体项目 | 新建完整Android项目 | ⚠️待验证 | |
+| 2 | DoctorConnector | TCP客户端连接医生端(41004数据+41005命令), 内嵌FrameParser | ⚠️待验证 | |
+| 3 | ConnectFragment | 医生端IP输入+连接按钮+状态显示 | ⚠️待验证 | |
+| 4 | TrainingFragment | SSVEP训练页面, 通过DoctorConnector.sendCommand()发送命令 | ⚠️待验证 | |
+| 5 | InferenceFragment | 方向识别页面, 大箭头+置信度 | ⚠️待验证 | |
+| 6 | MainActivity | TabLayout+ViewPager2三页导航, 连接状态指示 | ⚠️待验证 | |
+| 7 | EegFrame/InferenceResult/IpcDiagInfo | 数据模型(从医生端复制, 包名已改) | ⚠️待验证 | |
+| 8 | 应用名/图标 | NeuroWave 康复, 心形+脑电波图标 | ⚠️待验证 | |
+| 9 | MainActivity颜色设置 | setBackgroundColor+ContextCompat.getColor替代setBackgroundResource+getColor | ⚠️待验证 | |
+
+### 文档约束变更
+
+| # | 变更 | 状态 | 备注 |
+|---|------|------|------|
+| 1 | 不使用USB 2.0/3.0通信 | ⚠️待验证 | 仅TCP/WiFi |
+| 2 | 不考虑FreeRTOS移植 | ⚠️待验证 | 保持裸机 |
+| 3 | Android保持Java语言 | ⚠️待验证 | 不用Kotlin |
+
+## 6.3 已踩过的坑（新AI必读）
 
 1. **中断风暴**: V5F从主循环ENABLE Bit0→触发自身CH0 Handler→不清Bit0→无限重入
    修复: ACK改为Handler内发送
@@ -281,7 +328,7 @@ REST(5s) → LEFT(试次) → REST → RIGHT(试次) → REST → ... 重复
 
 5. **CH0/CH1分用**: 尝试过CH0通知+CH1 ACK, 调试代价远超收益, 已回退到CH0单通道
 
-## 6.3 迭代规划
+## 6.4 迭代规划
 
 Phase 1 (稳定性):
   - HSEM互斥保护共享帧槽

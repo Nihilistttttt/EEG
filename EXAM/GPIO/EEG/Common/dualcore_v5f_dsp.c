@@ -118,6 +118,67 @@ static float DualCore_V5F_SafePower(float p)
     return (p < DUALCORE_V5F_POWER_EPS) ? DUALCORE_V5F_POWER_EPS : p;
 }
 
+#define V5F_FAST_LOG_TABLE_SIZE 256
+#define V5F_FAST_LOG_TABLE_SCALE ((float)(V5F_FAST_LOG_TABLE_SIZE - 1))
+
+static const float s_v5f_log_table[V5F_FAST_LOG_TABLE_SIZE] = {
+    0.000000f, 0.003914f, 0.007813f, 0.011696f, 0.015565f, 0.019418f, 0.023257f, 0.027081f,
+    0.030890f, 0.034686f, 0.038466f, 0.042233f, 0.045985f, 0.049723f, 0.053448f, 0.057158f,
+    0.060855f, 0.064539f, 0.068208f, 0.071865f, 0.075508f, 0.079137f, 0.082754f, 0.086358f,
+    0.089948f, 0.093526f, 0.097091f, 0.100644f, 0.104183f, 0.107711f, 0.111226f, 0.114728f,
+    0.118219f, 0.121697f, 0.125163f, 0.128617f, 0.132060f, 0.135490f, 0.138909f, 0.142316f,
+    0.145712f, 0.149096f, 0.152469f, 0.155830f, 0.159180f, 0.162519f, 0.165847f, 0.169163f,
+    0.172469f, 0.175764f, 0.179048f, 0.182322f, 0.185584f, 0.188836f, 0.192078f, 0.195309f,
+    0.198529f, 0.201740f, 0.204940f, 0.208129f, 0.211309f, 0.214479f, 0.217638f, 0.220788f,
+    0.223928f, 0.227057f, 0.230178f, 0.233288f, 0.236389f, 0.239480f, 0.242562f, 0.245634f,
+    0.248697f, 0.251750f, 0.254794f, 0.257829f, 0.260855f, 0.263871f, 0.266879f, 0.269877f,
+    0.272867f, 0.275848f, 0.278819f, 0.281782f, 0.284737f, 0.287682f, 0.290619f, 0.293547f,
+    0.296467f, 0.299378f, 0.302281f, 0.305175f, 0.308061f, 0.310939f, 0.313808f, 0.316670f,
+    0.319523f, 0.322368f, 0.325205f, 0.328033f, 0.330854f, 0.333667f, 0.336472f, 0.339269f,
+    0.342059f, 0.344840f, 0.347614f, 0.350381f, 0.353139f, 0.355890f, 0.358634f, 0.361370f,
+    0.364098f, 0.366819f, 0.369533f, 0.372239f, 0.374939f, 0.377630f, 0.380315f, 0.382992f,
+    0.385662f, 0.388326f, 0.390982f, 0.393631f, 0.396273f, 0.398908f, 0.401536f, 0.404157f,
+    0.406771f, 0.409379f, 0.411980f, 0.414574f, 0.417161f, 0.419742f, 0.422316f, 0.424883f,
+    0.427444f, 0.429998f, 0.432546f, 0.435087f, 0.437622f, 0.440151f, 0.442673f, 0.445188f,
+    0.447698f, 0.450201f, 0.452698f, 0.455189f, 0.457673f, 0.460151f, 0.462624f, 0.465090f,
+    0.467550f, 0.470004f, 0.472452f, 0.474894f, 0.477330f, 0.479760f, 0.482184f, 0.484602f,
+    0.487015f, 0.489422f, 0.491823f, 0.494218f, 0.496607f, 0.498991f, 0.501369f, 0.503742f,
+    0.506109f, 0.508470f, 0.510826f, 0.513176f, 0.515520f, 0.517860f, 0.520193f, 0.522522f,
+    0.524845f, 0.527162f, 0.529474f, 0.531781f, 0.534082f, 0.536379f, 0.538670f, 0.540955f,
+    0.543236f, 0.545511f, 0.547781f, 0.550046f, 0.552306f, 0.554561f, 0.556811f, 0.559055f,
+    0.561295f, 0.563530f, 0.565759f, 0.567984f, 0.570204f, 0.572419f, 0.574629f, 0.576834f,
+    0.579034f, 0.581229f, 0.583420f, 0.585606f, 0.587787f, 0.589963f, 0.592134f, 0.594301f,
+    0.596464f, 0.598621f, 0.600774f, 0.602922f, 0.605066f, 0.607205f, 0.609339f, 0.611469f,
+    0.613595f, 0.615715f, 0.617832f, 0.619944f, 0.622051f, 0.624154f, 0.626253f, 0.628347f,
+    0.630437f, 0.632523f, 0.634604f, 0.636681f, 0.638753f, 0.640821f, 0.642885f, 0.644945f,
+    0.647001f, 0.649052f, 0.651099f, 0.653142f, 0.655181f, 0.657215f, 0.659246f, 0.661272f,
+    0.663294f, 0.665312f, 0.667326f, 0.669337f, 0.671343f, 0.673345f, 0.675343f, 0.677337f,
+    0.679327f, 0.681313f, 0.683295f, 0.685273f, 0.687247f, 0.689218f, 0.691184f, 0.693147f,
+};
+
+static float DualCore_V5F_FastLogf(float x)
+{
+    if (x <= 0.0f) return -30.0f;
+
+    union { float f; int32_t i; } u;
+    u.f = x;
+    int32_t raw = u.i;
+    int32_t exponent = (raw >> 23) - 127;
+    int32_t mantissa = raw & 0x007FFFFF;
+
+    float m = (float)mantissa / 8388608.0f;
+
+    float t = m * V5F_FAST_LOG_TABLE_SCALE;
+    int32_t idx = (int32_t)t;
+    if (idx < 0) idx = 0;
+    if (idx >= V5F_FAST_LOG_TABLE_SIZE - 1) idx = V5F_FAST_LOG_TABLE_SIZE - 2;
+    float frac = t - (float)idx;
+
+    float log_m = s_v5f_log_table[idx] + frac * (s_v5f_log_table[idx + 1] - s_v5f_log_table[idx]);
+
+    return log_m + (float)exponent * 0.6931471805599453f;
+}
+
 static float DualCore_V5F_ClampFloat(float x, float lo, float hi)
 {
     if (x < lo) return lo;
@@ -127,7 +188,7 @@ static float DualCore_V5F_ClampFloat(float x, float lo, float hi)
 
 static float DualCore_V5F_LogRatio(float a, float b)
 {
-    float v = logf(DualCore_V5F_SafePower(a) / DualCore_V5F_SafePower(b));
+    float v = DualCore_V5F_FastLogf(DualCore_V5F_SafePower(a) / DualCore_V5F_SafePower(b));
     return DualCore_V5F_ClampFloat(v, -DUALCORE_V5F_LOG_CLAMP, DUALCORE_V5F_LOG_CLAMP);
 }
 
@@ -220,7 +281,7 @@ static float DualCore_V5F_CSPRightProbability(void)
     }
 
     for (k = 0; k < CSP4CH_FEATURE_DIM; k++) {
-        feat[k] = logf(var[k] / total_var);
+        feat[k] = DualCore_V5F_FastLogf(var[k] / total_var);
         margin += csp4ch_svm_weight[k] * DualCore_V5F_CSPStdFeature(feat[k], k);
     }
 

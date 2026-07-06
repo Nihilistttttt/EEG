@@ -106,6 +106,8 @@ real_t normalize_feature_calibrated(real_t feature,
 real_t ema_smooth(real_t value, real_t smoothed, real_t alpha);
 real_t clampf(real_t v, real_t lo, real_t hi);
 
+real_t fast_logf(real_t x);
+
 void attention_engine_init(AttentionEngine_t *eng,
                            const CalibrationConfig_t *calib);
 void attention_engine_reset(AttentionEngine_t *eng);

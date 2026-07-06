@@ -113,6 +113,7 @@ FFT_Data_t FFT_Data;
 FFT_Data_t FFT_DataFiltered;
 
 static FFT_ConfigHandle Cplx_FFT_Cfg;
+static uint8_t s_fft_mem_pool[4096] __attribute__((aligned(4)));
 static FFT_Complex_t Cplx_Input[FFT_SIZE];
 static FFT_Complex_t Cplx_Output[FFT_SIZE];
 
@@ -233,7 +234,11 @@ static uint8_t Judge_Attn_State(float attn_score, float relax_score, float confi
 
 void EEG_FFT_Init(void)
 {
-    Cplx_FFT_Cfg = FFT_Alloc(FFT_SIZE, FFT_FORWARD, NULL, NULL);
+    size_t fft_mem_needed = 0;
+    FFT_Alloc(FFT_SIZE, FFT_FORWARD, NULL, &fft_mem_needed);
+    if (fft_mem_needed > sizeof(s_fft_mem_pool))
+        while (1);
+    Cplx_FFT_Cfg = FFT_Alloc(FFT_SIZE, FFT_FORWARD, s_fft_mem_pool, &fft_mem_needed);
     if (Cplx_FFT_Cfg == NULL)
         while (1);
 

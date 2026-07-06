@@ -1,5 +1,6 @@
 #include "eeg_direction_feature.h"
 #include "signal_analysis.h"
+#include "algo_core.h"
 #include "Serial.h"
 #include <math.h>
 #include <stdio.h>
@@ -32,7 +33,7 @@ float Direction_SafePower(float p)
 
 float Direction_LogRatio(float a, float b)
 {
-    float v = logf(Direction_SafePower(a) / Direction_SafePower(b));
+    float v = fast_logf(Direction_SafePower(a) / Direction_SafePower(b));
     return Direction_ClampFloat(v, -DIR_LOG_FEATURE_CLAMP, DIR_LOG_FEATURE_CLAMP);
 }
 

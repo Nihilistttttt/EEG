@@ -2232,7 +2232,24 @@ void Signal_Analysis_Start (void) {
             ipc_frame_count = 0;
             DualCore_IPC_SendFrameFromV3F(frame_buf, ADS1299_FRAME_BYTE_NUM);
 
-            uint32_t ipc_ack = DualCore_IPC_GetAckCount();      /* ACKed frame sequence */
+            {
+                static uint32_t ipc_diag_count = 0;
+                ipc_diag_count++;
+                if ((ipc_diag_count % 50u) == 0u) {
+                    Serial_Printf(DIR_TEXT_PORT,
+                        "IPCDIAG,ack=%lu,notify=%lu,ok=%lu,bad=%lu,v5fhb=%lu,ENA=%08lX,STS=%08lX,ISR=%08lX\r\n",
+                        (unsigned long)DualCore_IPC_GetAckCount(),
+                        (unsigned long)DualCore_IPC_GetNotifyCount(),
+                        (unsigned long)DualCore_IPC_GetParseOKCount(),
+                        (unsigned long)DualCore_IPC_GetParseBadCount(),
+                        (unsigned long)DualCore_IPC_GetV5FHandlerCount(),
+                        (unsigned long)IPC->ENA,
+                        (unsigned long)IPC->STS,
+                        (unsigned long)IPC->ISR);
+                }
+            }
+
+            uint32_t ipc_ack = DualCore_IPC_GetAckCount();
             uint32_t ipc_tx  = DualCore_IPC_GetNotifyCount();   /* V3F latest sent sequence */
             uint32_t tx_cs   = DualCore_IPC_GetAckTxChecksum(); /* TX checksum of ACKed sequence */
             uint32_t v5_cs   = DualCore_IPC_GetAckChecksum();
@@ -2311,7 +2328,6 @@ void Signal_Analysis_Start (void) {
                     }
                 }
 #else
-                /* 采集模式：不打印 V5F 推理/调试信息，只保留 TASK 与 DIRCSV。 */
                 (void)v5f_line;
                 (void)v5f_len;
                 (void)ipc_tx;

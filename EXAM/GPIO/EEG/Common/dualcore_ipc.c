@@ -125,7 +125,7 @@ static volatile uint32_t g_ipc_v3f_ack_tx_checksum    = 0;
 static volatile uint32_t g_ipc_v3f_checksum_ok        = 0;
 static volatile uint32_t g_ipc_v3f_checksum_bad       = 0;
 static volatile uint32_t g_ipc_v3f_parse_ok           = 0;
-static volatile uint32_t g_ipc_v3f_parse_bad          = 0;
+static volatile uint32_t g_ipc_v3f_parse_bad       = 0;
 static volatile int32_t  g_ipc_v3f_last_v3f_ch0       = 0;
 static volatile int32_t  g_ipc_v3f_last_v5f_ch0       = 0;
 static volatile int32_t  g_ipc_v3f_last_v5f_uv0_x1000 = 0;
@@ -172,6 +172,9 @@ static volatile int32_t  g_ipc_v5f_score_left = 0;
 static volatile int32_t  g_ipc_v5f_score_right = 0;
 static volatile int32_t  g_ipc_v5f_confidence = 0;
 static volatile uint32_t g_ipc_v5f_infer_count = 0;
+static volatile uint32_t g_ipc_v5f_handler_count = 0;
+static volatile uint8_t  g_ipc_v5f_ack_ready = 0;
+static volatile uint32_t g_ipc_v5f_ack_data = 0;
 
 #if DUALCORE_V5F_RESULT_FUSION_ENABLE
 static int32_t  g_v5f_fusion_right_hist[DUALCORE_V5F_FUSION_ROWS];
@@ -905,11 +908,14 @@ void DualCore_V5F_MainLoopProcess(void)
         seq = 0u;
     }
 
-    IPC_WriteMSG(IPC_MSG1, (((uint32_t)checksum) << 16) | (seq & 0x0000FFFFu));
+    IPC_WriteMSG(IPC_MSG0, (((uint32_t)checksum) << 16) | (seq & 0x0000FFFFu));
 
     DUALCORE_FENCE();
 
-    IPC_ITConfig(IPC_CH1, IPC_CH_Sta_Bit0, ENABLE);
+    g_ipc_v5f_ack_data = (((uint32_t)checksum) << 16) | (seq & 0x0000FFFFu);
+    g_ipc_v5f_ack_ready = 1u;
+
+
 }
 #endif
 
@@ -1007,21 +1013,14 @@ void DualCore_IPC_Init_V3F(void)
     IPC_Config(IPC_CH0, IPC_TxCID1, IPC_RxCID0);
     IPC_CH0_Lock();
 
-    IPC_Config(IPC_CH1, IPC_TxCID1, IPC_RxCID0);
-    IPC_CH1_Lock();
-
     IPC_WriteMSG(IPC_MSG0, 0);
     IPC_SetFlagStatus(IPC_CH0, IPC_CH_Sta_Bit0);
     IPC_ClearFlagStatus(IPC_CH0, IPC_CH_Sta_Bit1);
 
-    IPC_ClearFlagStatus(IPC_CH1, IPC_CH_Sta_Bit0);
-    IPC_ClearFlagStatus(IPC_CH1, IPC_CH_Sta_Bit1);
-
     NVIC_SetPriority(IPC_CH0_IRQn, (1 << 7) | (1 << 4));
     NVIC_EnableIRQ(IPC_CH0_IRQn);
 
-    NVIC_SetPriority(IPC_CH1_IRQn, (1 << 7) | (2 << 4));
-    NVIC_EnableIRQ(IPC_CH1_IRQn);
+    Delay_Ms(100);
 
     g_ipc_v3f_ready = 1;
 #endif
@@ -1047,23 +1046,12 @@ void DualCore_IPC_Init_V5F(void)
 
     DualCore_V5F_ResetDSP();
 
-    IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, DISABLE);
-    IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, DISABLE);
-    IPC_ClearFlagStatus(IPC_CH0, IPC_CH_Sta_Bit0);
+
     IPC_ClearFlagStatus(IPC_CH0, IPC_CH_Sta_Bit1);
     NVIC_ClearPendingIRQ(IPC_CH0_IRQn);
 
-    IPC_ITConfig(IPC_CH1, IPC_CH_Sta_Bit0, DISABLE);
-    IPC_ITConfig(IPC_CH1, IPC_CH_Sta_Bit1, DISABLE);
-    IPC_ClearFlagStatus(IPC_CH1, IPC_CH_Sta_Bit0);
-    IPC_ClearFlagStatus(IPC_CH1, IPC_CH_Sta_Bit1);
-    NVIC_ClearPendingIRQ(IPC_CH1_IRQn);
-
     NVIC_SetPriority(IPC_CH0_IRQn, (2 << 5) | (0 << 4));
     NVIC_EnableIRQ(IPC_CH0_IRQn);
-
-    NVIC_SetPriority(IPC_CH1_IRQn, (2 << 5) | (1 << 4));
-    NVIC_EnableIRQ(IPC_CH1_IRQn);
 
     g_ipc_v5f_ready = 1;
 #endif
@@ -1176,6 +1164,7 @@ uint32_t DualCore_IPC_GetChecksumOKCount(void)   { return g_ipc_v3f_checksum_ok;
 uint32_t DualCore_IPC_GetChecksumBadCount(void)  { return g_ipc_v3f_checksum_bad; }
 uint32_t DualCore_IPC_GetParseOKCount(void)      { return g_ipc_v3f_parse_ok; }
 uint32_t DualCore_IPC_GetParseBadCount(void)     { return g_ipc_v3f_parse_bad; }
+
 int32_t  DualCore_IPC_GetLastV3FCh0(void)        { return g_ipc_v3f_last_v3f_ch0; }
 int32_t  DualCore_IPC_GetLastV5FCh0(void)        { return g_ipc_v3f_last_v5f_ch0; }
 int32_t  DualCore_IPC_GetLastV5FCh0uVX1000(void) { return g_ipc_v3f_last_v5f_uv0_x1000; }
@@ -1200,67 +1189,61 @@ int32_t  DualCore_IPC_GetLastV5FScoreRight(void){ return g_ipc_v3f_last_v5f_scor
 int32_t  DualCore_IPC_GetLastV5FConfidence(void){ return g_ipc_v3f_last_v5f_confidence; }
 uint32_t DualCore_IPC_GetLastV5FInferCount(void){ return g_ipc_v3f_last_v5f_infer_count; }
 
-void IPC_CH0_Handler(void)
+uint32_t DualCore_IPC_GetV5FHandlerCount(void)
 {
 #if defined(Core_V3F)
-    if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit1) != RESET) {
-        IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, DISABLE);
-    }
-
-#elif defined(Core_V5F)
-    if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit0) != RESET) {
-        IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, DISABLE);
-    }
-    if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit1) != RESET) {
-        uint32_t addr = IPC_ReadMSG(IPC_MSG0);
-        if (addr >= 0x20110000u && addr <= 0x2017FFFFu) {
-            g_ipc_v5f_pending_share_addr = addr;
-            g_ipc_v5f_pending_flag = 1u;
-        }
-    }
-    IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, DISABLE);
+    return IPC_ReadMSG(IPC_MSG2);
+#else
+    return g_ipc_v5f_handler_count;
 #endif
 }
 
-void IPC_CH1_Handler(void)
+void IPC_CH0_Handler(void)
 {
 #if defined(Core_V3F)
-    if (IPC_GetITStatus(IPC_CH1, IPC_CH_Sta_Bit0) != RESET) {
-        uint32_t ack_pack = IPC_ReadMSG(IPC_MSG1);
+    if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit0) != RESET) {
+        uint32_t ack_pack = IPC_ReadMSG(IPC_MSG0);
         uint32_t ack_seq_low = (ack_pack & 0x0000FFFFu);
-        uint32_t ack_cs   = ((ack_pack >> 16) & 0x0000FFFFu);
         uint32_t slot_idx = ack_seq_low % DUALCORE_IPC_FRAME_SLOT_NUM;
+
+        g_ipc_v3f_ack_count++;
+        g_ipc_v3f_ack_checksum = (uint16_t)(ack_pack >> 16);
+        g_ipc_v3f_ack_tx_checksum = g_ipc_v3f_tx_checksum;
+
+        if (g_ipc_v3f_ack_checksum == g_ipc_v3f_ack_tx_checksum) {
+            g_ipc_v3f_checksum_ok++;
+        } else {
+            g_ipc_v3f_checksum_bad++;
+        }
+
         volatile DualCore_IPC_FrameSlot_t *slot = &g_ipc_v3f_frame_slot[slot_idx];
         uint32_t ack_seq = slot->seq;
-        uint32_t hist_idx;
-        uint32_t tx_cs;
         uint8_t parse_ok = 1u;
         uint16_t c;
 
         if ((ack_seq & 0x0000FFFFu) != ack_seq_low) {
             ack_seq = ack_seq_low;
-}
-
+        }
 
         DUALCORE_FENCE();
 
         if ((slot->seq != ack_seq) || (slot->v5f_parse_valid == 0u)) {
             parse_ok = 0u;
         } else {
-            if (slot->v5f_status != g_ipc_v3f_tx_status_hist[hist_idx]) {
+            if (slot->v5f_status != g_ipc_v3f_tx_status_hist[slot_idx]) {
                 parse_ok = 0u;
             }
             for (c = 0; c < DUALCORE_ADS1299_ACTIVE_CH_NUM; c++) {
-                if (slot->v5f_ch_code[c] != g_ipc_v3f_tx_ch_hist[hist_idx][c]) {
+                if (slot->v5f_ch_code[c] != g_ipc_v3f_tx_ch_hist[slot_idx][c]) {
                     parse_ok = 0u;
                 }
             }
         }
 
-        g_ipc_v3f_last_v3f_ch0 = g_ipc_v3f_tx_ch_hist[hist_idx][0];
+        g_ipc_v3f_last_v3f_ch0 = g_ipc_v3f_tx_ch_hist[slot_idx][0];
         g_ipc_v3f_last_v5f_ch0 = slot->v5f_ch_code[0];
         g_ipc_v3f_last_v5f_uv0_x1000 = slot->v5f_uv_x1000[0];
-        g_ipc_v3f_last_v5f_pre0_x1000 = slot->v5f_pre0_x1000[0];
+        g_ipc_v3f_last_v5f_pre0_x1000 = slot->v5f_pre_x1000[0];
         g_ipc_v3f_last_v5f_filt0_x1000 = slot->v5f_filt_x1000[0];
         g_ipc_v3f_last_v5f_sample_count = slot->v5f_sample_count;
         g_ipc_v3f_last_v5f_window_count = slot->v5f_window_count;
@@ -1283,15 +1266,30 @@ void IPC_CH1_Handler(void)
             g_ipc_v3f_parse_bad++;
         }
 
-        IPC_ITConfig(IPC_CH1, IPC_CH_Sta_Bit0, DISABLE);
+        IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, DISABLE);
     }
 
 #elif defined(Core_V5F)
-    if (IPC_GetITStatus(IPC_CH1, IPC_CH_Sta_Bit0) != RESET) {
-        IPC_ITConfig(IPC_CH1, IPC_CH_Sta_Bit0, DISABLE);
+    if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit1) != RESET) {
+        g_ipc_v5f_handler_count++;
+        IPC_WriteMSG(IPC_MSG2, g_ipc_v5f_handler_count);
+
+        uint32_t addr = IPC_ReadMSG(IPC_MSG0);
+        if (addr >= 0x20110000u && addr <= 0x2017FFFFu) {
+            g_ipc_v5f_pending_share_addr = addr;
+            g_ipc_v5f_pending_flag = 1u;
+        }
     }
-    if (IPC_GetITStatus(IPC_CH1, IPC_CH_Sta_Bit1) != RESET) {
-        IPC_ITConfig(IPC_CH1, IPC_CH_Sta_Bit1, DISABLE);
+
+    IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, DISABLE);
+
+    if (g_ipc_v5f_ack_ready) {
+        IPC_WriteMSG(IPC_MSG0, g_ipc_v5f_ack_data);
+        DUALCORE_FENCE();
+        IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, DISABLE);
+        IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, ENABLE);
+        IPC_SetFlagStatus(IPC_CH0, IPC_CH_Sta_Bit0);
+        g_ipc_v5f_ack_ready = 0u;
     }
 #endif
 }

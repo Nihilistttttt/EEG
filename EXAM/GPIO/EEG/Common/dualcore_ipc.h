@@ -21,7 +21,7 @@ void DualCore_IPC_Init_V5F(void);
 void DualCore_IPC_NotifyFromV3F(void);
 void DualCore_IPC_SendFrameFromV3F(const uint8_t *frame, uint16_t len);
 void DualCore_V5F_MainLoopProcess(void);
-void IPC_CH1_Handler(void);
+
 
 uint32_t DualCore_IPC_GetNotifyCount(void);
 uint32_t DualCore_IPC_GetAckCount(void);
@@ -32,6 +32,7 @@ uint32_t DualCore_IPC_GetChecksumOKCount(void);
 uint32_t DualCore_IPC_GetChecksumBadCount(void);
 uint32_t DualCore_IPC_GetParseOKCount(void);
 uint32_t DualCore_IPC_GetParseBadCount(void);
+
 
 int32_t  DualCore_IPC_GetLastV3FCh0(void);
 int32_t  DualCore_IPC_GetLastV5FCh0(void);
@@ -51,6 +52,8 @@ int32_t  DualCore_IPC_GetLastV5FScoreLeft(void);
 int32_t  DualCore_IPC_GetLastV5FScoreRight(void);
 int32_t  DualCore_IPC_GetLastV5FConfidence(void);
 uint32_t DualCore_IPC_GetLastV5FInferCount(void);
+
+uint32_t DualCore_IPC_GetV5FHandlerCount(void);
 
 #ifdef __cplusplus
 }

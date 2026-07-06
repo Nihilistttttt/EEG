@@ -29,7 +29,7 @@ void Direction_ResetRestBaseline(void);
 void Direction_UpdateRestBaseline(void);
 void Direction_ResetTaskZero(void);
 void Direction_UpdateTaskZero(void);
-void Direction_RemoveFeatureSlowDrift(float feature[DIR_FEAT_DIM_LOCAL]);
+
 
 void Direction_PrintFeatureHeader(void);
 void Direction_PrintFeatureCSV(uint8_t label,

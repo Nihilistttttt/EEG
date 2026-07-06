@@ -53,7 +53,7 @@ static void CSP_PrintWindowCSV(uint8_t label, RingBuffer_t *filt_buf)
              (unsigned int)label,
              (unsigned long)win_id,
              (unsigned int)CSP_WIN_SIZE);
-    Serial_SendString(DIR_TEXT_PORT, line);
+    Serial_Printf(DIR_TEXT_PORT, "%s", line);
 
     for (j = 0; j < CSP_WIN_SIZE; j++) {
         uint16_t idx = (uint16_t)((start + j) & (CSP_WIN_SIZE - 1u));
@@ -70,14 +70,14 @@ static void CSP_PrintWindowCSV(uint8_t label, RingBuffer_t *filt_buf)
                  (long)ch1,
                  (long)ch2,
                  (long)ch3);
-        Serial_SendString(DIR_TEXT_PORT, line);
+        Serial_Printf(DIR_TEXT_PORT, "%s", line);
     }
 
     snprintf(line, sizeof(line),
              "CSP_END,label=%u,win=%lu\r\n",
              (unsigned int)label,
              (unsigned long)win_id);
-    Serial_SendString(DIR_TEXT_PORT, line);
+    Serial_Printf(DIR_TEXT_PORT, "%s", line);
 }
 
 void Direction_AutoCollectCSPProcess(RingBuffer_t *filt_buf)

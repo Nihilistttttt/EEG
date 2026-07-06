@@ -11,19 +11,11 @@
 
 extern uint8_t g_eeg_app_mode;
 
-static float dir_rest_mu_ch0 = 0.0f;
-static float dir_rest_mu_ch1 = 0.0f;
-static float dir_rest_beta_ch0 = 0.0f;
-static float dir_rest_beta_ch1 = 0.0f;
 static uint16_t dir_rest_count = 0;
 uint8_t dir_rest_valid = 0;
 
-static float dir_task_zero_feature[DIR_FEAT_DIM_LOCAL] = {0.0f};
 static uint16_t dir_task_zero_count = 0;
 static uint8_t dir_task_zero_valid = 0;
-
-static float dir_feature_drift_base[DIR_FEAT_DIM_LOCAL] = {0.0f};
-static uint8_t dir_feature_drift_ready = 0;
 
 float Direction_ClampFloat(float x, float min_v, float max_v)
 {
@@ -46,23 +38,14 @@ float Direction_LogRatio(float a, float b)
 
 void Direction_ResetRestBaseline(void)
 {
-    dir_rest_mu_ch0 = 0.0f;
-    dir_rest_mu_ch1 = 0.0f;
-    dir_rest_beta_ch0 = 0.0f;
-    dir_rest_beta_ch1 = 0.0f;
     dir_rest_count = 0;
     dir_rest_valid = 1;
 }
 
 void Direction_ResetTaskZero(void)
 {
-    for (int i = 0; i < DIR_FEAT_DIM_LOCAL; i++) {
-        dir_task_zero_feature[i] = 0.0f;
-        dir_feature_drift_base[i] = 0.0f;
-    }
     dir_task_zero_count = 0;
     dir_task_zero_valid = 1;
-    dir_feature_drift_ready = 0;
 }
 
 void Direction_UpdateRestBaseline(void)
@@ -77,9 +60,12 @@ void Direction_UpdateTaskZero(void)
     dir_task_zero_valid = 1;
 }
 
-void Direction_RemoveFeatureSlowDrift(float feature[DIR_FEAT_DIM_LOCAL])
+void Direction_BuildFeature(float feature[DIR_FEAT_DIM_LOCAL],
+                            float theta_pow[NUM_CHANNELS],
+                            float alpha_pow[NUM_CHANNELS],
+                            float beta_pow[NUM_CHANNELS])
 {
-    (void)feature;
+    Direction_BuildRawFeature(feature, theta_pow, alpha_pow, beta_pow);
 }
 
 void Direction_BuildRawFeature(float feature[DIR_FEAT_DIM_LOCAL],
@@ -136,7 +122,7 @@ void Direction_BuildFeature(float feature[DIR_FEAT_DIM_LOCAL],
                             float beta_pow[NUM_CHANNELS])
 {
     Direction_BuildRawFeature(feature, theta_pow, alpha_pow, beta_pow);
-    Direction_RemoveFeatureSlowDrift(feature);
+
 }
 
 void Direction_PrintFeatureHeader(void)

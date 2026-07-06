@@ -40,12 +40,14 @@ static float dir_svm_right_probability(const float feature[DIR_CLASSIFIER_INPUT_
     return dir_sigmoid(margin * DIR_CLASSIFIER_LINEAR_SCORE_GAIN);
 }
 
+static float dir_lda_right_probability(const float feature[DIR_CLASSIFIER_INPUT_DIM]) __attribute__((unused));
 static float dir_lda_right_probability(const float feature[DIR_CLASSIFIER_INPUT_DIM])
 {
     float margin = dir_linear_raw_score(feature, dir4ch_lda_weight, dir4ch_lda_bias);
     return dir_sigmoid(margin * DIR_CLASSIFIER_LINEAR_SCORE_GAIN);
 }
 
+static float dir_mlp_right_probability(const float feature[DIR_CLASSIFIER_INPUT_DIM]) __attribute__((unused));
 static float dir_mlp_right_probability(const float feature[DIR_CLASSIFIER_INPUT_DIM])
 {
     float h[DIR4CH_MLP_H1_DIM];

@@ -235,14 +235,14 @@ void Serial_SendByte(Serial_Port port, uint8_t byte)
     while (USART_GetFlagStatus(Serial_Ctrl[port].UARTx, USART_FLAG_TXE) == RESET);
 }
 
-void Serial_SendArray(Serial_Port port, uint8_t *array, uint16_t len)
+void Serial_SendArray(Serial_Port port, const uint8_t *array, uint16_t len)
 {
     for (uint16_t i = 0; i < len; i++) {
         Serial_SendByte(port, array[i]);
     }
 }
 
-void Serial_SendString(Serial_Port port, char *str)
+void Serial_SendString(Serial_Port port, const char *str)
 {
     while (*str) {
         Serial_SendByte(port, (uint8_t)*str++);
@@ -368,7 +368,7 @@ uint16_t Serial_SendArray_DMA(Serial_Port port, const uint8_t *array, uint16_t l
 }
 
 /* ========== printf��Ĭ���� DMA ========== */
-void Serial_Printf(Serial_Port port, char *format, ...)
+void Serial_Printf(Serial_Port port, const char *format, ...)
 {
     char buf[TX_BUF_SIZE];
     va_list arg;
@@ -388,7 +388,7 @@ void Serial_Printf(Serial_Port port, char *format, ...)
     (void)Serial_SendArray_DMA(port, (const uint8_t *)buf, (uint16_t)len);
 }
 
-void Serial_Dbg_Printf(char *format, ...)
+void Serial_Dbg_Printf(const char *format, ...)
 {
     char buf[TX_BUF_SIZE];
     va_list arg;

@@ -10,20 +10,20 @@ extern "C" {
 #include <stdint.h>
 
 
-/*============================ ADS1299 ÃüÁî×Ö ============================*/
+/*============================ ADS1299 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ============================*/
 
-#define ADS1299_CMD_WAKEUP                 0x02U   /* ´Ó´ý»úÄ£Ê½»½ÐÑ */
-#define ADS1299_CMD_STANDBY                0x04U   /* ½øÈë´ý»úÄ£Ê½ */
-#define ADS1299_CMD_RESET                  0x06U   /* Èí¼þ¸´Î» */
-#define ADS1299_CMD_START                  0x08U   /* ÃüÁî·½Ê½Æô¶¯×ª»» */
-#define ADS1299_CMD_STOP                   0x0AU   /* ÃüÁî·½Ê½Í£Ö¹×ª»» */
-#define ADS1299_CMD_RDATAC                 0x10U   /* Á¬Ðø¶ÁÊý¾ÝÄ£Ê½ */
-#define ADS1299_CMD_SDATAC                 0x11U   /* Í£Ö¹Á¬Ðø¶ÁÊý¾ÝÄ£Ê½ */
-#define ADS1299_CMD_RDATA                  0x12U   /* µ¥´Î¶ÁÒ»Ö¡Êý¾Ý */
-#define ADS1299_CMD_RREG                   0x20U   /* ¶Á¼Ä´æÆ÷ÃüÁî»ùÖµ£º001r rrrr */
-#define ADS1299_CMD_WREG                   0x40U   /* Ð´¼Ä´æÆ÷ÃüÁî»ùÖµ£º010r rrrr */
+#define ADS1299_CMD_WAKEUP                 0x02U   /* ï¿½Ó´ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½ï¿½ï¿½ */
+#define ADS1299_CMD_STANDBY                0x04U   /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£Ê½ */
+#define ADS1299_CMD_RESET                  0x06U   /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î» */
+#define ADS1299_CMD_START                  0x08U   /* ï¿½ï¿½ï¿½î·½Ê½ï¿½ï¿½ï¿½ï¿½×ªï¿½ï¿½ */
+#define ADS1299_CMD_STOP                   0x0AU   /* ï¿½ï¿½ï¿½î·½Ê½Í£Ö¹×ªï¿½ï¿½ */
+#define ADS1299_CMD_RDATAC                 0x10U   /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£Ê½ */
+#define ADS1299_CMD_SDATAC                 0x11U   /* Í£Ö¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£Ê½ */
+#define ADS1299_CMD_RDATA                  0x12U   /* ï¿½ï¿½ï¿½Î¶ï¿½Ò»Ö¡ï¿½ï¿½ï¿½ï¿½ */
+#define ADS1299_CMD_RREG                   0x20U   /* ï¿½ï¿½ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½001r rrrr */
+#define ADS1299_CMD_WREG                   0x40U   /* Ð´ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½010r rrrr */
 
-/*============================ ADS1299 ¼Ä´æÆ÷µØÖ· ============================*/
+/*============================ ADS1299 ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ö· ============================*/
 
 #define ADS1299_REG_ID                     0x00U
 #define ADS1299_REG_CONFIG1                0x01U
@@ -50,15 +50,15 @@ extern "C" {
 #define ADS1299_REG_MISC2                  0x16U
 #define ADS1299_REG_CONFIG4                0x17U
 
-/*============================ Êý¾Ý³¤¶È¶¨Òå ============================*/
+/*============================ ï¿½ï¿½ï¿½Ý³ï¿½ï¿½È¶ï¿½ï¿½ï¿½ ============================*/
 
 #define ADS1299_CHANNEL_NUM                8U
 #define ADS1299_STATUS_BYTE_NUM            3U
 #define ADS1299_CHANNEL_BYTE_NUM           3U
-#define ADS1299_FRAME_BYTE_NUM             (ADS1299_STATUS_BYTE_NUM + ADS1299_CHANNEL_NUM * ADS1299_CHANNEL_BYTE_NUM)  /* 3 + 8*3 = 27 ×Ö½Ú */
+#define ADS1299_FRAME_BYTE_NUM             (ADS1299_STATUS_BYTE_NUM + ADS1299_CHANNEL_NUM * ADS1299_CHANNEL_BYTE_NUM)  /* 3 + 8*3 = 27 ï¿½Ö½ï¿½ */
 
-/* ±¾¹¤³ÌÊµ¼ÊÆôÓÃÇ° 4 Â·ÄÔµç£ºCH1=CP3, CH2=CP4, CH3=C3, CH4=C4¡£
- * ADS1299 Á¬Ðø¶ÁÊýÊ±ÈÔÈ»¶ÁÈ¡ÍêÕû 8 Í¨µÀÖ¡£¬Î´ÆôÓÃµÄ CH5~CH8 ÔÚ¼Ä´æÆ÷ÖÐ¹Ø±Õ¡£
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç° 4 Â·ï¿½Ôµç£ºCH1=CP3, CH2=CP4, CH3=C3, CH4=C4ï¿½ï¿½
+ * ADS1299 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½È»ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ 8 Í¨ï¿½ï¿½Ö¡ï¿½ï¿½Î´ï¿½ï¿½ï¿½Ãµï¿½ CH5~CH8 ï¿½Ú¼Ä´ï¿½ï¿½ï¿½ï¿½Ð¹Ø±Õ¡ï¿½
  */
 #define ADS1299_ACTIVE_EEG_CHANNEL_NUM      4U
 #define ADS1299_EEG_CH_CP3                  0U
@@ -67,20 +67,31 @@ extern "C" {
 #define ADS1299_EEG_CH_C4                   3U
 
 
-/*============================ ADS1299 ÑÓÊ± ============================*/
+/*============================ ADS1299 ï¿½ï¿½Ê± ============================*/
 #define ADS1299_SPI_TIMEOUT                0x000FFFFFUL
-#define ADS1299_POWER_ON_DELAY_MS          1000U   /* ÉÏµçºóµÈ´ýÄ£ÄâÇ°¶Ë¡¢µçÔ´Óë²Î¿¼µçÑ¹³õ²½ÎÈ¶¨ */
-#define ADS1299_RESET_LOW_DELAY_MS         2U      /* RESET À­µÍ±£³ÖÊ±¼ä */
-#define ADS1299_POST_RESET_DELAY_MS        100U    /* RESET À­¸ßºóµÈ´ýÐ¾Æ¬Íê³ÉÄÚ²¿¸´Î» */
-#define ADS1299_REF_STABLE_DELAY_MS        200U    /* ¿ªÆôÄÚ²¿²Î¿¼ºóµÈ´ýÎÈ¶¨ */
+#define ADS1299_POWER_ON_DELAY_MS          1000U   /* ï¿½Ïµï¿½ï¿½È´ï¿½Ä£ï¿½ï¿½Ç°ï¿½Ë¡ï¿½ï¿½ï¿½Ô´ï¿½ï¿½Î¿ï¿½ï¿½ï¿½Ñ¹ï¿½ï¿½ï¿½ï¿½ï¿½È¶ï¿½ */
+#define ADS1299_RESET_LOW_DELAY_MS         2U      /* RESET ï¿½ï¿½ï¿½Í±ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ */
+#define ADS1299_POST_RESET_DELAY_MS        100U    /* RESET ï¿½ï¿½ï¿½ßºï¿½È´ï¿½Ð¾Æ¬ï¿½ï¿½ï¿½ï¿½Ú²ï¿½ï¿½ï¿½Î» */
+#define ADS1299_REF_STABLE_DELAY_MS        200U    /* ï¿½ï¿½ï¿½ï¿½ï¿½Ú²ï¿½ï¿½Î¿ï¿½ï¿½ï¿½È´ï¿½ï¿½È¶ï¿½ */
 
 
-/*============================ ADS1299 µçÑ¹×ª»» ============================*/
+/*============================ ADS1299 ï¿½ï¿½Ñ¹×ªï¿½ï¿½ ============================*/
 #define ADS1299_VREF_DEFAULT 4.5f
 #define ADS1299_GAIN_DEFAULT 24.0f
 #define ADS1299_FULL_SCALE_CODE 8388608.0f
 
-/*============================ ¶ÔÍâº¯ÊýÉùÃ÷ ============================*/
+/*============================ ADS1299 å¯„å­˜å™¨é…ç½®å€¼ ============================*/
+#define ADS1299_CFG1_DATARATE_250SPS   0x96u
+#define ADS1299_CFG2_INT_TEST_OFF      0xC0u
+#define ADS1299_CFG3_BIAS_REF_INT      0xECu
+#define ADS1299_CFG4_SINGLE_SHOT       0x02u
+#define ADS1299_BIAS_SENSP_CH1TO4      0x0Fu
+#define ADS1299_BIAS_SENSN_CH1TO4      0x0Fu
+#define ADS1299_MISC1_DEFAULT          0x00u
+#define ADS1299_CHSET_POWER_NORMAL     0x60u
+#define ADS1299_CHSET_POWER_DOWN       0x81u
+
+/*============================ ï¿½ï¿½ï¿½âº¯ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ============================*/
 uint8_t   ADS1299_Init(void);
 void ADS1299_ParseRawFrame(const uint8_t *frame_buf, uint32_t *status, int32_t ch_data[ADS1299_CHANNEL_NUM]);
 float ADS1299_CodeToVolt (int32_t code, float vref, float gain) ;

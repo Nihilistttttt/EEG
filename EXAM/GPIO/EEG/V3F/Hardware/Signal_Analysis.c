@@ -123,10 +123,10 @@ void Signal_Analysis_Start(void)
 
         ADS1299_ParseRawFrame(frame_buf, NULL, ch_data);
 
-        float val_ch0 = ADS1299_CodeToVolt(ch_data[ADS1299_EEG_CH_CP3], 4.5f, 24.0f);
-        float val_ch1 = ADS1299_CodeToVolt(ch_data[ADS1299_EEG_CH_CP4], 4.5f, 24.0f);
-        float val_ch2 = ADS1299_CodeToVolt(ch_data[ADS1299_EEG_CH_C3],  4.5f, 24.0f);
-        float val_ch3 = ADS1299_CodeToVolt(ch_data[ADS1299_EEG_CH_C4],  4.5f, 24.0f);
+        float val_ch0 = ADS1299_CodeToVolt(ch_data[ADS1299_EEG_CH_CP3], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
+        float val_ch1 = ADS1299_CodeToVolt(ch_data[ADS1299_EEG_CH_CP4], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
+        float val_ch2 = ADS1299_CodeToVolt(ch_data[ADS1299_EEG_CH_C3],  ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
+        float val_ch3 = ADS1299_CodeToVolt(ch_data[ADS1299_EEG_CH_C4],  ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
         float show_ch0 = 0.0f;
         float show_ch1 = 0.0f;
 

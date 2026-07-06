@@ -13,7 +13,7 @@ typedef enum {
 } Serial_Port;
 
 /* printf 缓时发送缓冲区大小 */
-#define TX_BUF_SIZE  256
+#define TX_BUF_SIZE  512
 
 /* 控制块结构 */
 typedef struct {
@@ -53,8 +53,8 @@ void Serial_Init(Serial_Port port);
 
 /* 发送函数（阻塞式） */
 void Serial_SendByte(Serial_Port port, uint8_t byte);
-void Serial_SendArray(Serial_Port port, uint8_t *array, uint16_t len);
-void Serial_SendString(Serial_Port port, char *str);
+void Serial_SendArray(Serial_Port port, const uint8_t *array, uint16_t len);
+void Serial_SendString(Serial_Port port, const char *str);
 void Serial_SendNumber(Serial_Port port, uint32_t number, uint8_t len);
 
 /* DMA 发送函数 */
@@ -63,10 +63,10 @@ uint16_t Serial_TxFreeBytes(Serial_Port port);
 uint8_t  Serial_IsTxBusy(Serial_Port port);
 
 /* 格式化打印（DMA） */
-void Serial_Printf(Serial_Port port, char *format, ...);
+void Serial_Printf(Serial_Port port, const char *format, ...);
 
 /* 快捷调试打印（自动选 DEBUG 端口） */
-void Serial_Dbg_Printf(char *format, ...);
+void Serial_Dbg_Printf(const char *format, ...);
 
 /* 接收查询 */
 uint8_t  Serial_IsDataReady(Serial_Port port);

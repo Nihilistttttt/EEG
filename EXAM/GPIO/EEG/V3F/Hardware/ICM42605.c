@@ -114,7 +114,7 @@ static ICM42605_Status ICM42605_ReadInt16Single(
     uint8_t high_reg,
     uint8_t low_reg,
     int16_t *value
-);
+) __attribute__((unused));
 static ICM42605_Status ICM42605_VerifyRegister(
     uint8_t reg,
     uint8_t expected

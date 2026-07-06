@@ -397,15 +397,16 @@ public class MonitorFragment extends Fragment implements DataListener {
     @Override
     public void onResume() {
         super.onResume();
+        DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
-        Log.d("MonitorFragment", "onResume: listener added, waveViews=" + waveformViews.size());
+        Log.d("MonitorFragment", "onResume: listener refreshed, waveViews=" + waveformViews.size());
     }
 
     @Override
-    public void onPause() {
-        super.onPause();
+    public void onDestroyView() {
+        super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);
-        Log.d("MonitorFragment", "onPause: listener removed");
+        Log.d("MonitorFragment", "onDestroyView: listener removed");
     }
 
     @Override

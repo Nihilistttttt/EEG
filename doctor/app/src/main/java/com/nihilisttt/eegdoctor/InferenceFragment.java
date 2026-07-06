@@ -76,15 +76,16 @@ public class InferenceFragment extends Fragment implements DataListener {
     @Override
     public void onResume() {
         super.onResume();
+        DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
-        Log.d("Inference", "onResume: listener added");
+        Log.d("Inference", "onResume: listener refreshed");
     }
 
     @Override
-    public void onPause() {
-        super.onPause();
+    public void onDestroyView() {
+        super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);
-        Log.d("Inference", "onPause: listener removed");
+        Log.d("Inference", "onDestroyView: listener removed");
     }
 
     @Override

@@ -163,6 +163,7 @@ public class MiTrainingFragment extends Fragment implements DoctorConnector.Data
     @Override
     public void onResume() {
         super.onResume();
+        DoctorConnector.getInstance().removeListener(this);
         DoctorConnector.getInstance().addListener(this);
     }
 

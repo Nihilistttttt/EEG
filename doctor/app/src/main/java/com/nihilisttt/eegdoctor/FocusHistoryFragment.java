@@ -86,24 +86,26 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
     @Override
     public void onResume() {
         super.onResume();
+        DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
-        Log.d("FocusHistory", "onResume: listener added");
+        Log.d("FocusHistory", "onResume: listener refreshed");
     }
 
     @Override
-    public void onPause() {
-        super.onPause();
+    public void onDestroyView() {
+        super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);
-        Log.d("FocusHistory", "onPause: listener removed");
+        Log.d("FocusHistory", "onDestroyView: listener removed");
     }
 
     @Override
     public void onFocusData(float attn0, float attn1, float ema0, float ema1,
                             int trend, int instant) {
-        if (focusChart == null || tvAttnInfo == null) return;
-        focusChart.addPoint(ema0);
-        tvAttnInfo.setText(String.format(Locale.getDefault(),
-                "Attn0: %.3f | Attn1: %.3f", attn0, attn1));
+        if (focusChart != null) focusChart.addPoint(ema0);
+        if (tvAttnInfo != null) {
+            tvAttnInfo.setText(String.format(Locale.getDefault(),
+                    "Attn0: %.3f | Attn1: %.3f", attn0, attn1));
+        }
     }
 
     @Override

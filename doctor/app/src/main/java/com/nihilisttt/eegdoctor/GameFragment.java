@@ -59,8 +59,8 @@ public class GameFragment extends Fragment implements DataListener {
     }
 
     @Override
-    public void onPause() {
-        super.onPause();
+    public void onDestroyView() {
+        super.onDestroyView();
         requireActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         DataDispatcher.getInstance().removeListener(this);
         if (handler != null && gameRunnable != null) {

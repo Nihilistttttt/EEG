@@ -87,15 +87,16 @@ public class WaveCompareFragment extends Fragment implements DataListener {
     @Override
     public void onResume() {
         super.onResume();
+        DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
-        Log.d("WaveCompare", "onResume: listener added");
+        Log.d("WaveCompare", "onResume: listener refreshed");
     }
 
     @Override
-    public void onPause() {
-        super.onPause();
+    public void onDestroyView() {
+        super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);
-        Log.d("WaveCompare", "onPause: listener removed");
+        Log.d("WaveCompare", "onDestroyView: listener removed");
     }
 
     // ==================== 波形控制方法 ====================

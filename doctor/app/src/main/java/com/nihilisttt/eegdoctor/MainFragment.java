@@ -316,15 +316,16 @@ public class MainFragment extends Fragment implements DataListener {
     @Override
     public void onResume() {
         super.onResume();
+        DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
-        Log.d("MainFragment", "onResume: listener added, views=" + (waveCh0 != null));
+        Log.d("MainFragment", "onResume: listener refreshed, views=" + (waveCh0 != null));
     }
 
     @Override
-    public void onPause() {
-        super.onPause();
+    public void onDestroyView() {
+        super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);
-        Log.d("MainFragment", "onPause: listener removed");
+        Log.d("MainFragment", "onDestroyView: listener removed");
     }
 
     // ==================== DataListener 回调 ====================

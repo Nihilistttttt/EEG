@@ -285,20 +285,16 @@ public class SsvepTrainingFragment extends Fragment implements DataListener {
     @Override
     public void onResume() {
         super.onResume();
-        DataDispatcher.getInstance().addListener(this);
-        Log.d("SsvepTraining", "onResume: listener added, state=" + currentState);
-    }
-
-    @Override
-    public void onPause() {
-        super.onPause();
         DataDispatcher.getInstance().removeListener(this);
-        Log.d("SsvepTraining", "onPause: listener removed");
+        DataDispatcher.getInstance().addListener(this);
+        Log.d("SsvepTraining", "onResume: listener refreshed, state=" + currentState);
     }
 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        DataDispatcher.getInstance().removeListener(this);
+        Log.d("SsvepTraining", "onDestroyView: listener removed");
         handler.removeCallbacksAndMessages(null);
         stopSsvepBlink();
     }

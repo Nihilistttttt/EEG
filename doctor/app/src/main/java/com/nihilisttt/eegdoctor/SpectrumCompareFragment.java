@@ -48,15 +48,16 @@ public class SpectrumCompareFragment extends Fragment implements DataListener {
     @Override
     public void onResume() {
         super.onResume();
+        DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
-        Log.d("SpectrumCompare", "onResume: listener added");
+        Log.d("SpectrumCompare", "onResume: listener refreshed");
     }
 
     @Override
-    public void onPause() {
-        super.onPause();
+    public void onDestroyView() {
+        super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);
-        Log.d("SpectrumCompare", "onPause: listener removed");
+        Log.d("SpectrumCompare", "onDestroyView: listener removed");
     }
 
     /**

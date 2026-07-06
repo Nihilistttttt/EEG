@@ -48,6 +48,7 @@ public class InferenceFragment extends Fragment implements DoctorConnector.DataL
     @Override
     public void onResume() {
         super.onResume();
+        DoctorConnector.getInstance().removeListener(this);
         DoctorConnector.getInstance().addListener(this);
     }
 

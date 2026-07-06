@@ -254,6 +254,7 @@ public class SsvepTrainingFragment extends Fragment implements DoctorConnector.D
     @Override
     public void onResume() {
         super.onResume();
+        DoctorConnector.getInstance().removeListener(this);
         DoctorConnector.getInstance().addListener(this);
     }
 

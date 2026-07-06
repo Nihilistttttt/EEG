@@ -37,7 +37,7 @@ void Hardware(void)
     int32_t ch_raw[ADS1299_CHANNEL_NUM];
 
     while (1) {
-        if (ring_buffer_get_frame(frame)) {
+        if (ADS1299_ReadFrameIfReady(frame)) {
             ADS1299_ParseRawFrame(frame, &status, ch_raw);
             Serial_Printf(SERIAL_PORT_DEBUG, "ch0_v=%d\r\n", ch_raw[0]);
             Serial_Printf(SERIAL_PORT_DEBUG, "ch1_v=%d\r\n", ch_raw[1]);

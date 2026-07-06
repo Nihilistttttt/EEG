@@ -106,7 +106,8 @@ float norm_factor;
 
 RingBuffer_t RingBuf;
 RingBuffer_t RingBufFiltered;
-
+static AttnEma_t AttnEmaCh0;
+static AttnEma_t AttnEmaCh1;
 static TrendWindow_t TrendWin = {.CH0 = {0}, .CH1 = {0}, .Idx = 0, .Count = 0};
 FFT_Data_t FFT_Data;
 FFT_Data_t FFT_DataFiltered;
@@ -584,7 +585,7 @@ uint8_t Process_FFT_Step(void)
         break;
 
     case FFT_STEP_SEND_FOCUS:
-        Send_Focus(attn_ema[0].Value, attn_ema[1].Value, attn_ema[0].Value, attn_ema[1].Value, trend_state, instant_state);
+        Send_Focus(attn_ema[0].Value, attn_ema[1].Value, AttnEmaCh0.Value, AttnEmaCh1.Value, trend_state, instant_state);
         Update_OLED_Scores(attn_ema[0].Value, relax_ema[0].Value, blink_ema[0].Value, attn_ema[1].Value, relax_ema[1].Value, blink_ema[1].Value);
         fft_step = FFT_STEP_SEND_FILT_SPECTRUM;
         break;

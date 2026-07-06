@@ -156,6 +156,9 @@ class MainWindow(QMainWindow):
         QPushButton#statusBtn:hover { background-color: #8c7ae6; }
         QPushButton#applyModeBtn { background-color: #00a8ff; }
         QPushButton#applyModeBtn:hover { background-color: #0097e6; }
+        QPushButton#ipcdiagBtn { background-color: #4cd137; }
+        QPushButton#ipcdiagBtn:hover { background-color: #44bd32; }
+        QPushButton#ipcdiagBtn:checked { background-color: #7f8c8d; }
 
         QLineEdit, QComboBox, QPlainTextEdit, QTextEdit {
             border: 1px solid #d0d7de;
@@ -324,6 +327,14 @@ class MainWindow(QMainWindow):
         self.status_btn.setEnabled(False)
         btn_row.addWidget(self.status_btn)
 
+        self.ipcdiag_btn = QPushButton("IPCDIAG: ON")
+        self.ipcdiag_btn.setObjectName("ipcdiagBtn")
+        self.ipcdiag_btn.setCheckable(True)
+        self.ipcdiag_btn.setChecked(True)
+        self.ipcdiag_btn.clicked.connect(self.toggle_ipcdiag)
+        self.ipcdiag_btn.setEnabled(False)
+        btn_row.addWidget(self.ipcdiag_btn)
+
         self.cmd_edit = QLineEdit()
         self.cmd_edit.setPlaceholderText("命令...")
         self.cmd_edit.returnPressed.connect(self.send_manual_cmd)
@@ -442,6 +453,7 @@ class MainWindow(QMainWindow):
             self.stop_btn.setEnabled(False)
             self.status_btn.setEnabled(False)
             self.apply_mode_btn.setEnabled(False)
+            self.ipcdiag_btn.setEnabled(False)
             self.append_log("[系统] 串口已断开", "gray")
             self.update_central_status("空闲 (串口断开)", "#7f8c8d")
             return
@@ -462,6 +474,7 @@ class MainWindow(QMainWindow):
         self.test_btn.setEnabled(True)
         self.status_btn.setEnabled(True)
         self.apply_mode_btn.setEnabled(True)
+        self.ipcdiag_btn.setEnabled(True)
         self.append_log("[系统] 串口已连接", "green")
         self.serial_thread.send_command("STATUS")
         self.update_central_status("空闲", "#7f8c8d")
@@ -476,6 +489,18 @@ class MainWindow(QMainWindow):
     def send_status(self):
         if self.serial_thread:
             self.serial_thread.send_command("STATUS")
+
+    def toggle_ipcdiag(self):
+        if not self.serial_thread:
+            return
+        if self.ipcdiag_btn.isChecked():
+            self.serial_thread.send_command("IPCDIAG,ON")
+            self.ipcdiag_btn.setText("IPCDIAG: ON")
+            self.append_log("[系统] IPCDIAG 已开启", "green")
+        else:
+            self.serial_thread.send_command("IPCDIAG,OFF")
+            self.ipcdiag_btn.setText("IPCDIAG: OFF")
+            self.append_log("[系统] IPCDIAG 已关闭", "orange")
 
     def apply_mode(self):
         if not self.serial_thread:
@@ -685,6 +710,18 @@ class MainWindow(QMainWindow):
                     idx = self.mode_combo.findData(mode)
                     if idx >= 0:
                         self.mode_combo.setCurrentIndex(idx)
+            return
+
+        # ---- IPCDIAG 确认 ----
+        if line == 'IPCDIAG,ON':
+            self.ipcdiag_btn.setChecked(True)
+            self.ipcdiag_btn.setText("IPCDIAG: ON")
+            self.append_log("[系统] IPCDIAG 已开启", "green")
+            return
+        if line == 'IPCDIAG,OFF':
+            self.ipcdiag_btn.setChecked(False)
+            self.ipcdiag_btn.setText("IPCDIAG: OFF")
+            self.append_log("[系统] IPCDIAG 已关闭", "orange")
             return
 
     # ======================= 箭头显示 =======================

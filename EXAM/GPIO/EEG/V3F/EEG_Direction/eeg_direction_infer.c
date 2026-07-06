@@ -1,7 +1,4 @@
 #include "eeg_direction_infer.h"
-
-#if V3F_LOCAL_INFER_ENABLE
-
 #include "eeg_direction_collect.h"
 #include "Direction_Model.h"
 #include "Serial.h"
@@ -112,5 +109,3 @@ void Direction_Infer1sUpdateAndPrint(float theta_pow[NUM_CHANNELS],
 
     dir_result_window++;
 }
-
-#endif

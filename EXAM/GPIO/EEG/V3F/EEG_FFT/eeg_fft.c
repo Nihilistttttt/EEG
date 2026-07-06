@@ -1,4 +1,5 @@
 #include "eeg_fft.h"
+#include "signal_analysis.h"
 #include "eeg_direction_collect.h"
 #include "eeg_ab_extract.h"
 #include "FFT_Real.h"
@@ -13,12 +14,8 @@
 
 extern uint8_t g_eeg_app_mode;
 
-#define EEG_APP_MODE_COLLECT        1
-#define EEG_APP_MODE_INFER          2
-#define EEG_APP_MODE_COLLECT_CSP    3
 #define DIR_DEBUG_POWER_PRINT       0
 #define DIR_1S_TEST_TEXT_ONLY       0
-#define DIR_TEXT_PORT               SERIAL_PORT_DEBUG
 #define DIR_DECISION_ROWS           4
 #define DIR_RESULT_DT_MS            2000
 
@@ -106,8 +103,7 @@ float norm_factor;
 
 RingBuffer_t RingBuf;
 RingBuffer_t RingBufFiltered;
-static AttnEma_t AttnEmaCh0;
-static AttnEma_t AttnEmaCh1;
+
 static TrendWindow_t TrendWin = {.CH0 = {0}, .CH1 = {0}, .Idx = 0, .Count = 0};
 FFT_Data_t FFT_Data;
 FFT_Data_t FFT_DataFiltered;
@@ -585,7 +581,7 @@ uint8_t Process_FFT_Step(void)
         break;
 
     case FFT_STEP_SEND_FOCUS:
-        Send_Focus(attn_ema[0].Value, attn_ema[1].Value, AttnEmaCh0.Value, AttnEmaCh1.Value, trend_state, instant_state);
+        Send_Focus(attn_ema[0].Value, attn_ema[1].Value, attn_ema[0].Value, attn_ema[1].Value, trend_state, instant_state);
         Update_OLED_Scores(attn_ema[0].Value, relax_ema[0].Value, blink_ema[0].Value, attn_ema[1].Value, relax_ema[1].Value, blink_ema[1].Value);
         fft_step = FFT_STEP_SEND_FILT_SPECTRUM;
         break;

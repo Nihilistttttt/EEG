@@ -1,13 +1,13 @@
 #include "eeg_direction_infer.h"
+
+#if V3F_LOCAL_INFER_ENABLE
+
+#include "signal_analysis.h"
 #include "eeg_direction_collect.h"
 #include "Direction_Model.h"
 #include "Serial.h"
 #include <stdio.h>
 #include <string.h>
-
-#define DIR_TEXT_PORT               SERIAL_PORT_DEBUG
-
-#define EEG_APP_MODE_INFER          2
 
 extern uint8_t g_eeg_app_mode;
 extern uint8_t g_paused;
@@ -109,3 +109,5 @@ void Direction_Infer1sUpdateAndPrint(float theta_pow[NUM_CHANNELS],
 
     dir_result_window++;
 }
+
+#endif /* V3F_LOCAL_INFER_ENABLE */

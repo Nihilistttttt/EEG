@@ -1,4 +1,5 @@
 #include "eeg_cmd_parser.h"
+#include "signal_analysis.h"
 #include "eeg_direction_collect.h"
 #include "eeg_direction_feature.h"
 #include "eeg_fft.h"
@@ -6,10 +7,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-
-#define EEG_APP_MODE_COLLECT        1
-#define EEG_APP_MODE_INFER          2
-#define EEG_APP_MODE_COLLECT_CSP    3
 
 extern uint8_t g_eeg_app_mode;
 
@@ -49,6 +46,9 @@ void Parse_Command(const char *cmd)
         int mode = atoi(clean_cmd + 9);
         if (mode == EEG_APP_MODE_COLLECT || mode == EEG_APP_MODE_INFER || mode == EEG_APP_MODE_COLLECT_CSP) {
             g_eeg_app_mode = (uint8_t)mode;
+            if (mode == EEG_APP_MODE_COLLECT || mode == EEG_APP_MODE_COLLECT_CSP) {
+                g_ipc_diag_enable = 0;
+            }
             Serial_Printf(SERIAL_PORT_DEBUG, "MODE_SET_OK,%d\r\n", mode);
             dir_phase = DIR_PHASE_REST;
             dir_phase_row_count = 0;

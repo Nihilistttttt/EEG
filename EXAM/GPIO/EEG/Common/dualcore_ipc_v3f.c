@@ -170,6 +170,8 @@ void DualCore_IPC_SendFrameFromV3F(const uint8_t *frame, uint16_t len)
 
     copy_len = (len < DUALCORE_IPC_FRAME_LEN) ? len : DUALCORE_IPC_FRAME_LEN;
 
+    NVIC_DisableIRQ(IPC_CH0_IRQn);
+
     slot->v5f_parse_valid = 0;
     slot->v5f_status = 0;
     slot->v5f_sample_count = 0;
@@ -220,6 +222,8 @@ void DualCore_IPC_SendFrameFromV3F(const uint8_t *frame, uint16_t len)
     IPC_WriteMSG(IPC_MSG0, (uint32_t)slot);
 
     DUALCORE_FENCE();
+
+    NVIC_EnableIRQ(IPC_CH0_IRQn);
 
     IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, ENABLE);
 }

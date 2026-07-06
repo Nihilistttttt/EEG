@@ -20,11 +20,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#define EEG_APP_MODE_COLLECT        1
-#define EEG_APP_MODE_INFER          2
-#define EEG_APP_MODE_COLLECT_CSP    3
-
-#define DIR_TEXT_PORT               SERIAL_PORT_DEBUG
 
 #define DUALCORE_IPC_FRAME_SHARE_ENABLE        1
 #define DUALCORE_IPC_FRAME_NOTIFY_EVERY_FRAMES 1

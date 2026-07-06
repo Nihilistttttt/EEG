@@ -1,4 +1,5 @@
 #include "eeg_ab_extract.h"
+#include "signal_analysis.h"
 #include "Serial.h"
 #include <math.h>
 #include <stdio.h>
@@ -9,8 +10,6 @@
 #define AB_DB_SCALE                 100.0f
 #define AB_RATIO_SCALE              10000.0f
 #define AB_REL_EPS                  1.0e-18f
-
-#define DIR_TEXT_PORT               SERIAL_PORT_DEBUG
 
 static long AB_RoundToLong(float x)
 {

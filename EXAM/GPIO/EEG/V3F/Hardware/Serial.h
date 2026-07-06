@@ -6,16 +6,16 @@
 #include <stdarg.h>
 #include "ch32h417.h"
 
-/* ���ڶ˿�ѡ�����廯������ */
+/* 串口端口选择，抽象化底层 */
 typedef enum {
-    SERIAL_PORT_DEBUG = 0,   // ���Դ���
-    SERIAL_PORT_WIFI  = 1    // WiFi/����ת������
+    SERIAL_PORT_DEBUG = 0,
+    SERIAL_PORT_WIFI  = 1
 } Serial_Port;
 
-/* printf ��ʱ��������С */
+/* printf 缓时发送缓冲区大小 */
 #define TX_BUF_SIZE  256
 
-/* ���ƿ�ṹ�� */
+/* 控制块结构 */
 typedef struct {
     USART_TypeDef*       UARTx;
     uint32_t             BaudRate;
@@ -45,32 +45,31 @@ typedef struct {
     void (*TxCompleteCallback)(void);
 } Serial_CtrlBlock;
 
-/* ȫ�ֿ��ƿ����飨�ⲿ������������ .c �ļ��У� */
+/* 全局控制块数组（外部定义在 .c 文件中） */
 extern Serial_CtrlBlock Serial_Ctrl[2];
 
-/* ������������ */
+/* 初始化函数 */
 void Serial_Init(Serial_Port port);
 
-/* �������ͣ������ã� */
+/* 发送函数（阻塞式） */
 void Serial_SendByte(Serial_Port port, uint8_t byte);
 void Serial_SendArray(Serial_Port port, uint8_t *array, uint16_t len);
 void Serial_SendString(Serial_Port port, char *str);
 void Serial_SendNumber(Serial_Port port, uint32_t number, uint8_t len);
 
-/* DMA ���������� */
+/* DMA 发送函数 */
 uint16_t Serial_SendArray_DMA(Serial_Port port, const uint8_t *array, uint16_t len);
 uint16_t Serial_TxFreeBytes(Serial_Port port);
 uint8_t  Serial_IsTxBusy(Serial_Port port);
 
-/* ��ʽ����ӡ��DMA�� */
+/* 格式化打印（DMA） */
 void Serial_Printf(Serial_Port port, char *format, ...);
 
-/* ���ٵ��Դ�ӡ���Զ��� DEBUG �˿ڣ� */
+/* 快捷调试打印（自动选 DEBUG 端口） */
 void Serial_Dbg_Printf(char *format, ...);
 
-/* ���ղ�ѯ */
+/* 接收查询 */
 uint8_t  Serial_IsDataReady(Serial_Port port);
 uint16_t Serial_GetDataPacket(Serial_Port port, uint8_t **buf);
-
 
 #endif /* __SERIAL_H */

@@ -1,14 +1,9 @@
 #include "eeg_direction_collect.h"
+#include "signal_analysis.h"
 #include "eeg_direction_feature.h"
 #include "Serial.h"
 #include <stdio.h>
 #include <string.h>
-
-#define DIR_TEXT_PORT               SERIAL_PORT_DEBUG
-
-#define EEG_APP_MODE_COLLECT        1
-#define EEG_APP_MODE_INFER          2
-#define EEG_APP_MODE_COLLECT_CSP    3
 
 extern uint8_t g_eeg_app_mode;
 

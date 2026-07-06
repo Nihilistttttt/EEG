@@ -1,17 +1,13 @@
 #include "eeg_direction_feature.h"
+#include "signal_analysis.h"
 #include "Serial.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 
-#define DIR_TEXT_PORT               SERIAL_PORT_DEBUG
 #define DIR_PRINT_HEADER_ON_START   1
 #define DIR_FEAT_F_MIN              4
 #define DIR_FEAT_F_MAX              30
-
-#define EEG_APP_MODE_COLLECT        1
-#define EEG_APP_MODE_INFER          2
-#define EEG_APP_MODE_COLLECT_CSP    3
 
 extern uint8_t g_eeg_app_mode;
 

@@ -6,16 +6,16 @@
 #include <stdarg.h>
 #include "ch32h417.h"
 
-/* ´®¿Ú¶Ë¿ÚÑ¡Ôñ£¨ÓïÒå»¯ÃüÃû£© */
+/* ï¿½ï¿½ï¿½Ú¶Ë¿ï¿½Ñ¡ï¿½ï¿½ï¿½ï¿½ï¿½å»¯ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 typedef enum {
-    SERIAL_PORT_DEBUG = 0,   // µ÷ÊÔ´®¿Ú
-    SERIAL_PORT_WIFI  = 1    // WiFi/Êý¾Ý×ª·¢´®¿Ú
+    SERIAL_PORT_DEBUG = 0,   // ï¿½ï¿½ï¿½Ô´ï¿½ï¿½ï¿½
+    SERIAL_PORT_WIFI  = 1    // WiFi/ï¿½ï¿½ï¿½ï¿½×ªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 } Serial_Port;
 
-/* printf ÁÙÊ±»º³åÇø´óÐ¡ */
+/* printf ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð¡ */
 #define TX_BUF_SIZE  256
 
-/* ¿ØÖÆ¿é½á¹¹Ìå */
+/* ï¿½ï¿½ï¿½Æ¿ï¿½á¹¹ï¿½ï¿½ */
 typedef struct {
     USART_TypeDef*       UARTx;
     uint32_t             BaudRate;
@@ -45,34 +45,32 @@ typedef struct {
     void (*TxCompleteCallback)(void);
 } Serial_CtrlBlock;
 
-/* È«¾Ö¿ØÖÆ¿éÊý×é£¨Íâ²¿ÉùÃ÷£¬¶¨ÒåÔÚ .c ÎÄ¼þÖÐ£© */
+/* È«ï¿½Ö¿ï¿½ï¿½Æ¿ï¿½ï¿½ï¿½ï¿½é£¨ï¿½â²¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ .c ï¿½Ä¼ï¿½ï¿½Ð£ï¿½ */
 extern Serial_CtrlBlock Serial_Ctrl[2];
 
-/* ¹«¹²º¯ÊýÉùÃ÷ */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 void Serial_Init(Serial_Port port);
 
-/* ×èÈû·¢ËÍ£¨µ÷ÊÔÓÃ£© */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½ */
 void Serial_SendByte(Serial_Port port, uint8_t byte);
 void Serial_SendArray(Serial_Port port, uint8_t *array, uint16_t len);
 void Serial_SendString(Serial_Port port, char *str);
 void Serial_SendNumber(Serial_Port port, uint32_t number, uint8_t len);
 
-/* DMA ·Ç×èÈû·¢ËÍ */
+/* DMA ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 uint16_t Serial_SendArray_DMA(Serial_Port port, const uint8_t *array, uint16_t len);
 uint16_t Serial_TxFreeBytes(Serial_Port port);
 uint8_t  Serial_IsTxBusy(Serial_Port port);
 
-/* ¸ñÊ½»¯´òÓ¡£¨DMA£© */
+/* ï¿½ï¿½Ê½ï¿½ï¿½ï¿½ï¿½Ó¡ï¿½ï¿½DMAï¿½ï¿½ */
 void Serial_Printf(Serial_Port port, char *format, ...);
 
-/* ¿ìËÙµ÷ÊÔ´òÓ¡£¨×Ô¶¯×ß DEBUG ¶Ë¿Ú£© */
+/* ï¿½ï¿½ï¿½Ùµï¿½ï¿½Ô´ï¿½Ó¡ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½ DEBUG ï¿½Ë¿Ú£ï¿½ */
 void Serial_Dbg_Printf(char *format, ...);
 
-/* ½ÓÊÕ²éÑ¯ */
+/* ï¿½ï¿½ï¿½Õ²ï¿½Ñ¯ */
 uint8_t  Serial_IsDataReady(Serial_Port port);
 uint16_t Serial_GetDataPacket(Serial_Port port, uint8_t **buf);
 
-/* ¿ÉÑ¡»Øµ÷ÉèÖÃ */
-void Serial_SetTxCompleteCallback(Serial_Port port, void (*callback)(void));
 
 #endif /* __SERIAL_H */

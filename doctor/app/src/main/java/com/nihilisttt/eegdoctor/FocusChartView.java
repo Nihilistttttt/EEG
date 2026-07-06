@@ -278,7 +278,7 @@ public class FocusChartView extends View {
             float y = bottom - (yTick - yMin) * yScale;
             canvas.drawLine(left, y, right, y, gridPaint);
             canvas.drawLine(left - 5, y, left, y, axisPaint);
-            String label = String.format("%.2f", yTick);
+            String label = String.format("%.0f", yTick * 100);
             float tw = textPaint.measureText(label);
             canvas.drawText(label, left - 15 - tw, y + 5, textPaint);
             yTick += yTickSpacing;

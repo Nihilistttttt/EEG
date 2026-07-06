@@ -400,8 +400,8 @@ public class MonitorFragment extends Fragment implements DataListener {
     }
 
     @Override
-    public void onPause() {
-        super.onPause();
+    public void onDestroyView() {
+        super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);
     }
 

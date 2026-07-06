@@ -15,48 +15,92 @@
         app:cardCornerRadius="12dp"
         app:cardBackgroundColor="@color/surface_low">
 
-        <LinearLayout
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:gravity="center">
+            android:layout_height="match_parent">
 
-            <TextView
-                android:id="@+id/tv_trial_direction"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="准备开始"
-                android:textSize="80sp"
-                android:textStyle="bold"
-                android:textColor="@color/training_rest" />
+            <LinearLayout
+                android:id="@+id/layout_idle"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="visible">
 
-            <TextView
-                android:id="@+id/tv_trial_hint"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="点击下方按钮开始训练"
-                android:textSize="18sp"
-                android:textColor="@color/text_secondary"
-                android:paddingTop="12dp" />
+                <TextView
+                    android:id="@+id/tv_trial_direction"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="准备开始"
+                    android:textSize="80sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/training_rest" />
 
-            <ProgressBar
-                android:id="@+id/progress_trial"
-                style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="400dp"
-                android:layout_height="16dp"
-                android:layout_marginTop="24dp"
-                android:max="100"
-                android:progress="0" />
+                <TextView
+                    android:id="@+id/tv_trial_hint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="点击下方按钮开始训练"
+                    android:textSize="18sp"
+                    android:textColor="@color/text_secondary"
+                    android:paddingTop="12dp" />
 
-            <TextView
-                android:id="@+id/tv_trial_count"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textSize="16sp"
-                android:textColor="@color/text_secondary"
-                android:paddingTop="8dp" />
-        </LinearLayout>
+                <ProgressBar
+                    android:id="@+id/progress_trial"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="400dp"
+                    android:layout_height="16dp"
+                    android:layout_marginTop="24dp"
+                    android:max="100"
+                    android:progress="0" />
+
+                <TextView
+                    android:id="@+id/tv_trial_count"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textSize="16sp"
+                    android:textColor="@color/text_secondary"
+                    android:paddingTop="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/layout_ssvep"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tv_ssvep_arrow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="←"
+                    android:textSize="160sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/direction_left" />
+
+                <TextView
+                    android:id="@+id/tv_ssvep_freq"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="8 Hz"
+                    android:textSize="24sp"
+                    android:textColor="@color/text_secondary"
+                    android:paddingTop="8dp" />
+
+                <TextView
+                    android:id="@+id/tv_ssvep_hint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="注视闪烁箭头"
+                    android:textSize="18sp"
+                    android:textColor="@color/text_secondary"
+                    android:paddingTop="12dp" />
+            </LinearLayout>
+
+        </FrameLayout>
     </com.google.android.material.card.MaterialCardView>
 
     <LinearLayout

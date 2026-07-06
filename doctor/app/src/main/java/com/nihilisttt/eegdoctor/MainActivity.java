@@ -76,6 +76,7 @@ public class MainActivity extends AppCompatActivity {
             public void onPageSelected(int position) {
                 super.onPageSelected(position);
                 updatePageTitle(position);
+                TcpServerManager.getInstance().sendToPatient("PAGE," + position);
             }
         });
 

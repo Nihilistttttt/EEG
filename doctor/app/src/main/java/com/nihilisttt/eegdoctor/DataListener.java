@@ -8,4 +8,9 @@ public interface DataListener {
     default void onInferenceResult(InferenceResult result) {}
     default void onIpcDiag(IpcDiagInfo diag) {}
     default void onDirConfig(String configJson) {}
+    default void onTaskStart(String side) {}
+    default void onTaskDone() {}
+    default void onReadyTrain() {}
+    default void onReadyTest() {}
+    default void onModeSetOk(int mode) {}
 }

@@ -66,7 +66,17 @@ public class WaveCompareFragment extends Fragment implements DataListener {
         tvWaveLabelCount.setOnClickListener(v -> showLabelCountDialog());
         tvWaveRange.setOnClickListener(v -> showWaveRangeDialog());
 
-        // 应用默认参数
+        // 应用持久化参数
+        int step = SettingsStore.getWaveStep(requireContext(), DEFAULT_STEP);
+        String stepUnit = SettingsStore.getWaveStepUnit(requireContext(), DEFAULT_STEP_UNIT);
+        int labelCount = SettingsStore.getWaveLabelCount(requireContext(), DEFAULT_LABEL_COUNT);
+        float xMax = SettingsStore.getWaveXMax(requireContext(), DEFAULT_X_MAX);
+
+        currentLabelCount = labelCount;
+        currentStep = step;
+        currentStepUnit = stepUnit;
+        currentXMax = xMax;
+
         applyXRange(currentXMax);
         applyWaveStep(currentStep, currentStepUnit, currentLabelCount);
 
@@ -80,8 +90,8 @@ public class WaveCompareFragment extends Fragment implements DataListener {
     }
 
     @Override
-    public void onPause() {
-        super.onPause();
+    public void onDestroyView() {
+        super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);
     }
 
@@ -95,8 +105,9 @@ public class WaveCompareFragment extends Fragment implements DataListener {
         rawCh1.setXMax(xMax);
         filtCh0.setXMax(xMax);
         filtCh1.setXMax(xMax);
-        tvXRange.setText(String.format("%.3f s", xMax));
+        tvXRange.setText(String.format("%.1f s", xMax));
         currentXMax = xMax;
+        SettingsStore.setWaveXMax(requireContext(), xMax);
     }
 
     /**
@@ -125,6 +136,9 @@ public class WaveCompareFragment extends Fragment implements DataListener {
         currentStep = step;
         currentStepUnit = unit;
         currentLabelCount = labelCount;
+        SettingsStore.setWaveStep(requireContext(), step);
+        SettingsStore.setWaveStepUnit(requireContext(), unit);
+        SettingsStore.setWaveLabelCount(requireContext(), labelCount);
     }
 
     // ==================== 对话框设置 ====================

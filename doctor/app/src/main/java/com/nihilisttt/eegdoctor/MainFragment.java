@@ -112,25 +112,28 @@ public class MainFragment extends Fragment implements DataListener {
         builder.show();
     }
     private void setupRangeSelectors() {
-        // 标签数量点击
         tvWaveLabelCount.setOnClickListener(v -> showLabelCountDialog());
-        // 波形步长点击
         tvWaveRange.setOnClickListener(v -> showWaveRangeDialog());
-        // X轴范围点击
         tvXRange.setOnClickListener(v -> showXRangeDialog());
-        // 频谱量程点击
         tvSpectrumRange.setOnClickListener(v -> showSpectrumRangeDialog());
 
-        // 初始化默认值
-        tvWaveLabelCount.setText(String.valueOf(DEFAULT_LABEL_COUNT));
-        tvWaveRange.setText(DEFAULT_STEP + DEFAULT_STEP_UNIT);
-        tvXRange.setText(String.format("%.3f s", DEFAULT_X_MAX));
-        tvSpectrumRange.setText("500 uV");
+        int step = SettingsStore.getWaveStep(requireContext(), DEFAULT_STEP);
+        String stepUnit = SettingsStore.getWaveStepUnit(requireContext(), DEFAULT_STEP_UNIT);
+        int labelCount = SettingsStore.getWaveLabelCount(requireContext(), DEFAULT_LABEL_COUNT);
+        float xMax = SettingsStore.getWaveXMax(requireContext(), DEFAULT_X_MAX);
+        float specRange = SettingsStore.getSpecRange(requireContext(), 500f);
+        String specUnit = SettingsStore.getSpecUnit(requireContext(), "uV");
 
-        applyWaveStep(DEFAULT_STEP, DEFAULT_STEP_UNIT, DEFAULT_LABEL_COUNT);
-        applyXRange(DEFAULT_X_MAX);
-        spectrumCh0.setRange(500f, "uV");
-        spectrumCh1.setRange(500f, "uV");
+        currentLabelCount = labelCount;
+        tvWaveLabelCount.setText(String.valueOf(labelCount));
+        tvWaveRange.setText(step + stepUnit);
+        tvXRange.setText(String.format("%.1f s", xMax));
+        tvSpectrumRange.setText((Math.abs(specRange - Math.round(specRange)) < 0.001f ? String.format("%.0f", specRange) : String.format("%.3g", specRange)) + " " + specUnit);
+
+        applyWaveStep(step, stepUnit, labelCount);
+        applyXRange(xMax);
+        spectrumCh0.setRange(specRange, specUnit);
+        spectrumCh1.setRange(specRange, specUnit);
     }
 
     // ==================== 波形：标签数量 ====================
@@ -176,6 +179,9 @@ public class MainFragment extends Fragment implements DataListener {
         waveCh1.setYRange(halfRange);
         waveCh0.setUnit(unit);
         waveCh1.setUnit(unit);
+        SettingsStore.setWaveStep(requireContext(), step);
+        SettingsStore.setWaveStepUnit(requireContext(), unit);
+        SettingsStore.setWaveLabelCount(requireContext(), labelCount);
     }
 
     private void showWaveRangeDialog() {
@@ -223,7 +229,8 @@ public class MainFragment extends Fragment implements DataListener {
     private void applyXRange(float xMax) {
         waveCh0.setXMax(xMax);
         waveCh1.setXMax(xMax);
-        tvXRange.setText(String.format("%.3f s", xMax));
+        tvXRange.setText(String.format("%.1f s", xMax));
+        SettingsStore.setWaveXMax(requireContext(), xMax);
     }
 
     private void showXRangeDialog() {
@@ -232,7 +239,7 @@ public class MainFragment extends Fragment implements DataListener {
         Spinner unitSpinner = dialogView.findViewById(R.id.unit_spinner);
         unitSpinner.setVisibility(View.GONE); // 隐藏单位选择
         etValue.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        etValue.setHint("例如 2.048");
+        etValue.setHint("默认 " + DEFAULT_X_MAX);
 
         String current = tvXRange.getText().toString().replace(" s", "");
         etValue.setText(current);
@@ -296,6 +303,8 @@ public class MainFragment extends Fragment implements DataListener {
                             displayValue = String.format("%.3g", value);
                         }
                         tvSpectrumRange.setText(displayValue + " " + unit);
+                        SettingsStore.setSpecRange(requireContext(), value);
+                        SettingsStore.setSpecUnit(requireContext(), unit);
                     } catch (NumberFormatException ignored) {}
                 })
                 .setNegativeButton("取消", null)
@@ -310,8 +319,8 @@ public class MainFragment extends Fragment implements DataListener {
     }
 
     @Override
-    public void onPause() {
-        super.onPause();
+    public void onDestroyView() {
+        super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);
     }
 

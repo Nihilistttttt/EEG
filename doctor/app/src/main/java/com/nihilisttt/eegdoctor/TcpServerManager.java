@@ -24,6 +24,7 @@ public class TcpServerManager {
     private static final int FORWARD_PORT = 41003;
     private static final int PATIENT_DATA_PORT = 41004;
     private static final int PATIENT_CMD_PORT = 41005;
+    private static final int DOCTOR_TO_PATIENT_PORT = 41006;
     private static final TcpServerManager INSTANCE = new TcpServerManager();
 
     private ServerSocket serverSocket;
@@ -37,6 +38,7 @@ public class TcpServerManager {
     private TcpForwardManager patientDataManager;
     private ServerSocket patientCmdServerSocket;
     private Socket deviceClient;
+    private Socket doctorToPatientClient;
 
     public static TcpServerManager getInstance() { return INSTANCE; }
 
@@ -110,6 +112,19 @@ public class TcpServerManager {
                 }
             } catch (Exception e) { Log.e("TCP", "Patient cmd server error", e); }
         }).start();
+
+        // 启动医生端→患者端命令通道服务器
+        new Thread(() -> {
+            try {
+                ServerSocket d2pServer = new ServerSocket(DOCTOR_TO_PATIENT_PORT);
+                Log.i("TCP", "Doctor-to-patient cmd server started on port " + DOCTOR_TO_PATIENT_PORT);
+                while (running) {
+                    Socket client = d2pServer.accept();
+                    Log.i("TCP", "Doctor-to-patient client connected: " + client.getRemoteSocketAddress());
+                    doctorToPatientClient = client;
+                }
+            } catch (Exception e) { Log.e("TCP", "Doctor-to-patient server error", e); }
+        }).start();
     }
 
     public void stop() {
@@ -170,6 +185,20 @@ public class TcpServerManager {
                 Log.i("TCP", "Sent to device: " + command);
             } catch (Exception e) {
                 Log.e("TCP", "Failed to send to device: " + e.getMessage());
+            }
+        }
+    }
+
+    public void sendToPatient(String command) {
+        if (doctorToPatientClient != null && !doctorToPatientClient.isClosed()
+                && doctorToPatientClient.isConnected()) {
+            try {
+                OutputStream os = doctorToPatientClient.getOutputStream();
+                os.write((command + "\n").getBytes("UTF-8"));
+                os.flush();
+                Log.i("TCP", "Sent to patient: " + command);
+            } catch (Exception e) {
+                Log.e("TCP", "Failed to send to patient: " + e.getMessage());
             }
         }
     }
@@ -510,6 +539,29 @@ public class TcpServerManager {
                 String configJson = line.substring("DIRCFG,".length());
                 dispatcher.postDirConfig(configJson);
                 framesParsed.incrementAndGet();
+            } else if (line.startsWith("TASK,")) {
+                if (line.equals("TASK,DONE")) {
+                    dispatcher.postTaskDone();
+                    framesParsed.incrementAndGet();
+                } else {
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("TASK,(LEFT|RIGHT),start").matcher(line);
+                    if (m.matches()) {
+                        dispatcher.postTaskStart(m.group(1));
+                        framesParsed.incrementAndGet();
+                    }
+                }
+            } else if (line.equals("READY_TRAIN")) {
+                dispatcher.postReadyTrain();
+                framesParsed.incrementAndGet();
+            } else if (line.equals("READY_TEST")) {
+                dispatcher.postReadyTest();
+                framesParsed.incrementAndGet();
+            } else if (line.startsWith("MODE_SET_OK,")) {
+                try {
+                    int mode = Integer.parseInt(line.substring("MODE_SET_OK,".length()));
+                    dispatcher.postModeSetOk(mode);
+                    framesParsed.incrementAndGet();
+                } catch (NumberFormatException ignored) {}
             }
         }
     }

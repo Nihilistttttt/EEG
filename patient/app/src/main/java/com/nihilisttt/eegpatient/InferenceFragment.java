@@ -20,9 +20,6 @@ public class InferenceFragment extends Fragment implements DoctorConnector.DataL
     private TextView tvConfidence;
     private ProgressBar progressConfidence;
     private TextView tvModelStatus;
-    private View btnStartInfer;
-    private View btnStopInfer;
-    private boolean isInferencing = false;
 
     @Nullable
     @Override
@@ -34,43 +31,35 @@ public class InferenceFragment extends Fragment implements DoctorConnector.DataL
         tvConfidence = root.findViewById(R.id.tv_confidence);
         progressConfidence = root.findViewById(R.id.progress_confidence);
         tvModelStatus = root.findViewById(R.id.tv_model_status);
-        btnStartInfer = root.findViewById(R.id.btn_start_infer);
-        btnStopInfer = root.findViewById(R.id.btn_stop_infer);
 
-        btnStartInfer.setOnClickListener(v -> startInference());
-        btnStopInfer.setOnClickListener(v -> stopInference());
+        View btnStart = root.findViewById(R.id.btn_start_infer);
+        View btnStop = root.findViewById(R.id.btn_stop_infer);
+        if (btnStart != null) btnStart.setVisibility(View.GONE);
+        if (btnStop != null) btnStop.setVisibility(View.GONE);
+
+        tvDirection.setText("← →");
+        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));
+        tvConfidence.setText("置信度: --");
+        progressConfidence.setProgress(0);
+
         return root;
     }
 
-    private void startInference() {
-        if (isInferencing) return;
-        isInferencing = true;
-        DoctorConnector.getInstance().sendCommand("MODE,SET,2");
-        btnStartInfer.setEnabled(false);
-        btnStopInfer.setEnabled(true);
-        tvDirection.setText("← →");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));
-        tvConfidence.setText("置信度: --");
-        progressConfidence.setProgress(0);
+    @Override
+    public void onResume() {
+        super.onResume();
+        DoctorConnector.getInstance().addListener(this);
     }
 
-    private void stopInference() {
-        isInferencing = false;
-        DoctorConnector.getInstance().sendCommand("MODE,SET,1");
-        btnStartInfer.setEnabled(true);
-        btnStopInfer.setEnabled(false);
-        tvDirection.setText("← →");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));
-        tvConfidence.setText("置信度: --");
-        progressConfidence.setProgress(0);
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        DoctorConnector.getInstance().removeListener(this);
     }
-
-    @Override public void onResume() { super.onResume(); DoctorConnector.getInstance().addListener(this); }
-    @Override public void onPause() { super.onPause(); DoctorConnector.getInstance().removeListener(this); }
 
     @Override
     public void onInferenceResult(InferenceResult result) {
-        if (!isInferencing || getActivity() == null) return;
+        if (getActivity() == null) return;
         getActivity().runOnUiThread(() -> {
             String intent = result.getIntent();
             if ("LEFT".equals(intent)) {
@@ -102,4 +91,10 @@ public class InferenceFragment extends Fragment implements DoctorConnector.DataL
     @Override public void onEegFrame(EegFrame frame) {}
     @Override public void onIpcDiag(IpcDiagInfo diag) {}
     @Override public void onConnectionChanged(boolean connected) {}
+    @Override public void onTaskStart(String side) {}
+    @Override public void onTaskDone() {}
+    @Override public void onReadyTrain() {}
+    @Override public void onReadyTest() {}
+    @Override public void onModeSetOk(int mode) {}
+    @Override public void onPageSwitch(int page) {}
 }

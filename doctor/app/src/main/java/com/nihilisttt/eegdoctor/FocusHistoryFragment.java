@@ -23,7 +23,7 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
     private TextView tvFocusLabelCount, tvFocusRange, tvFocusXRange;
     private TextView tvAttnInfo;
 
-    private static final int DEFAULT_LABEL_COUNT = 5;
+    private static final int DEFAULT_LABEL_COUNT = 3;
     private static final float DEFAULT_Y_RANGE = 1.0f;
     private static final int DEFAULT_X_POINTS = 500;   // X轴默认点数
 
@@ -49,8 +49,18 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
         tvFocusRange.setOnClickListener(v -> showYRangeDialog());
         tvFocusXRange.setOnClickListener(v -> showXRangeDialog());
 
-        applyYRange(DEFAULT_Y_RANGE, DEFAULT_LABEL_COUNT);
-        applyXRange(DEFAULT_X_POINTS);
+        int labelCount = SettingsStore.getFocusLabelCount(requireContext(), DEFAULT_LABEL_COUNT);
+        float yRange = SettingsStore.getFocusYRange(requireContext(), DEFAULT_Y_RANGE);
+        int xPoints = SettingsStore.getFocusXPoints(requireContext(), DEFAULT_X_POINTS);
+
+        currentLabelCount = labelCount;
+
+        tvFocusLabelCount.setText(String.valueOf(labelCount));
+        tvFocusRange.setText(String.format("%.2f", yRange));
+        tvFocusXRange.setText(String.format("%d 点", xPoints));
+
+        applyYRange(yRange, labelCount);
+        applyXRange(xPoints);
 
         return root;
     }
@@ -59,11 +69,14 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
         focusChart.setYRange(halfRange);
         focusChart.setLabelCount(labelCount);
         tvFocusRange.setText(String.format("%.2f", halfRange));
+        SettingsStore.setFocusYRange(requireContext(), halfRange);
+        SettingsStore.setFocusLabelCount(requireContext(), labelCount);
     }
 
     private void applyXRange(int points) {
         focusChart.setXMaxPoints(points);
         tvFocusXRange.setText(String.format("%d 点", points));
+        SettingsStore.setFocusXPoints(requireContext(), points);
     }
 
     private void showYRangeDialog() {
@@ -151,8 +164,8 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
     }
 
     @Override
-    public void onPause() {
-        super.onPause();
+    public void onDestroyView() {
+        super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);
     }
 

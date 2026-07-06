@@ -58,7 +58,7 @@ public class CommandSender {
         return commandSocket != null && commandSocket.isConnected() && !commandSocket.isClosed();
     }
 
-    private boolean sendCommand(String cmd) {
+    public boolean sendCommand(String cmd) {
         if (outputStream == null) {
             Log.w(TAG, "Not connected, cannot send: " + cmd);
             return false;
@@ -96,5 +96,9 @@ public class CommandSender {
 
     public boolean trialRight() {
         return sendCommand("TRIAL,RIGHT");
+    }
+
+    public boolean sendPage(int page) {
+        return sendCommand("PAGE," + page);
     }
 }

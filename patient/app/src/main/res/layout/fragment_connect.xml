@@ -25,48 +25,34 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="连接医生端"
-                android:textSize="24sp"
-                android:textColor="@color/text_primary"
+                android:text="NeuroWave 康复"
+                android:textSize="28sp"
+                android:textColor="@color/brand_primary"
                 android:textStyle="bold"
-                android:paddingBottom="16dp" />
+                android:paddingBottom="24dp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="请输入医生端设备的IP地址"
+                android:text="自动搜索并连接医生端..."
                 android:textSize="14sp"
                 android:textColor="@color/text_secondary"
                 android:paddingBottom="16dp" />
 
-            <com.google.android.material.textfield.TextInputLayout
+            <ProgressBar
+                android:id="@+id/progress_connecting"
+                style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="医生端IP地址">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/et_doctor_ip"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="192.168.43.1"
-                    android:inputType="text"
-                    android:textSize="16sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_connect"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="16dp"
-                android:text="连接"
-                android:textSize="16sp" />
+                android:layout_height="4dp"
+                android:layout_marginBottom="12dp"
+                android:indeterminate="true" />
 
             <TextView
                 android:id="@+id/tv_connect_status"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text=""
-                android:textSize="12sp"
+                android:textSize="14sp"
                 android:textColor="@color/text_secondary"
                 android:paddingTop="8dp" />
         </LinearLayout>

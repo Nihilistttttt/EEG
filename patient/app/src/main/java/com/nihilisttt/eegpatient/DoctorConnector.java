@@ -12,14 +12,17 @@ public class DoctorConnector {
     private static final String TAG = "DoctorConnector";
     private static final int DATA_PORT = 41004;
     private static final int CMD_PORT = 41005;
+    private static final int D2P_CMD_PORT = 41006;
     private static final DoctorConnector INSTANCE = new DoctorConnector();
 
     private String doctorIp;
     private Socket dataSocket;
     private Socket cmdSocket;
+    private Socket d2pCmdSocket;
     private OutputStream cmdOutput;
     private volatile boolean connected;
     private Thread dataThread;
+    private Thread d2pCmdThread;
 
     private final CopyOnWriteArrayList<DataListener> listeners = new CopyOnWriteArrayList<>();
 
@@ -29,6 +32,12 @@ public class DoctorConnector {
         void onInferenceResult(InferenceResult result);
         void onIpcDiag(IpcDiagInfo diag);
         void onConnectionChanged(boolean connected);
+        void onTaskStart(String side);
+        void onTaskDone();
+        void onReadyTrain();
+        void onReadyTest();
+        void onModeSetOk(int mode);
+        void onPageSwitch(int page);
     }
 
     public static DoctorConnector getInstance() { return INSTANCE; }
@@ -56,6 +65,29 @@ public class DoctorConnector {
                 connected = true;
                 notifyConnectionChanged(true);
 
+                try {
+                    d2pCmdSocket = new Socket(doctorIp, D2P_CMD_PORT);
+                    Log.i(TAG, "D2P cmd socket connected to " + doctorIp + ":" + D2P_CMD_PORT);
+                    d2pCmdThread = new Thread(() -> {
+                        try {
+                            InputStream d2pIn = d2pCmdSocket.getInputStream();
+                            byte[] d2pBuf = new byte[256];
+                            int d2pLen;
+                            while ((d2pLen = d2pIn.read(d2pBuf)) != -1) {
+                                String line = new String(d2pBuf, 0, d2pLen, "UTF-8").trim();
+                                Log.i(TAG, "D2P cmd received: " + line);
+                                parseD2pCommand(line);
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "D2P cmd read error: " + e.getMessage());
+                        }
+                    });
+                    d2pCmdThread.setDaemon(true);
+                    d2pCmdThread.start();
+                } catch (Exception e) {
+                    Log.w(TAG, "D2P cmd socket failed: " + e.getMessage());
+                }
+
                 InputStream in = dataSocket.getInputStream();
                 FrameParser parser = new FrameParser();
                 byte[] buf = new byte[512];
@@ -79,8 +111,10 @@ public class DoctorConnector {
         connected = false;
         try { if (dataSocket != null) dataSocket.close(); } catch (Exception ignored) {}
         try { if (cmdSocket != null) cmdSocket.close(); } catch (Exception ignored) {}
+        try { if (d2pCmdSocket != null) d2pCmdSocket.close(); } catch (Exception ignored) {}
         dataSocket = null;
         cmdSocket = null;
+        d2pCmdSocket = null;
         cmdOutput = null;
     }
 
@@ -102,6 +136,16 @@ public class DoctorConnector {
 
     private void notifyConnectionChanged(boolean c) {
         for (DataListener l : listeners) l.onConnectionChanged(c);
+    }
+
+    private void parseD2pCommand(String line) {
+        if (line == null || line.isEmpty()) return;
+        if (line.startsWith("PAGE,")) {
+            try {
+                int page = Integer.parseInt(line.substring("PAGE,".length()));
+                for (DataListener l : listeners) l.onPageSwitch(page);
+            } catch (NumberFormatException ignored) {}
+        }
     }
 
     private class FrameParser {
@@ -178,6 +222,27 @@ public class DoctorConnector {
             } else if (line.startsWith("IPCDIAG,")) {
                 IpcDiagInfo d = IpcDiagInfo.fromLine(line);
                 if (d != null) for (DataListener l : listeners) l.onIpcDiag(d);
+            } else if (line.startsWith("TASK,")) {
+                if (line.equals("TASK,DONE")) {
+                    for (DataListener l : listeners) l.onTaskDone();
+                } else {
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("TASK,(LEFT|RIGHT),start").matcher(line);
+                    if (m.matches()) for (DataListener l : listeners) l.onTaskStart(m.group(1));
+                }
+            } else if (line.equals("READY_TRAIN")) {
+                for (DataListener l : listeners) l.onReadyTrain();
+            } else if (line.equals("READY_TEST")) {
+                for (DataListener l : listeners) l.onReadyTest();
+            } else if (line.startsWith("MODE_SET_OK,")) {
+                try {
+                    int mode = Integer.parseInt(line.substring("MODE_SET_OK,".length()));
+                    for (DataListener l : listeners) l.onModeSetOk(mode);
+                } catch (NumberFormatException ignored) {}
+            } else if (line.startsWith("PAGE,")) {
+                try {
+                    int page = Integer.parseInt(line.substring("PAGE,".length()));
+                    for (DataListener l : listeners) l.onPageSwitch(page);
+                } catch (NumberFormatException ignored) {}
             }
         }
     }

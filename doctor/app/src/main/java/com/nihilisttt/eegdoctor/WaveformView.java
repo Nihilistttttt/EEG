@@ -325,7 +325,7 @@ public class WaveformView extends View {
             float x = left + (xTick - xMin) * xScale;
             canvas.drawLine(x, top, x, bottom, gridPaint);
             canvas.drawLine(x, bottom, x, bottom + 5, axisPaint);
-            String label = String.format("%.2f", xTick) + "s";
+            String label = String.format("%.1f", xTick) + "s";
             canvas.drawText(label, x - 15, bottom + 25, textPaint);
             xTick += xTickSpacing;
         }
@@ -338,10 +338,8 @@ public class WaveformView extends View {
             Path path = new Path();
             float latestTime = (pointCount - 1) / SAMPLE_RATE;
             float windowStart = latestTime - mXMax;
-            if (windowStart < 0) windowStart = 0;
             float windowEnd = latestTime;
-            float windowLen = windowEnd - windowStart;
-            if (windowLen <= 0) windowLen = 1e-6f;
+            float windowLen = mXMax;
 
             boolean first = true;
             for (int i = 0; i < pointCount; i++) {

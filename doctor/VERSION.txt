@@ -1,0 +1,29 @@
+NeuroWave 医生端 版本更新日志
+================================
+
+v0.3.0 (2026-07-06)
+- TrainingFragment: MI范式→SSVEP范式(视觉闪烁刺激,左8Hz/右12Hz)
+- 训练时序: 本地计时→下位机TASK,DONE信号驱动
+- DataListener: 新增5个训练协议回调(onTaskStart/onTaskDone/onReadyTrain/onReadyTest/onModeSetOk)
+- DataDispatcher/TcpServerManager: 同步扩展协议解析和post方法
+- CommandSender: sendCommand改为public, 新增sendPage()
+- WaveformView: 修复波形压缩(数据不足时右对齐), X轴刻度1位小数
+- FocusChartView: Y轴标签改为百分比显示
+- FocusHistoryFragment: 默认3标签
+- SettingsStore: SharedPreferences持久化波形/频谱/专注度设置
+- Fragment生命周期: onPause→removeListener改为onDestroyView→removeListener(后台持续刷新)
+- 新增41006端口(Doctor-to-Patient命令通道)
+- 切换页面时自动发送PAGE,N命令给患者端
+
+v0.2.0 (2026-07-05)
+- FrameParser文本行协议解析(DIRCSV/RESULT/IPCDIAG/DIRCFG)
+- 医生端向患者端转发数据(41004)和接收命令(41005)
+- CommandSender下行命令发送器(MODE/SET/TRIAL)
+- EegFrame/InferenceResult/IpcDiagInfo数据模型
+- 应用名NeuroWave医生,包名com.nihilisttt.eegdoctor
+
+v0.1.0 (2026-07-04)
+- 初始项目创建
+- TCP Server 41002-41005端口
+- 双通道波形+频谱+专注度显示
+- MonitorFragment/MainFragment双页面

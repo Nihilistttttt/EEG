@@ -56,4 +56,34 @@ public class DataDispatcher {
             for (DataListener l : listeners) l.onDirConfig(configJson);
         });
     }
+
+    public void postTaskStart(String side) {
+        mainHandler.post(() -> {
+            for (DataListener l : listeners) l.onTaskStart(side);
+        });
+    }
+
+    public void postTaskDone() {
+        mainHandler.post(() -> {
+            for (DataListener l : listeners) l.onTaskDone();
+        });
+    }
+
+    public void postReadyTrain() {
+        mainHandler.post(() -> {
+            for (DataListener l : listeners) l.onReadyTrain();
+        });
+    }
+
+    public void postReadyTest() {
+        mainHandler.post(() -> {
+            for (DataListener l : listeners) l.onReadyTest();
+        });
+    }
+
+    public void postModeSetOk(int mode) {
+        mainHandler.post(() -> {
+            for (DataListener l : listeners) l.onModeSetOk(mode);
+        });
+    }
 }

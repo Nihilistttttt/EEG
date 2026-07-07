@@ -39,6 +39,7 @@ public class DoctorConnector {
         void onModeSetOk(int mode);
         void onPageSwitch(int page);
         void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant);
+        void onTrainingPrepare(String type);
     }
 
     public static DoctorConnector getInstance() { return INSTANCE; }
@@ -146,6 +147,9 @@ public class DoctorConnector {
                 int page = Integer.parseInt(line.substring("PAGE,".length()));
                 for (DataListener l : listeners) l.onPageSwitch(page);
             } catch (NumberFormatException ignored) {}
+        } else if (line.startsWith("TRAIN_PREPARE,")) {
+            String type = line.substring("TRAIN_PREPARE,".length());
+            for (DataListener l : listeners) l.onTrainingPrepare(type);
         }
     }
 

@@ -285,6 +285,7 @@ public class TrainingFragment extends Fragment implements DataListener {
     public void onResume() {
         super.onResume();
         DataDispatcher.getInstance().addListener(this);
+        TcpServerManager.getInstance().sendToPatient("TRAIN_PREPARE,SSVEP");
     }
 
     @Override

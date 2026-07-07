@@ -103,4 +103,15 @@ public class MainActivity extends AppCompatActivity implements DoctorConnector.D
     public void onPageSwitch(int page) {
         runOnUiThread(() -> switchToPage(page));
     }
+
+    @Override
+    public void onTrainingPrepare(String type) {
+        runOnUiThread(() -> {
+            if ("MI".equals(type)) {
+                switchToPage(2);
+            } else {
+                switchToPage(1);
+            }
+        });
+    }
 }

@@ -79,6 +79,15 @@ public class SsvepTrainingFragment extends Fragment implements DoctorConnector.D
         return root;
     }
 
+    private void showTrainingPrepare() {
+        showIdleLayout();
+        tvDirection.setText("准备开始训练");
+        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_info));
+        tvHint.setText("SSVEP训练即将开始，请做好准备");
+        tvTrialCount.setText("");
+        progressTrial.setProgress(0);
+    }
+
     private void sendCmd(String cmd) {
         DoctorConnector.getInstance().sendCommand(cmd);
     }
@@ -305,4 +314,9 @@ public class SsvepTrainingFragment extends Fragment implements DoctorConnector.D
 
     @Override public void onPageSwitch(int page) {}
     @Override public void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {}
+
+    @Override
+    public void onTrainingPrepare(String type) {
+        handler.post(this::showTrainingPrepare);
+    }
 }

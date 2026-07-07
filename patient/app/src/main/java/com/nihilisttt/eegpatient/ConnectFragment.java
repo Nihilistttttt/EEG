@@ -219,4 +219,5 @@ public class ConnectFragment extends Fragment implements DoctorConnector.DataLis
     @Override public void onReadyTest() {}
     @Override public void onModeSetOk(int mode) {}
     @Override public void onPageSwitch(int page) {}
+    @Override public void onTrainingPrepare(String type) {}
 }

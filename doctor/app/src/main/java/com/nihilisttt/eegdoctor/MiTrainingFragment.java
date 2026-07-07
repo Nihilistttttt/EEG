@@ -223,6 +223,7 @@ public class MiTrainingFragment extends Fragment implements DataListener {
         super.onResume();
         DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
+        TcpServerManager.getInstance().sendToPatient("TRAIN_PREPARE,MI");
     }
 
     @Override

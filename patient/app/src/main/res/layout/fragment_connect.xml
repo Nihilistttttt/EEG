@@ -94,7 +94,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="实时状态"
-                    android:textSize="20sp"
+                    android:textSize="32sp"
                     android:textColor="@color/brand_primary"
                     android:textStyle="bold"
                     android:paddingBottom="24dp" />
@@ -117,7 +117,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="专注度"
-                            android:textSize="14sp"
+                            android:textSize="24sp"
                             android:textColor="@color/text_secondary" />
 
                         <TextView
@@ -125,7 +125,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="--%"
-                            android:textSize="36sp"
+                            android:textSize="56sp"
                             android:textColor="@color/focus_line"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -141,7 +141,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="放松度"
-                            android:textSize="14sp"
+                            android:textSize="24sp"
                             android:textColor="@color/text_secondary" />
 
                         <TextView
@@ -149,7 +149,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="--%"
-                            android:textSize="36sp"
+                            android:textSize="56sp"
                             android:textColor="@color/accent_info"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -172,7 +172,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="专注状态: "
-                        android:textSize="16sp"
+                        android:textSize="28sp"
                         android:textColor="@color/text_secondary" />
 
                     <TextView
@@ -180,7 +180,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="--"
-                        android:textSize="18sp"
+                        android:textSize="32sp"
                         android:textStyle="bold"
                         android:textColor="@color/text_primary" />
                 </LinearLayout>

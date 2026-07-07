@@ -287,6 +287,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener {
         super.onResume();
         DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
+        TcpServerManager.getInstance().sendToPatient("TRAIN_PREPARE,SSVEP");
         Log.d("SsvepTraining", "onResume: listener refreshed, state=" + currentState);
     }
 

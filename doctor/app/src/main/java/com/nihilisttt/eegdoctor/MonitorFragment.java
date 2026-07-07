@@ -39,8 +39,10 @@ public class MonitorFragment extends Fragment implements DataListener {
     private final List<WaveformView> waveformViews = new ArrayList<>();
     private final List<SpectrumView> spectrumViews = new ArrayList<>();
     private final List<TextView> attnViews = new ArrayList<>();
+    private final List<TextView> relaxViews = new ArrayList<>();
     private final List<View> signalQualityViews = new ArrayList<>();
 
+    private View statusIndicator;
     private TextView tvStatus;
     private TextView tvInstantState;
     private TextView tvTrendState;
@@ -51,6 +53,8 @@ public class MonitorFragment extends Fragment implements DataListener {
     private TextView btnPauseResume;
     private boolean isPaused = false;
     private int currentLabelCount = DEFAULT_LABEL_COUNT;
+    private boolean deviceConnected = false;
+    private boolean patientConnected = false;
 
     public MonitorFragment() {
         this.channels = ChannelConfig.getDefaultDualChannel();
@@ -70,6 +74,7 @@ public class MonitorFragment extends Fragment implements DataListener {
         LinearLayout channelContainer = root.findViewById(R.id.channel_container);
         buildChannelViews(channelContainer);
 
+        statusIndicator = root.findViewById(R.id.status_indicator);
         tvStatus = root.findViewById(R.id.tv_status);
         tvInstantState = root.findViewById(R.id.tv_instant_state);
         tvTrendState = root.findViewById(R.id.tv_trend_state);
@@ -82,14 +87,26 @@ public class MonitorFragment extends Fragment implements DataListener {
         btnPauseResume.setOnClickListener(v -> {
             isPaused = !isPaused;
             btnPauseResume.setText(isPaused ? "继续" : "暂停");
-            String ip = getWifiApIpAddress();
-            tvStatus.setText(isPaused ? "本机IP: " + ip + "  端口: 41002  (已暂停)" : "本机IP: " + ip + "  端口: 41002");
+            updateConnectionStatus();
         });
 
         root.findViewById(R.id.btn_set_ip).setOnClickListener(v -> showUdpIpDialog());
         root.findViewById(R.id.btn_training).setOnClickListener(v -> {
             if (getActivity() instanceof MainActivity) {
                 ((MainActivity) requireActivity()).switchToPage(4);
+            }
+        });
+
+        TcpServerManager.getInstance().addConnectionListener(new TcpServerManager.ConnectionListener() {
+            @Override
+            public void onDeviceConnected(boolean connected) {
+                deviceConnected = connected;
+                if (getActivity() != null) getActivity().runOnUiThread(() -> updateConnectionStatus());
+            }
+            @Override
+            public void onPatientConnected(boolean connected) {
+                patientConnected = connected;
+                if (getActivity() != null) getActivity().runOnUiThread(() -> updateConnectionStatus());
             }
         });
 
@@ -151,6 +168,13 @@ public class MonitorFragment extends Fragment implements DataListener {
             attnView.setTextSize(10);
             headerRow.addView(attnView);
             attnViews.add(attnView);
+
+            TextView relaxView = new TextView(ctx);
+            relaxView.setText("放松度: --");
+            relaxView.setTextColor(ContextCompat.getColor(ctx, R.color.accent_info));
+            relaxView.setTextSize(10);
+            headerRow.addView(relaxView);
+            relaxViews.add(relaxView);
 
             View sqView = new View(ctx);
             LinearLayout.LayoutParams sqParams = new LinearLayout.LayoutParams(20, 4);
@@ -224,15 +248,23 @@ public class MonitorFragment extends Fragment implements DataListener {
         tvXRange.setOnClickListener(v -> showXRangeDialog());
         tvSpectrumRange.setOnClickListener(v -> showSpectrumRangeDialog());
 
-        tvWaveLabelCount.setText(String.valueOf(DEFAULT_LABEL_COUNT));
-        tvWaveRange.setText(DEFAULT_STEP + DEFAULT_STEP_UNIT);
-        tvXRange.setText(String.format("%.3f s", DEFAULT_X_MAX));
-        tvSpectrumRange.setText("500 uV");
+        int step = SettingsStore.getWaveStep(requireContext(), DEFAULT_STEP);
+        String stepUnit = SettingsStore.getWaveStepUnit(requireContext(), DEFAULT_STEP_UNIT);
+        int labelCount = SettingsStore.getWaveLabelCount(requireContext(), DEFAULT_LABEL_COUNT);
+        float xMax = SettingsStore.getWaveXMax(requireContext(), DEFAULT_X_MAX);
+        float specRange = SettingsStore.getSpecRange(requireContext(), 500f);
+        String specUnit = SettingsStore.getSpecUnit(requireContext(), "uV");
 
-        applyWaveStep(DEFAULT_STEP, DEFAULT_STEP_UNIT, DEFAULT_LABEL_COUNT);
-        applyXRange(DEFAULT_X_MAX);
+        currentLabelCount = labelCount;
+        tvWaveLabelCount.setText(String.valueOf(labelCount));
+        tvWaveRange.setText(step + stepUnit);
+        tvXRange.setText(String.format("%.3f s", xMax));
+        tvSpectrumRange.setText((Math.abs(specRange - Math.round(specRange)) < 0.001f ? String.format("%.0f", specRange) : String.format("%.3g", specRange)) + " " + specUnit);
+
+        applyWaveStep(step, stepUnit, labelCount);
+        applyXRange(xMax);
         for (SpectrumView sv : spectrumViews) {
-            sv.setRange(500f, "uV");
+            sv.setRange(specRange, specUnit);
         }
     }
 
@@ -254,6 +286,7 @@ public class MonitorFragment extends Fragment implements DataListener {
                     if (!numericPart.isEmpty()) {
                         applyWaveStep(Integer.parseInt(numericPart), unitPart, newCount);
                     }
+                    SettingsStore.setWaveLabelCount(requireContext(), newCount);
                     dialog.dismiss();
                 })
                 .setNegativeButton("取消", null)
@@ -305,6 +338,8 @@ public class MonitorFragment extends Fragment implements DataListener {
                         String unit = (String) unitSpinner.getSelectedItem();
                         applyWaveStep(stepInt, unit, currentLabelCount);
                         tvWaveRange.setText(stepInt + unit);
+                        SettingsStore.setWaveStep(requireContext(), stepInt);
+                        SettingsStore.setWaveStepUnit(requireContext(), unit);
                     } catch (NumberFormatException ignored) {}
                 })
                 .setNegativeButton("取消", null)
@@ -335,6 +370,7 @@ public class MonitorFragment extends Fragment implements DataListener {
                         float xMax = Float.parseFloat(str);
                         if (xMax <= 0) return;
                         applyXRange(xMax);
+                        SettingsStore.setWaveXMax(requireContext(), xMax);
                     } catch (NumberFormatException ignored) {}
                 })
                 .setNegativeButton("取消", null)
@@ -371,6 +407,8 @@ public class MonitorFragment extends Fragment implements DataListener {
                         String unit = (String) unitSpinner.getSelectedItem();
                         for (SpectrumView sv : spectrumViews) { sv.setRange(value, unit); }
                         tvSpectrumRange.setText((Math.abs(value - Math.round(value)) < 0.001f ? String.format("%.0f", value) : String.format("%.3g", value)) + " " + unit);
+                        SettingsStore.setSpecRange(requireContext(), value);
+                        SettingsStore.setSpecUnit(requireContext(), unit);
                     } catch (NumberFormatException ignored) {}
                 })
                 .setNegativeButton("取消", null)
@@ -445,16 +483,42 @@ public class MonitorFragment extends Fragment implements DataListener {
             ContextCompat.getColor(requireContext(), R.color.accent_warning),
             ContextCompat.getColor(requireContext(), R.color.accent_success)
         };
+        float focus = ema0;
+        float relax = 1.0f - focus;
         if (attnViews.size() > 0 && attnViews.get(0) != null)
-            attnViews.get(0).setText(String.format(Locale.getDefault(), "专注度: %.3f", attn0));
-        if (attnViews.size() > 1 && attnViews.get(1) != null)
-            attnViews.get(1).setText(String.format(Locale.getDefault(), "专注度: %.3f", attn1));
+            attnViews.get(0).setText(String.format(Locale.getDefault(), "专注度: %.1f%%", focus * 100));
+        if (relaxViews.size() > 0 && relaxViews.get(0) != null)
+            relaxViews.get(0).setText(String.format(Locale.getDefault(), "放松度: %.1f%%", relax * 100));
         String instantStr = (instant >= 0 && instant < stateText.length) ? stateText[instant] : "?";
         String trendStr = (trend >= 0 && trend < stateText.length) ? stateText[trend] : "?";
         tvInstantState.setText("瞬时: " + instantStr);
         tvTrendState.setText("趋势: " + trendStr);
         if (instant >= 0 && instant < stateColors.length) tvInstantState.setTextColor(stateColors[instant]);
         if (trend >= 0 && trend < stateColors.length) tvTrendState.setTextColor(stateColors[trend]);
+    }
+
+    private void updateConnectionStatus() {
+        StringBuilder sb = new StringBuilder();
+        if (!deviceConnected) sb.append("采集端未连接");
+        if (!patientConnected) {
+            if (sb.length() > 0) sb.append("  ");
+            sb.append("患者端未连接");
+        }
+        if (deviceConnected && patientConnected) sb.append("全部已连接");
+        if (isPaused) {
+            if (sb.length() > 0) sb.append("  ");
+            sb.append("(已暂停)");
+        }
+        tvStatus.setText(sb.toString());
+        int dotColor;
+        if (deviceConnected && patientConnected) {
+            dotColor = ContextCompat.getColor(requireContext(), R.color.accent_success);
+        } else if (deviceConnected || patientConnected) {
+            dotColor = ContextCompat.getColor(requireContext(), R.color.accent_warning);
+        } else {
+            dotColor = ContextCompat.getColor(requireContext(), R.color.accent_error);
+        }
+        statusIndicator.setBackgroundColor(dotColor);
     }
 
     private String getWifiApIpAddress() {

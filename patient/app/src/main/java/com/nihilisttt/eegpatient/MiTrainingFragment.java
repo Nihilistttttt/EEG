@@ -215,4 +215,5 @@ public class MiTrainingFragment extends Fragment implements DoctorConnector.Data
     }
 
     @Override public void onPageSwitch(int page) {}
+    @Override public void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {}
 }

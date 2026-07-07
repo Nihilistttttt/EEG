@@ -303,4 +303,5 @@ public class TrainingFragment extends Fragment implements DoctorConnector.DataLi
     }
 
     @Override public void onPageSwitch(int page) {}
+    @Override public void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {}
 }

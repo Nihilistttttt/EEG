@@ -4,6 +4,8 @@ import android.util.Log;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.ServerSocket;
@@ -25,6 +27,7 @@ public class TcpServerManager {
     private static final int PATIENT_DATA_PORT = 41004;
     private static final int PATIENT_CMD_PORT = 41005;
     private static final int DOCTOR_TO_PATIENT_PORT = 41006;
+    private static final int DISCOVERY_PORT = 41007;
     private static final TcpServerManager INSTANCE = new TcpServerManager();
 
     private ServerSocket serverSocket;
@@ -39,6 +42,25 @@ public class TcpServerManager {
     private ServerSocket patientCmdServerSocket;
     private Socket deviceClient;
     private Socket doctorToPatientClient;
+    private DatagramSocket discoverySocket;
+
+    private final CopyOnWriteArrayList<ConnectionListener> connectionListeners = new CopyOnWriteArrayList<>();
+
+    public interface ConnectionListener {
+        void onDeviceConnected(boolean connected);
+        void onPatientConnected(boolean connected);
+    }
+
+    public void addConnectionListener(ConnectionListener l) { connectionListeners.add(l); }
+    public void removeConnectionListener(ConnectionListener l) { connectionListeners.remove(l); }
+
+    public boolean isDeviceConnected() {
+        return deviceClient != null && !deviceClient.isClosed() && deviceClient.isConnected();
+    }
+
+    public boolean isPatientConnected() {
+        return doctorToPatientClient != null && !doctorToPatientClient.isClosed() && doctorToPatientClient.isConnected();
+    }
 
     public static TcpServerManager getInstance() { return INSTANCE; }
 
@@ -122,8 +144,45 @@ public class TcpServerManager {
                     Socket client = d2pServer.accept();
                     Log.i("TCP", "Doctor-to-patient client connected: " + client.getRemoteSocketAddress());
                     doctorToPatientClient = client;
+                    notifyPatientConnected(true);
+                    new Thread(() -> {
+                        try {
+                            client.getInputStream().read();
+                        } catch (IOException ignored) {
+                        } finally {
+                            doctorToPatientClient = null;
+                            notifyPatientConnected(false);
+                        }
+                    }).start();
                 }
             } catch (Exception e) { Log.e("TCP", "Doctor-to-patient server error", e); }
+        }).start();
+
+        // 启动UDP发现响应服务
+        new Thread(() -> {
+            try {
+                discoverySocket = new DatagramSocket(DISCOVERY_PORT);
+                discoverySocket.setBroadcast(true);
+                Log.i("UDP", "Discovery server started on port " + DISCOVERY_PORT);
+                byte[] buf = new byte[256];
+                while (running) {
+                    DatagramPacket packet = new DatagramPacket(buf, buf.length);
+                    discoverySocket.receive(packet);
+                    String msg = new String(packet.getData(), 0, packet.getLength()).trim();
+                    if ("EEG_DOCTOR_DISCOVERY".equals(msg)) {
+                        String localIp = getLocalHotspotIp();
+                        String response = "EEG_DOCTOR:" + localIp;
+                        byte[] respBytes = response.getBytes("UTF-8");
+                        DatagramPacket respPacket = new DatagramPacket(
+                                respBytes, respBytes.length,
+                                packet.getAddress(), packet.getPort());
+                        discoverySocket.send(respPacket);
+                        Log.i("UDP", "Discovery response sent to " + packet.getAddress().getHostAddress());
+                    }
+                }
+            } catch (Exception e) {
+                if (running) Log.e("UDP", "Discovery server error", e);
+            }
         }).start();
     }
 
@@ -133,9 +192,26 @@ public class TcpServerManager {
         try { if (forwardServerSocket != null) forwardServerSocket.close(); } catch (Exception ignored) {}
         try { if (patientDataServerSocket != null) patientDataServerSocket.close(); } catch (Exception ignored) {}
         try { if (patientCmdServerSocket != null) patientCmdServerSocket.close(); } catch (Exception ignored) {}
+        try { if (discoverySocket != null) discoverySocket.close(); } catch (Exception ignored) {}
+        try { if (deviceClient != null) deviceClient.close(); } catch (Exception ignored) {}
+        try { if (doctorToPatientClient != null) doctorToPatientClient.close(); } catch (Exception ignored) {}
+        deviceClient = null;
+        doctorToPatientClient = null;
         if (forwardManager != null) forwardManager.stopAll();
         if (patientDataManager != null) patientDataManager.stopAll();
         udpSender.release();
+    }
+
+    private void notifyDeviceConnected(boolean connected) {
+        for (ConnectionListener l : connectionListeners) {
+            try { l.onDeviceConnected(connected); } catch (Exception ignored) {}
+        }
+    }
+
+    private void notifyPatientConnected(boolean connected) {
+        for (ConnectionListener l : connectionListeners) {
+            try { l.onPatientConnected(connected); } catch (Exception ignored) {}
+        }
     }
 
     /**
@@ -206,6 +282,7 @@ public class TcpServerManager {
     // 处理原有主服务器客户端连接（保持不变，但增加转发广播）
     private void handleClient(Socket client) {
         this.deviceClient = client;
+        notifyDeviceConnected(true);
         BlockingQueue<byte[]> rawPackets = new ArrayBlockingQueue<>(1024);
         AtomicLong totalPacketsRead = new AtomicLong(0);
         AtomicLong totalPacketsDropped = new AtomicLong(0);
@@ -258,6 +335,8 @@ public class TcpServerManager {
         } finally {
             parserThread.interrupt();
             try { client.close(); } catch (Exception ignored) {}
+            deviceClient = null;
+            notifyDeviceConnected(false);
         }
     }
 

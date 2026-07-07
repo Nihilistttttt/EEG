@@ -38,6 +38,7 @@ public class DoctorConnector {
         void onReadyTest();
         void onModeSetOk(int mode);
         void onPageSwitch(int page);
+        void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant);
     }
 
     public static DoctorConnector getInstance() { return INSTANCE; }
@@ -208,6 +209,12 @@ public class DoctorConnector {
                 float ch0 = buf.getFloat();
                 float ch1 = buf.getFloat();
                 for (DataListener l : listeners) l.onWaveData(cmd, ch0, ch1);
+            } else if (cmd == 0x05 && loadLen == 18) {
+                ByteBuffer buf = ByteBuffer.wrap(payload, 1, 16).order(ByteOrder.LITTLE_ENDIAN);
+                float a0 = buf.getFloat(), a1 = buf.getFloat(), e0 = buf.getFloat(), e1 = buf.getFloat();
+                int trend = payload[1 + 16] & 0xFF;
+                int instant = payload[1 + 17] & 0xFF;
+                for (DataListener l : listeners) l.onFocusData(a0, a1, e0, e1, trend, instant);
             }
         }
 

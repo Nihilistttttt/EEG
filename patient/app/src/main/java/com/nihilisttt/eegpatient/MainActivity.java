@@ -97,6 +97,7 @@ public class MainActivity extends AppCompatActivity implements DoctorConnector.D
     @Override public void onReadyTrain() {}
     @Override public void onReadyTest() {}
     @Override public void onModeSetOk(int mode) {}
+    @Override public void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {}
 
     @Override
     public void onPageSwitch(int page) {

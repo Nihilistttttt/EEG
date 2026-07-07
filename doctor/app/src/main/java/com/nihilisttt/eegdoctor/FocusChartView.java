@@ -9,7 +9,6 @@ import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.util.AttributeSet;
-import android.view.MotionEvent;
 import android.view.View;
 
 import androidx.core.content.ContextCompat;
@@ -19,51 +18,33 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class FocusChartView extends View {
     private static final int MAX_POINTS = 5000;
-    private static final int DEFAULT_X_MAX_POINTS = 500;
+    private static final float SAMPLE_RATE = 10.0f;
+    private static final float DEFAULT_X_MAX = 50.0f;
 
     private static final float Y_MIN = 0.0f;
     private static final float Y_MAX = 1.0f;
     private static final float Y_TICK_STEP = 0.05f;
 
-    private int mXMaxPoints = DEFAULT_X_MAX_POINTS;
+    private float mXMax = DEFAULT_X_MAX;
 
-    private float[] buffer = new float[MAX_POINTS];
+    private float[] focusBuffer = new float[MAX_POINTS];
+    private float[] relaxBuffer = new float[MAX_POINTS];
     private int writeIdx = 0;
     private int pointCount = 0;
-    private Paint paint, glowPaint;
+
+    private Paint focusPaint, focusGlowPaint;
+    private Paint relaxPaint, relaxGlowPaint;
     private Lock lock = new ReentrantLock();
 
     private Paint axisPaint, gridPaint, textPaint;
     private Paint canvasBgPaint;
 
-    private int focusColor;
-
-    private static final int MODE_FIX = 0;
-    private static final int MODE_TRACK = 1;
-    private static final int MODE_SLOW_TRACK = 2;
-    private int currentMode = MODE_FIX;
-
-    private float fixCenterOffset = 0.5f;
-    private float slowTargetCenter = 0.5f;
-    private int slowOffsetCount = 0;
-    private static final float SLOW_THRESHOLD_RATIO = 0.5f;
-    private static final int SLOW_SETTLE_SAMPLES = 200;
-
-    private float lastTouchY = 0;
-    private boolean isDragging = false;
+    private boolean focusVisible = true;
+    private boolean relaxVisible = true;
 
     public FocusChartView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.FocusChartView);
-        focusColor = a.getColor(R.styleable.FocusChartView_focusColor,
-                ContextCompat.getColor(context, R.color.focus_line));
-        a.recycle();
         initPaints();
-        setClickable(true);
-        setOnClickListener(v -> {
-            int newMode = (currentMode + 1) % 3;
-            switchMode(newMode);
-        });
     }
 
     private void initPaints() {
@@ -71,25 +52,42 @@ public class FocusChartView extends View {
         int gridColor = ContextCompat.getColor(getContext(), R.color.grid_line);
         int axisColor = ContextCompat.getColor(getContext(), R.color.axis_line);
         int textColor = ContextCompat.getColor(getContext(), R.color.text_secondary);
+        int focusClr = ContextCompat.getColor(getContext(), R.color.focus_line);
+        int relaxClr = ContextCompat.getColor(getContext(), R.color.accent_info);
 
         canvasBgPaint = new Paint();
         canvasBgPaint.setColor(bgColor);
         canvasBgPaint.setStyle(Paint.Style.FILL);
 
-        paint = new Paint();
-        paint.setColor(focusColor);
-        paint.setStrokeWidth(1.5f);
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setAntiAlias(true);
-        paint.setStrokeJoin(Paint.Join.ROUND);
+        focusPaint = new Paint();
+        focusPaint.setColor(focusClr);
+        focusPaint.setStrokeWidth(1.5f);
+        focusPaint.setStyle(Paint.Style.STROKE);
+        focusPaint.setAntiAlias(true);
+        focusPaint.setStrokeJoin(Paint.Join.ROUND);
 
-        glowPaint = new Paint();
-        glowPaint.setColor(focusColor);
-        glowPaint.setStrokeWidth(5f);
-        glowPaint.setStyle(Paint.Style.STROKE);
-        glowPaint.setAntiAlias(true);
-        glowPaint.setAlpha(35);
-        glowPaint.setStrokeJoin(Paint.Join.ROUND);
+        focusGlowPaint = new Paint();
+        focusGlowPaint.setColor(focusClr);
+        focusGlowPaint.setStrokeWidth(5f);
+        focusGlowPaint.setStyle(Paint.Style.STROKE);
+        focusGlowPaint.setAntiAlias(true);
+        focusGlowPaint.setAlpha(35);
+        focusGlowPaint.setStrokeJoin(Paint.Join.ROUND);
+
+        relaxPaint = new Paint();
+        relaxPaint.setColor(relaxClr);
+        relaxPaint.setStrokeWidth(1.5f);
+        relaxPaint.setStyle(Paint.Style.STROKE);
+        relaxPaint.setAntiAlias(true);
+        relaxPaint.setStrokeJoin(Paint.Join.ROUND);
+
+        relaxGlowPaint = new Paint();
+        relaxGlowPaint.setColor(relaxClr);
+        relaxGlowPaint.setStrokeWidth(5f);
+        relaxGlowPaint.setStyle(Paint.Style.STROKE);
+        relaxGlowPaint.setAntiAlias(true);
+        relaxGlowPaint.setAlpha(35);
+        relaxGlowPaint.setStrokeJoin(Paint.Join.ROUND);
 
         axisPaint = new Paint();
         axisPaint.setColor(axisColor);
@@ -108,92 +106,25 @@ public class FocusChartView extends View {
         textPaint.setAntiAlias(true);
     }
 
-    private void switchMode(int newMode) {
-        if (newMode == MODE_FIX) {
-            fixCenterOffset = getCurrentWindowCenter();
-        } else if (newMode == MODE_SLOW_TRACK) {
-            slowTargetCenter = computeWindowAverage();
-            slowOffsetCount = 0;
-        }
-        currentMode = newMode;
-        invalidate();
+    public void setFocusVisible(boolean visible) { focusVisible = visible; invalidate(); }
+    public void setRelaxVisible(boolean visible) { relaxVisible = visible; invalidate(); }
+    public boolean isFocusVisible() { return focusVisible; }
+    public boolean isRelaxVisible() { return relaxVisible; }
+
+    public void setXMax(float xMax) {
+        if (xMax > 0) { mXMax = xMax; invalidate(); }
     }
 
-    private float getCurrentWindowCenter() {
-        if (currentMode == MODE_FIX) return fixCenterOffset;
-        if (currentMode == MODE_TRACK) return computeWindowAverage();
-        return slowTargetCenter;
-    }
+    public float getXMax() { return mXMax; }
 
-    @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        if (currentMode != MODE_FIX) return super.onTouchEvent(event);
-        int width = getWidth(), height = getHeight();
-        if (width <= 0 || height <= 0) return super.onTouchEvent(event);
-        float left = 100f;
-        float touchX = event.getX();
-        if (touchX < left + 40) {
-            float top = 10f, bottom = height - 50f;
-            float yScale = (bottom - top) / (Y_MAX - Y_MIN);
-            switch (event.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    lastTouchY = event.getY();
-                    isDragging = true;
-                    return true;
-                case MotionEvent.ACTION_MOVE:
-                    if (isDragging) {
-                        float deltaY = event.getY() - lastTouchY;
-                        float deltaVolt = deltaY / yScale;
-                        fixCenterOffset += deltaVolt;
-                        if (fixCenterOffset - (Y_MAX - Y_MIN) / 2 < Y_MIN) fixCenterOffset = Y_MIN + (Y_MAX - Y_MIN) / 2;
-                        if (fixCenterOffset + (Y_MAX - Y_MIN) / 2 > Y_MAX) fixCenterOffset = Y_MAX - (Y_MAX - Y_MIN) / 2;
-                        lastTouchY = event.getY();
-                        invalidate();
-                    }
-                    return true;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    isDragging = false;
-                    return true;
-            }
-        }
-        return super.onTouchEvent(event);
-    }
-
-    public float getYRange() { return (Y_MAX - Y_MIN) / 2; }
-
-    public void setXMaxPoints(int points) {
-        if (points > 0 && points <= MAX_POINTS) {
-            mXMaxPoints = points;
-            invalidate();
-        }
-    }
-
-    public int getXMaxPoints() { return mXMaxPoints; }
-
-    public void addPoint(float value) {
+    public void addPoint(float focusValue, float relaxValue) {
         lock.lock();
-        buffer[writeIdx] = value;
+        focusBuffer[writeIdx] = focusValue;
+        relaxBuffer[writeIdx] = relaxValue;
         writeIdx = (writeIdx + 1) % MAX_POINTS;
         if (pointCount < MAX_POINTS) pointCount++;
         lock.unlock();
         postInvalidate();
-    }
-
-    private float computeWindowAverage() {
-        lock.lock();
-        if (pointCount == 0) { lock.unlock(); return 0.5f; }
-        int startIdx = (pointCount < mXMaxPoints) ? 0 : pointCount - mXMaxPoints;
-        float sum = 0f;
-        int count = 0;
-        for (int i = startIdx; i < pointCount; i++) {
-            int idx = (writeIdx - pointCount + i + MAX_POINTS) % MAX_POINTS;
-            sum += buffer[idx];
-            count++;
-        }
-        float avg = (count > 0) ? sum / count : 0.5f;
-        lock.unlock();
-        return avg;
     }
 
     private float niceNum(float range, boolean round) {
@@ -223,34 +154,13 @@ public class FocusChartView extends View {
         float left = 100, top = 10, right = width - 10, bottom = height - 50;
         canvas.drawRect(0, 0, width, height, canvasBgPaint);
 
-        float avg = computeWindowAverage();
-
-        if (currentMode == MODE_SLOW_TRACK) {
-            float threshold = (Y_MAX - Y_MIN) / 2 * SLOW_THRESHOLD_RATIO;
-            if (Math.abs(avg - slowTargetCenter) > threshold) {
-                slowOffsetCount++;
-                if (slowOffsetCount >= SLOW_SETTLE_SAMPLES) {
-                    slowTargetCenter = avg;
-                    slowOffsetCount = 0;
-                }
-            } else {
-                slowOffsetCount = 0;
-            }
-        }
-
-        final float centerVal;
-        if (currentMode == MODE_FIX) centerVal = fixCenterOffset;
-        else if (currentMode == MODE_TRACK) centerVal = avg;
-        else centerVal = slowTargetCenter;
-
-        float halfRange = (Y_MAX - Y_MIN) / 2;
-        final float yMin = centerVal - halfRange;
-        final float yMax = centerVal + halfRange;
+        final float yMin = Y_MIN;
+        final float yMax = Y_MAX;
         float yScale = (bottom - top) / (yMax - yMin);
 
-        int visibleStart = (pointCount < mXMaxPoints) ? 0 : pointCount - mXMaxPoints;
-        int visibleCount = pointCount - visibleStart;
-        float xScale = (right - left) / (visibleCount - 1 > 0 ? visibleCount - 1 : 1);
+        float xMin = 0;
+        float xMax = mXMax;
+        float xScale = (right - left) / (xMax - xMin);
 
         for (float yTick = 0; yTick <= 1.001f; yTick += Y_TICK_STEP) {
             float y = bottom - (yTick - yMin) * yScale;
@@ -262,52 +172,64 @@ public class FocusChartView extends View {
             canvas.drawText(label, left - 15 - tw, y + 5, textPaint);
         }
 
-        float xTickSpacing = niceNum(visibleCount / 5.0f, true);
-        float xTickVal = (float) Math.floor(visibleStart / xTickSpacing) * xTickSpacing;
-        while (xTickVal <= pointCount + xTickSpacing * 0.5f) {
-            float x = left + (xTickVal - visibleStart) * xScale;
-            if (x >= left && x <= right) {
-                canvas.drawLine(x, top, x, bottom, gridPaint);
-                canvas.drawLine(x, bottom, x, bottom + 5, axisPaint);
-                String label = String.valueOf((int) xTickVal);
-                canvas.drawText(label, x - 10, bottom + 25, textPaint);
-            }
-            xTickVal += xTickSpacing;
+        float xTickSpacing = niceNum((xMax - xMin) / 5.0f, true);
+        float xTick = (float) Math.floor(xMin / xTickSpacing) * xTickSpacing;
+        while (xTick <= xMax + xTickSpacing * 0.5f) {
+            float x = left + (xTick - xMin) * xScale;
+            canvas.drawLine(x, top, x, bottom, gridPaint);
+            canvas.drawLine(x, bottom, x, bottom + 5, axisPaint);
+            String label = String.format("%.1f", xTick) + "s";
+            canvas.drawText(label, x - 15, bottom + 25, textPaint);
+            xTick += xTickSpacing;
         }
 
         canvas.drawLine(left, top, left, bottom, axisPaint);
-        float centerY = bottom - (0.5f - yMin) * yScale;
+        float centerY = bottom - (0.5f - Y_MIN) * yScale;
         canvas.drawLine(left, centerY, right, centerY, axisPaint);
 
         lock.lock();
-        if (visibleCount > 1) {
-            Path path = new Path();
-            boolean first = true;
-            for (int i = visibleStart; i < pointCount; i++) {
-                int idx = (writeIdx - pointCount + i + MAX_POINTS) % MAX_POINTS;
-                float val = buffer[idx];
-                float x = left + (i - visibleStart) * xScale;
-                float y = bottom - (val - yMin) * yScale;
-                if (first) {
-                    path.moveTo(x, y);
-                    first = false;
-                } else {
-                    path.lineTo(x, y);
+        if (pointCount > 1) {
+            float latestTime = (pointCount - 1) / SAMPLE_RATE;
+            float windowStart = latestTime - mXMax;
+            float windowEnd = latestTime;
+            float windowLen = mXMax;
+
+            if (relaxVisible) {
+                Path relaxPath = new Path();
+                boolean first = true;
+                for (int i = 0; i < pointCount; i++) {
+                    int idx = (writeIdx - pointCount + i + MAX_POINTS) % MAX_POINTS;
+                    float val = relaxBuffer[idx];
+                    float t = i / SAMPLE_RATE;
+                    if (t >= windowStart && t <= windowEnd) {
+                        float x = left + ((t - windowStart) / windowLen) * (right - left);
+                        float y = bottom - (val - yMin) * yScale;
+                        if (first) { relaxPath.moveTo(x, y); first = false; }
+                        else { relaxPath.lineTo(x, y); }
+                    } else { first = true; }
                 }
+                canvas.drawPath(relaxPath, relaxGlowPaint);
+                canvas.drawPath(relaxPath, relaxPaint);
             }
-            canvas.drawPath(path, glowPaint);
-            canvas.drawPath(path, paint);
+
+            if (focusVisible) {
+                Path focusPath = new Path();
+                boolean first = true;
+                for (int i = 0; i < pointCount; i++) {
+                    int idx = (writeIdx - pointCount + i + MAX_POINTS) % MAX_POINTS;
+                    float val = focusBuffer[idx];
+                    float t = i / SAMPLE_RATE;
+                    if (t >= windowStart && t <= windowEnd) {
+                        float x = left + ((t - windowStart) / windowLen) * (right - left);
+                        float y = bottom - (val - yMin) * yScale;
+                        if (first) { focusPath.moveTo(x, y); first = false; }
+                        else { focusPath.lineTo(x, y); }
+                    } else { first = true; }
+                }
+                canvas.drawPath(focusPath, focusGlowPaint);
+                canvas.drawPath(focusPath, focusPaint);
+            }
         }
         lock.unlock();
-
-        int modeColor = ContextCompat.getColor(getContext(), R.color.accent_info);
-        textPaint.setColor(modeColor);
-        textPaint.setTextSize(20f);
-        String modeText;
-        if (currentMode == MODE_FIX) modeText = "Fix";
-        else if (currentMode == MODE_TRACK) modeText = "Track";
-        else modeText = "Slow";
-        float modeWidth = textPaint.measureText(modeText);
-        canvas.drawText(modeText, right - modeWidth - 10, top + 25, textPaint);
     }
 }

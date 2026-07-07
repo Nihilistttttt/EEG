@@ -23,32 +23,101 @@
             android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/tv_attn_info"
-                style="@style/StatusText"
-                android:layout_width="0dp"
+                android:id="@+id/btn_toggle_focus"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:gravity="center"
+                android:paddingHorizontal="8dp"
+                android:text="专注度"
+                android:textColor="@color/focus_line"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:background="@drawable/bg_param_chip"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <TextView
+                android:id="@+id/btn_toggle_relax"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:gravity="center"
+                android:paddingHorizontal="8dp"
+                android:layout_marginStart="6dp"
+                android:text="放松度"
+                android:textColor="@color/accent_info"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:background="@drawable/bg_param_chip"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <TextView
+                android:id="@+id/tv_focus_info"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Attn0: --- | Attn1: ---" />
+                android:layout_marginStart="8dp"
+                android:text="专注度: --"
+                android:textColor="@color/focus_line"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_relax_info"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="放松度: --"
+                android:textColor="@color/accent_info"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_instant_info"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="瞬时: --"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                android:id="@+id/tv_trend_info"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="趋势: --"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
 
             <TextView
                 android:id="@+id/tv_focus_label_count"
                 style="@style/FocusValueText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="5" />
+                android:text="5"
+                android:visibility="gone" />
 
             <TextView
                 style="@style/ControlLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text=" 标签 " />
+                android:text=" 标签 "
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/tv_focus_range"
                 style="@style/FocusValueText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="1.00 Focus" />
+                android:text="1.00 Focus"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/tv_focus_x_range"
@@ -73,7 +142,6 @@
         <com.nihilisttt.eegdoctor.FocusChartView
             android:id="@+id/focus_chart"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            app:focusColor="@color/focus_line" />
+            android:layout_height="match_parent" />
     </com.google.android.material.card.MaterialCardView>
 </LinearLayout>

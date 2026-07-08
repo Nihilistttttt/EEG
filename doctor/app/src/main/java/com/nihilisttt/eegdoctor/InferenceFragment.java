@@ -104,13 +104,6 @@ public class InferenceFragment extends Fragment implements DataListener {
             tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.direction_right));
         }
 
-        if (result.isTrained()) {
-            tvModelStatus.setText("模型已就绪");
-            tvModelStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_success));
-        } else {
-            tvModelStatus.setText("请先完成训练");
-            tvModelStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_warning));
-        }
     }
 
     @Override

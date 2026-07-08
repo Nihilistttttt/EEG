@@ -596,7 +596,7 @@ uint8_t Process_FFT_Step(void)
                                  (int)v5f_trained);
                         Serial_Printf(SERIAL_PORT_DEBUG, "%s", result_buf);
                         Serial_Printf(SERIAL_PORT_WIFI, "%s", result_buf);
-                        Retry_Store(result_buf);
+                        Retry_StoreEx(result_buf, 10);
                         s_result_window++;
                     }
                 }

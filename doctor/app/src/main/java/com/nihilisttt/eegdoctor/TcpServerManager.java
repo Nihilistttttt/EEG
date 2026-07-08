@@ -47,8 +47,7 @@ public class TcpServerManager {
 
     private final CopyOnWriteArrayList<ConnectionListener> connectionListeners = new CopyOnWriteArrayList<>();
 
-    private final AtomicBoolean pongReceived = new AtomicBoolean(false);
-    private Thread heartbeatThread;
+
     private Thread senderThread;
     private final BlockingQueue<byte[]> sendQueue = new ArrayBlockingQueue<>(256);
 
@@ -210,41 +209,10 @@ public class TcpServerManager {
     }
 
     private void startHeartbeat() {
-        stopHeartbeat();
         startSender();
-        heartbeatThread = new Thread(() -> {
-            Log.i("HEARTBEAT", "Heartbeat thread started");
-            while (!Thread.currentThread().isInterrupted() && running) {
-                try {
-                    Thread.sleep(3000);
-                } catch (InterruptedException e) {
-                    break;
-                }
-                if (!isDeviceConnected()) continue;
-                pongReceived.set(false);
-                sendToDevice("PING");
-                try {
-                    Thread.sleep(2000);
-                } catch (InterruptedException e) {
-                    break;
-                }
-                if (!pongReceived.get()) {
-                    Log.w("HEARTBEAT", "PONG not received! ESP8266 may not be responding to PING");
-                } else {
-                    Log.i("HEARTBEAT", "Heartbeat OK");
-                }
-            }
-            Log.i("HEARTBEAT", "Heartbeat thread stopped");
-        });
-        heartbeatThread.setDaemon(true);
-        heartbeatThread.start();
     }
 
     private void stopHeartbeat() {
-        if (heartbeatThread != null) {
-            heartbeatThread.interrupt();
-            heartbeatThread = null;
-        }
         stopSender();
     }
 
@@ -578,12 +546,7 @@ public class TcpServerManager {
                 totalPacketsRead.addAndGet(1);
 
                 String peek = new String(buf, 0, len, "UTF-8");
-                if (peek.contains("PONG")) {
-                    pongReceived.set(true);
-                    Log.i("HEARTBEAT", "PONG received from ESP8266");
-                }
                 parseMcuTextResponses(peek);
-
 
                 byte[] copy = new byte[len];
                 System.arraycopy(buf, 0, copy, 0, len);

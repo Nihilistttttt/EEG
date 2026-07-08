@@ -24,7 +24,10 @@ public class HomeActivity extends AppCompatActivity {
         findViewById(R.id.card_wave_compare).setOnClickListener(v -> launchMonitor(2));
         findViewById(R.id.card_spectrum_compare).setOnClickListener(v -> launchMonitor(3));
         findViewById(R.id.card_training).setOnClickListener(v -> launchMonitor(4));
-        findViewById(R.id.card_inference).setOnClickListener(v -> launchMonitor(5));
+        findViewById(R.id.card_inference).setOnClickListener(v -> launchMonitor(6));
+        findViewById(R.id.card_mi_train).setOnClickListener(v -> launchMonitor(5));
+        findViewById(R.id.card_posture).setOnClickListener(v -> launchMonitor(7));
+        findViewById(R.id.card_system_config).setOnClickListener(v -> launchMonitor(8));
     }
 
     private void launchMonitor(int page) {

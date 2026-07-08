@@ -135,4 +135,44 @@ public class DataDispatcher {
             }
         });
     }
+
+    public void postTurnEvent(String from, String to) {
+        mainHandler.post(() -> {
+            Log.d(TAG, "postTurnEvent: " + from + " -> " + to);
+            for (DataListener l : listeners) {
+                try { l.onTurnEvent(from, to); }
+                catch (Exception e) { Log.e(TAG, "onTurnEvent error", e); }
+            }
+        });
+    }
+
+    public void postFallEvent() {
+        mainHandler.post(() -> {
+            Log.d(TAG, "postFallEvent");
+            for (DataListener l : listeners) {
+                try { l.onFallEvent(); }
+                catch (Exception e) { Log.e(TAG, "onFallEvent error", e); }
+            }
+        });
+    }
+
+    public void postNoTurnAlert(long durationMin) {
+        mainHandler.post(() -> {
+            Log.d(TAG, "postNoTurnAlert: " + durationMin + " min");
+            for (DataListener l : listeners) {
+                try { l.onNoTurnAlert(durationMin); }
+                catch (Exception e) { Log.e(TAG, "onNoTurnAlert error", e); }
+            }
+        });
+    }
+
+    public void postPostureState(String posture, int turnCount) {
+        mainHandler.post(() -> {
+            Log.d(TAG, "postPostureState: " + posture + " turns=" + turnCount);
+            for (DataListener l : listeners) {
+                try { l.onPostureState(posture, turnCount); }
+                catch (Exception e) { Log.e(TAG, "onPostureState error", e); }
+            }
+        });
+    }
 }

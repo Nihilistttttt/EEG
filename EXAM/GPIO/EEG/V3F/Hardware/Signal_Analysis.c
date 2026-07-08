@@ -16,6 +16,8 @@
 #include "ICM42605.h"
 #include "Timer_1ms.h"
 #include "dualcore_ipc.h"
+#include "posture_detect.h"
+#include "patient_monitor.h"
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -25,6 +27,7 @@
 #define DUALCORE_IPC_FRAME_NOTIFY_EVERY_FRAMES 1
 #define DUALCORE_IPC_FRAME_PRINT_EVERY_ACKS    500
 uint8_t g_ipc_diag_enable = 1;
+uint8_t g_posture_diag_enable = 1;
 
 #define DIR_1S_TEST_TEXT_ONLY       0
 #define AB_REALTIME_NOTCH_ENABLE    1
@@ -79,11 +82,37 @@ void Signal_Analysis_Start(void)
         if (Serial_IsDataReady(SERIAL_PORT_DEBUG)) {
             uint8_t *cmd_buf;
             uint16_t len = Serial_GetDataPacket(SERIAL_PORT_DEBUG, &cmd_buf);
-            if (len > 0 && len < 64) {
-                char cmd_str[64];
+            if (len > 0 && len < 128) {
+                char cmd_str[128];
                 memcpy(cmd_str, cmd_buf, len);
                 cmd_str[len] = '\0';
-                Parse_Command(cmd_str);
+                char *line = cmd_str;
+                while (line && *line) {
+                    char *nl = strchr(line, '\n');
+                    if (nl) { *nl = '\0'; }
+                    char *cr = strchr(line, '\r');
+                    if (cr) { *cr = '\0'; }
+                    if (strlen(line) > 0) Parse_CommandEx(line, "PY");
+                    line = nl ? nl + 1 : NULL;
+                }
+            }
+        }
+        if (Serial_IsDataReady(SERIAL_PORT_WIFI)) {
+            uint8_t *cmd_buf;
+            uint16_t len = Serial_GetDataPacket(SERIAL_PORT_WIFI, &cmd_buf);
+            if (len > 0 && len < 128) {
+                char cmd_str[128];
+                memcpy(cmd_str, cmd_buf, len);
+                cmd_str[len] = '\0';
+                char *line = cmd_str;
+                while (line && *line) {
+                    char *nl = strchr(line, '\n');
+                    if (nl) { *nl = '\0'; }
+                    char *cr = strchr(line, '\r');
+                    if (cr) { *cr = '\0'; }
+                    if (strlen(line) > 0) Parse_CommandEx(line, "AND");
+                    line = nl ? nl + 1 : NULL;
+                }
             }
         }
 #endif
@@ -100,7 +129,17 @@ void Signal_Analysis_Start(void)
                 static uint32_t ipc_diag_count = 0;
                 ipc_diag_count++;
                 if ((ipc_diag_count % 50u) == 0u) {
-                    Serial_Printf(DIR_TEXT_PORT,
+                    Serial_Printf(SERIAL_PORT_DEBUG,
+                        "IPCDIAG,ack=%lu,notify=%lu,ok=%lu,bad=%lu,v5fhb=%lu,ENA=%08lX,STS=%08lX,ISR=%08lX\r\n",
+                        (unsigned long)DualCore_IPC_GetAckCount(),
+                        (unsigned long)DualCore_IPC_GetNotifyCount(),
+                        (unsigned long)DualCore_IPC_GetParseOKCount(),
+                        (unsigned long)DualCore_IPC_GetParseBadCount(),
+                        (unsigned long)DualCore_IPC_GetV5FHandlerCount(),
+                        (unsigned long)IPC->ENA,
+                        (unsigned long)IPC->STS,
+                        (unsigned long)IPC->ISR);
+                    Serial_Printf(SERIAL_PORT_WIFI,
                         "IPCDIAG,ack=%lu,notify=%lu,ok=%lu,bad=%lu,v5fhb=%lu,ENA=%08lX,STS=%08lX,ISR=%08lX\r\n",
                         (unsigned long)DualCore_IPC_GetAckCount(),
                         (unsigned long)DualCore_IPC_GetNotifyCount(),
@@ -193,5 +232,84 @@ void Signal_Analysis_Start(void)
     }
 
     ICM42605_Task();
+
+    {
+        static uint32_t posture_print_count = 0;
+        static Posture_t s_last_wifi_posture = POSTURE_UNKNOWN;
+        const PostureResult_t *pr = Posture_GetResult();
+        if (g_posture_diag_enable) {
+            posture_print_count++;
+            if (posture_print_count >= 250000u) {
+                posture_print_count = 0;
+                Serial_Printf(SERIAL_PORT_DEBUG,
+                    "POSTURE,%s,gx=%d,gy=%d,gz=%d,conf=%d,stable=%lu\r\n",
+                    Posture_ToString(pr->posture),
+                    (int)(pr->gravity_x * 1000.0f),
+                    (int)(pr->gravity_y * 1000.0f),
+                    (int)(pr->gravity_z * 1000.0f),
+                    (int)(pr->confidence * 100.0f),
+                    (unsigned long)pr->stable_ms);
+            }
+        }
+        if (pr->posture != POSTURE_UNKNOWN && pr->posture != s_last_wifi_posture) {
+            s_last_wifi_posture = pr->posture;
+            const PM_Result_t *pm = PM_GetResult();
+            Serial_Printf(SERIAL_PORT_DEBUG,
+                "POSTURE_STATE,%s,turns=%lu\r\n",
+                Posture_ToString(pr->posture),
+                (unsigned long)pm->turn_count);
+            Serial_Printf(SERIAL_PORT_WIFI,
+                "POSTURE_STATE,%s,turns=%lu\r\n",
+                Posture_ToString(pr->posture),
+                (unsigned long)pm->turn_count);
+        }
+    }
+
+    if (g_icm42605_pm_event_pending) {
+        g_icm42605_pm_event_pending = 0u;
+        const PM_Result_t *pm = PM_GetResult();
+        switch ((PM_Event_t)g_icm42605_pm_event_type) {
+        case PM_EVENT_TURN:
+            Serial_Printf(SERIAL_PORT_DEBUG,
+                "TURN_EVENT,count=%lu,from=%s,to=%s,tick=%lu\r\n",
+                (unsigned long)pm->turn_count,
+                Posture_ToString(pm->turn_from),
+                Posture_ToString(pm->turn_to),
+                (unsigned long)pm->last_turn_tick);
+            Serial_Printf(SERIAL_PORT_WIFI,
+                "TURN_EVENT,count=%lu,from=%s,to=%s,tick=%lu\r\n",
+                (unsigned long)pm->turn_count,
+                Posture_ToString(pm->turn_from),
+                Posture_ToString(pm->turn_to),
+                (unsigned long)pm->last_turn_tick);
+            break;
+        case PM_EVENT_FALL:
+            Serial_Printf(SERIAL_PORT_DEBUG,
+                "FALL_EVENT,gyro=%d,acc=%d,posture=%s,tick=%lu\r\n",
+                (int)(pm->fall_peak_gyro * 100.0f),
+                (int)(pm->fall_peak_acc * 100.0f),
+                Posture_ToString(pm->fall_posture),
+                (unsigned long)pm->fall_tick);
+            Serial_Printf(SERIAL_PORT_WIFI,
+                "FALL_EVENT,gyro=%d,acc=%d,posture=%s,tick=%lu\r\n",
+                (int)(pm->fall_peak_gyro * 100.0f),
+                (int)(pm->fall_peak_acc * 100.0f),
+                Posture_ToString(pm->fall_posture),
+                (unsigned long)pm->fall_tick);
+            PM_ClearFall();
+            break;
+        case PM_EVENT_NO_TURN:
+            Serial_Printf(SERIAL_PORT_DEBUG,
+                "NO_TURN_ALERT,duration_min=%lu\r\n",
+                (unsigned long)(pm->no_turn_duration_ms / 60000u));
+            Serial_Printf(SERIAL_PORT_WIFI,
+                "NO_TURN_ALERT,duration_min=%lu\r\n",
+                (unsigned long)(pm->no_turn_duration_ms / 60000u));
+            PM_ClearNoTurnAlert();
+            break;
+        default:
+            break;
+        }
+    }
     }
 }

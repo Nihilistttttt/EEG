@@ -53,7 +53,8 @@ static void CSP_PrintWindowCSV(uint8_t label, RingBuffer_t *filt_buf)
              (unsigned int)label,
              (unsigned long)win_id,
              (unsigned int)CSP_WIN_SIZE);
-    Serial_Printf(DIR_TEXT_PORT, "%s", line);
+    Serial_Printf(SERIAL_PORT_DEBUG, "%s", line);
+    Serial_Printf(SERIAL_PORT_WIFI, "%s", line);
 
     for (j = 0; j < CSP_WIN_SIZE; j++) {
         uint16_t idx = (uint16_t)((start + j) & (CSP_WIN_SIZE - 1u));
@@ -70,14 +71,15 @@ static void CSP_PrintWindowCSV(uint8_t label, RingBuffer_t *filt_buf)
                  (long)ch1,
                  (long)ch2,
                  (long)ch3);
-        Serial_Printf(DIR_TEXT_PORT, "%s", line);
+        Serial_Printf(SERIAL_PORT_WIFI, "%s", line);
     }
 
     snprintf(line, sizeof(line),
              "CSP_END,label=%u,win=%lu\r\n",
              (unsigned int)label,
              (unsigned long)win_id);
-    Serial_Printf(DIR_TEXT_PORT, "%s", line);
+    Serial_Printf(SERIAL_PORT_DEBUG, "%s", line);
+    Serial_Printf(SERIAL_PORT_WIFI, "%s", line);
 }
 
 void Direction_AutoCollectCSPProcess(RingBuffer_t *filt_buf)
@@ -95,7 +97,10 @@ void Direction_AutoCollectCSPProcess(RingBuffer_t *filt_buf)
         }
         if (g_trial_row_count >= TRIAL_DURATION_ROWS) {
             g_trial_state = TRIAL_DONE;
-            Serial_Printf(SERIAL_PORT_DEBUG, "TASK,DONE\r\n");
+            Serial_Printf(SERIAL_PORT_DEBUG, "TASK,DONE,label=%d,rows=%u,csp_win=%lu\r\n",
+                (int)g_trial_label, (unsigned)g_trial_row_count, (unsigned long)csp_window_id);
+            Serial_Printf(SERIAL_PORT_WIFI, "TASK,DONE,label=%d,rows=%u,csp_win=%lu\r\n",
+                (int)g_trial_label, (unsigned)g_trial_row_count, (unsigned long)csp_window_id);
         }
         return;
     }
@@ -172,7 +177,10 @@ void Direction_AutoCollectProcess(float theta_pow[NUM_CHANNELS],
         }
         if (g_trial_row_count >= TRIAL_DURATION_ROWS) {
             g_trial_state = TRIAL_DONE;
-            Serial_Printf(SERIAL_PORT_DEBUG, "TASK,DONE\r\n");
+            Serial_Printf(SERIAL_PORT_DEBUG, "TASK,DONE,label=%d,rows=%u,skip=%u\r\n",
+                (int)g_trial_label, (unsigned)g_trial_row_count, (unsigned)g_skip_rows);
+            Serial_Printf(SERIAL_PORT_WIFI, "TASK,DONE,label=%d,rows=%u,skip=%u\r\n",
+                (int)g_trial_label, (unsigned)g_trial_row_count, (unsigned)g_skip_rows);
         }
         return;
     }

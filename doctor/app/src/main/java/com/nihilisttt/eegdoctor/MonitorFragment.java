@@ -90,7 +90,7 @@ public class MonitorFragment extends Fragment implements DataListener {
             updateConnectionStatus();
         });
 
-        root.findViewById(R.id.btn_set_ip).setOnClickListener(v -> showUdpIpDialog());
+        root.findViewById(R.id.btn_set_ip).setOnClickListener(v -> showWifiConfigDialog());
         root.findViewById(R.id.btn_training).setOnClickListener(v -> {
             if (getActivity() instanceof MainActivity) {
                 ((MainActivity) requireActivity()).switchToPage(4);
@@ -415,21 +415,35 @@ public class MonitorFragment extends Fragment implements DataListener {
                 .show();
     }
 
-    private void showUdpIpDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
-        builder.setTitle("设置 Python 上位机 IP");
-        final EditText input = new EditText(requireContext());
-        input.setHint("例如 192.168.1.100");
-        builder.setView(input);
-        builder.setPositiveButton("确定", (dialog, which) -> {
-            String ip = input.getText().toString().trim();
-            if (!ip.isEmpty()) {
-                TcpServerManager.getInstance().configUdpForPython(ip);
-                Toast.makeText(getContext(), "UDP 目标 IP 已设置为 " + ip, Toast.LENGTH_SHORT).show();
-            }
-        });
-        builder.setNegativeButton("取消", null);
-        builder.show();
+    private void showWifiConfigDialog() {
+        LinearLayout layout = new LinearLayout(requireContext());
+        layout.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (12 * getResources().getDisplayMetrics().density);
+        layout.setPadding(pad, pad, pad, pad);
+        EditText etSsid = new EditText(requireContext());
+        etSsid.setHint("SSID");
+        layout.addView(etSsid);
+        EditText etPassword = new EditText(requireContext());
+        etPassword.setHint("密码");
+        layout.addView(etPassword);
+        new AlertDialog.Builder(requireContext())
+                .setTitle("WiFi 配置")
+                .setView(layout)
+                .setPositiveButton("添加/修改", (d, which) -> {
+                    String ssid = etSsid.getText().toString().trim();
+                    String pwd = etPassword.getText().toString().trim();
+                    if (ssid.isEmpty()) return;
+                    TcpServerManager.getInstance().sendWifiAdd(ssid, pwd);
+                    Toast.makeText(getContext(), "WiFi配置已发送: " + ssid, Toast.LENGTH_SHORT).show();
+                })
+                .setNeutralButton("删除", (d, which) -> {
+                    String ssid = etSsid.getText().toString().trim();
+                    if (ssid.isEmpty()) return;
+                    TcpServerManager.getInstance().sendWifiDelete(ssid);
+                    Toast.makeText(getContext(), "WiFi删除已发送: " + ssid, Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     @Override

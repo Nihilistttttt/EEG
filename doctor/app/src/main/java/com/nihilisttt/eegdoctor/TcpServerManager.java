@@ -20,6 +20,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TcpServerManager {
     private static final int TCP_PORT = 41002;
@@ -45,6 +46,11 @@ public class TcpServerManager {
     private DatagramSocket discoverySocket;
 
     private final CopyOnWriteArrayList<ConnectionListener> connectionListeners = new CopyOnWriteArrayList<>();
+
+    private final AtomicBoolean pongReceived = new AtomicBoolean(false);
+    private Thread heartbeatThread;
+    private Thread senderThread;
+    private final BlockingQueue<byte[]> sendQueue = new ArrayBlockingQueue<>(256);
 
     public interface ConnectionListener {
         void onDeviceConnected(boolean connected);
@@ -200,6 +206,148 @@ public class TcpServerManager {
         if (forwardManager != null) forwardManager.stopAll();
         if (patientDataManager != null) patientDataManager.stopAll();
         udpSender.release();
+        stopHeartbeat();
+    }
+
+    private void startHeartbeat() {
+        stopHeartbeat();
+        startSender();
+        heartbeatThread = new Thread(() -> {
+            Log.i("HEARTBEAT", "Heartbeat thread started");
+            while (!Thread.currentThread().isInterrupted() && running) {
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    break;
+                }
+                if (!isDeviceConnected()) continue;
+                pongReceived.set(false);
+                sendToDevice("PING");
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    break;
+                }
+                if (!pongReceived.get()) {
+                    Log.w("HEARTBEAT", "PONG not received! ESP8266 may not be responding to PING");
+                } else {
+                    Log.i("HEARTBEAT", "Heartbeat OK");
+                }
+            }
+            Log.i("HEARTBEAT", "Heartbeat thread stopped");
+        });
+        heartbeatThread.setDaemon(true);
+        heartbeatThread.start();
+    }
+
+    private void stopHeartbeat() {
+        if (heartbeatThread != null) {
+            heartbeatThread.interrupt();
+            heartbeatThread = null;
+        }
+        stopSender();
+    }
+
+    private void startSender() {
+        stopSender();
+        senderThread = new Thread(() -> {
+            Log.i("TCP_SENDER", "Sender thread started");
+            while (!Thread.currentThread().isInterrupted() && running) {
+                try {
+                    byte[] data = sendQueue.take();
+                    Socket client = deviceClient;
+                    if (client != null && !client.isClosed() && client.isConnected()) {
+                        OutputStream os = client.getOutputStream();
+                        os.write(data);
+                        os.flush();
+                        Log.i("TCP_SENDER", "Sent " + data.length + " bytes to " + client.getRemoteSocketAddress());
+                    } else {
+                        Log.w("TCP_SENDER", "Device not connected, dropping " + data.length + " bytes");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (Exception e) {
+                    Log.e("TCP_SENDER", "Send failed", e);
+                }
+            }
+            Log.i("TCP_SENDER", "Sender thread stopped");
+        });
+        senderThread.setDaemon(true);
+        senderThread.start();
+    }
+
+    private void stopSender() {
+        if (senderThread != null) {
+            senderThread.interrupt();
+            senderThread = null;
+        }
+        sendQueue.clear();
+    }
+
+    private void parseMcuTextResponses(String data) {
+        for (String line : data.split("[\r\n]+")) {
+            line = line.trim();
+            if (line.isEmpty()) continue;
+            switch (line) {
+                case "READY_TRAIN":
+                    Log.i("MCU_RESP", "READY_TRAIN");
+                    dispatcher.postReadyTrain();
+                    break;
+                case "READY_TEST":
+                    Log.i("MCU_RESP", "READY_TEST");
+                    dispatcher.postReadyTest();
+                    break;
+                case "TASK,STOPPED":
+                    Log.i("MCU_RESP", "TASK,STOPPED");
+                    dispatcher.postTaskDone();
+                    break;
+                default:
+                    if (line.startsWith("TASK,DONE")) {
+                        Log.i("MCU_RESP", "TASK,DONE: " + line);
+                        dispatcher.postTaskDone();
+                    } else if (line.startsWith("MODE_SET_OK,")) {
+                        try {
+                            int mode = Integer.parseInt(line.substring(12).trim());
+                            Log.i("MCU_RESP", "MODE_SET_OK," + mode);
+                            dispatcher.postModeSetOk(mode);
+                        } catch (NumberFormatException ignored) {}
+                    } else if (line.startsWith("TASK,") && line.endsWith(",start")) {
+                        String side = line.substring(5, line.length() - 6);
+                        Log.i("MCU_RESP", "TASK," + side + ",start");
+                        dispatcher.postTaskStart(side);
+                    } else if (line.startsWith("TURN_EVENT,")) {
+                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("TURN_EVENT,count=\\d+,from=(\\w+),to=(\\w+)").matcher(line);
+                        if (m.find()) {
+                            Log.i("MCU_RESP", "TURN_EVENT: " + m.group(1) + " -> " + m.group(2));
+                            dispatcher.postTurnEvent(m.group(1), m.group(2));
+                        }
+                    } else if (line.startsWith("FALL_EVENT,")) {
+                        Log.i("MCU_RESP", "FALL_EVENT");
+                        dispatcher.postFallEvent();
+                    } else if (line.startsWith("NO_TURN_ALERT,")) {
+                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("NO_TURN_ALERT,duration_min=(\\d+)").matcher(line);
+                        if (m.find()) {
+                            long dur = Long.parseLong(m.group(1));
+                            Log.i("MCU_RESP", "NO_TURN_ALERT: " + dur + " min");
+                            dispatcher.postNoTurnAlert(dur);
+                        }
+                    } else if (line.startsWith("POSTURE_STATE,")) {
+                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("POSTURE_STATE,(\\w+),turns=(\\d+)").matcher(line);
+                        if (m.find()) {
+                            Log.i("MCU_RESP", "POSTURE_STATE: " + m.group(1) + " turns=" + m.group(2));
+                            dispatcher.postPostureState(m.group(1), Integer.parseInt(m.group(2)));
+                        }
+                    } else if (line.startsWith("MODE_DIAG,")) {
+                        Log.i("MCU_RESP", "MODE_DIAG: " + line);
+                    } else if (line.startsWith("V5F_DIAG,")) {
+                        Log.i("MCU_RESP", "V5F_DIAG: " + line);
+                    } else if (line.startsWith("V5F_RAW,")) {
+                        Log.i("MCU_RESP", "V5F_RAW: " + line);
+                    }
+                    break;
+            }
+        }
     }
 
     private void notifyDeviceConnected(boolean connected) {
@@ -253,16 +401,92 @@ public class TcpServerManager {
     }
 
     public void sendToDevice(String command) {
-        if (deviceClient != null && !deviceClient.isClosed() && deviceClient.isConnected()) {
-            try {
-                OutputStream os = deviceClient.getOutputStream();
-                os.write((command + "\n").getBytes("UTF-8"));
-                os.flush();
-                Log.i("TCP", "Sent to device: " + command);
-            } catch (Exception e) {
-                Log.e("TCP", "Failed to send to device: " + e.getMessage());
-            }
+        if (deviceClient == null || deviceClient.isClosed() || !deviceClient.isConnected()) {
+            Log.w("TCP", "Cannot send to device (not connected): [" + command + "]");
+            return;
         }
+        try {
+            byte[] data = (command + "\n").getBytes("UTF-8");
+            sendQueue.offer(data);
+            Log.i("TCP", "Queued to device: [" + command + "] bytes=" + data.length);
+        } catch (Exception e) {
+            Log.e("TCP", "Failed to queue command: [" + command + "]", e);
+        }
+    }
+
+    // ========== V2帧下行发送（Android→ESP8266，无CRC） ==========
+    // 格式: 0x7E [VER=0x01] [CMD] [LEN_LO] [LEN_HI] [PAYLOAD] 0x7E
+    private static final byte V2_FRAME_CHAR = 0x7E;
+    private static final byte V2_ESCAPE_CHAR = 0x7D;
+    private static final byte V2_ESCAPE_XOR = 0x20;
+
+    public void sendV2FrameToDevice(byte cmd, byte[] payload) {
+        if (deviceClient == null || deviceClient.isClosed() || !deviceClient.isConnected()) {
+            Log.w("TCP", "Cannot send v2 frame (not connected)");
+            return;
+        }
+        try {
+            byte[] frame = packV2Frame(cmd, payload);
+            sendQueue.offer(frame);
+            Log.i("TCP", "Queued v2 frame: cmd=0x" + String.format("%02X", cmd) + " len=" + payload.length);
+        } catch (Exception e) {
+            Log.e("TCP", "Failed to queue v2 frame", e);
+        }
+    }
+
+    private static byte[] packV2Frame(byte cmd, byte[] payload) {
+        int payLen = payload.length;
+        byte[] buf = new byte[2 + 4 * 2 + payLen * 2 + 2];
+        int idx = 0;
+        buf[idx++] = V2_FRAME_CHAR;
+        idx = v2EscapeWrite(buf, idx, (byte) 0x01);
+        idx = v2EscapeWrite(buf, idx, cmd);
+        idx = v2EscapeWrite(buf, idx, (byte) (payLen & 0xFF));
+        idx = v2EscapeWrite(buf, idx, (byte) ((payLen >> 8) & 0xFF));
+        for (byte b : payload) idx = v2EscapeWrite(buf, idx, b);
+        buf[idx++] = V2_FRAME_CHAR;
+        byte[] result = new byte[idx];
+        System.arraycopy(buf, 0, result, 0, idx);
+        return result;
+    }
+
+    private static int v2EscapeWrite(byte[] buf, int idx, byte b) {
+        if ((b & 0xFF) == (V2_FRAME_CHAR & 0xFF) || (b & 0xFF) == (V2_ESCAPE_CHAR & 0xFF)) {
+            buf[idx++] = V2_ESCAPE_CHAR;
+            buf[idx++] = (byte) ((b & 0xFF) ^ (V2_ESCAPE_XOR & 0xFF));
+        } else {
+            buf[idx++] = b;
+        }
+        return idx;
+    }
+
+    public void sendWifiAdd(String ssid, String password) {
+        byte[] ssidBytes = ssid.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] pwdBytes = password.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] payload = new byte[2 + ssidBytes.length + 1 + pwdBytes.length + 1];
+        int off = 0;
+        payload[off++] = (byte) 0xF0;
+        payload[off++] = 0x01;
+        System.arraycopy(ssidBytes, 0, payload, off, ssidBytes.length); off += ssidBytes.length;
+        payload[off++] = 0;
+        System.arraycopy(pwdBytes, 0, payload, off, pwdBytes.length); off += pwdBytes.length;
+        payload[off++] = 0;
+        byte[] trimmed = new byte[off];
+        System.arraycopy(payload, 0, trimmed, 0, off);
+        sendV2FrameToDevice((byte) 0xF0, trimmed);
+    }
+
+    public void sendWifiDelete(String ssid) {
+        byte[] ssidBytes = ssid.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] payload = new byte[2 + ssidBytes.length + 1];
+        int off = 0;
+        payload[off++] = (byte) 0xF0;
+        payload[off++] = 0x02;
+        System.arraycopy(ssidBytes, 0, payload, off, ssidBytes.length); off += ssidBytes.length;
+        payload[off++] = 0;
+        byte[] trimmed = new byte[off];
+        System.arraycopy(payload, 0, trimmed, 0, off);
+        sendV2FrameToDevice((byte) 0xF0, trimmed);
     }
 
     public void sendToPatient(String command) {
@@ -281,8 +505,11 @@ public class TcpServerManager {
 
     // 处理原有主服务器客户端连接（保持不变，但增加转发广播）
     private void handleClient(Socket client) {
-        this.deviceClient = client;
+        synchronized (this) {
+            this.deviceClient = client;
+        }
         notifyDeviceConnected(true);
+        startHeartbeat();
         BlockingQueue<byte[]> rawPackets = new ArrayBlockingQueue<>(1024);
         AtomicLong totalPacketsRead = new AtomicLong(0);
         AtomicLong totalPacketsDropped = new AtomicLong(0);
@@ -313,17 +540,23 @@ public class TcpServerManager {
             int len;
             while ((len = in.read(buf)) != -1) {
                 totalPacketsRead.addAndGet(1);
+
+                String peek = new String(buf, 0, len, "UTF-8");
+                if (peek.contains("PONG")) {
+                    pongReceived.set(true);
+                    Log.i("HEARTBEAT", "PONG received from ESP8266");
+                }
+                parseMcuTextResponses(peek);
+
+
                 byte[] copy = new byte[len];
                 System.arraycopy(buf, 0, copy, 0, len);
-                // 转发给所有转发客户端（原始数据）
                 if (forwardManager != null) {
                     forwardManager.broadcast(copy);
                 }
-                // 转发给患者端
                 if (patientDataManager != null) {
                     patientDataManager.broadcast(copy);
                 }
-                // 原有解析逻辑
                 if (!rawPackets.offer(copy)) {
                     totalPacketsDropped.incrementAndGet();
                     rawPackets.poll();
@@ -333,10 +566,15 @@ public class TcpServerManager {
         } catch (Exception e) {
             Log.e("TCP", "Client error", e);
         } finally {
+            stopHeartbeat();
             parserThread.interrupt();
             try { client.close(); } catch (Exception ignored) {}
-            deviceClient = null;
-            notifyDeviceConnected(false);
+            synchronized (this) {
+                if (deviceClient == client) {
+                    deviceClient = null;
+                    notifyDeviceConnected(false);
+                }
+            }
         }
     }
 
@@ -591,6 +829,7 @@ public class TcpServerManager {
         private int textLineLogCounter = 0;
         private void parseTextLine(String line) {
             if (line.isEmpty()) return;
+            if (line.startsWith("RX[")) return;
             textLineLogCounter++;
             if (textLineLogCounter % 250 == 0 || line.startsWith("TASK") || line.startsWith("READY") || line.startsWith("MODE_SET_OK")) {
                 Log.i("TCP", "parseTextLine: " + line);
@@ -624,7 +863,7 @@ public class TcpServerManager {
                 dispatcher.postDirConfig(configJson);
                 framesParsed.incrementAndGet();
             } else if (line.startsWith("TASK,")) {
-                if (line.equals("TASK,DONE")) {
+                if (line.startsWith("TASK,DONE")) {
                     dispatcher.postTaskDone();
                     framesParsed.incrementAndGet();
                 } else {
@@ -646,6 +885,33 @@ public class TcpServerManager {
                     dispatcher.postModeSetOk(mode);
                     framesParsed.incrementAndGet();
                 } catch (NumberFormatException ignored) {}
+            } else if (line.startsWith("TURN_EVENT,")) {
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("TURN_EVENT,count=\\d+,from=(\\w+),to=(\\w+)").matcher(line);
+                if (m.find()) {
+                    dispatcher.postTurnEvent(m.group(1), m.group(2));
+                    framesParsed.incrementAndGet();
+                }
+            } else if (line.startsWith("FALL_EVENT,")) {
+                dispatcher.postFallEvent();
+                framesParsed.incrementAndGet();
+            } else if (line.startsWith("NO_TURN_ALERT,")) {
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("NO_TURN_ALERT,duration_min=(\\d+)").matcher(line);
+                if (m.find()) {
+                    dispatcher.postNoTurnAlert(Long.parseLong(m.group(1)));
+                    framesParsed.incrementAndGet();
+                }
+            } else if (line.startsWith("POSTURE_STATE,")) {
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("POSTURE_STATE,(\\w+),turns=(\\d+)").matcher(line);
+                if (m.find()) {
+                    dispatcher.postPostureState(m.group(1), Integer.parseInt(m.group(2)));
+                    framesParsed.incrementAndGet();
+                }
+            } else if (line.startsWith("MODE_DIAG,")) {
+                Log.i("TCP", "parseTextLine: " + line);
+            } else if (line.startsWith("V5F_DIAG,")) {
+                Log.i("TCP", "parseTextLine: " + line);
+            } else if (line.startsWith("V5F_RAW,")) {
+                Log.i("TCP", "parseTextLine: " + line);
             }
         }
     }

@@ -33,7 +33,7 @@ public class TrainingFragment extends Fragment implements DataListener {
     private int currentTrialIndex = 0;
     private boolean isTraining = false;
     private boolean waitingReadyTrain = false;
-    private boolean pendingTrain = false;
+
 
     private TextView tvDirection;
     private TextView tvHint;
@@ -85,7 +85,7 @@ public class TrainingFragment extends Fragment implements DataListener {
         isTraining = true;
         currentTrialIndex = 0;
         waitingReadyTrain = true;
-        pendingTrain = true;
+
 
         btnStartTraining.setEnabled(false);
         btnStopTraining.setEnabled(true);
@@ -98,12 +98,13 @@ public class TrainingFragment extends Fragment implements DataListener {
         progressTrial.setProgress(0);
 
         CommandSender.getInstance().setModeCollect();
+        CommandSender.getInstance().startTraining();
     }
 
     private void stopTraining() {
         isTraining = false;
         waitingReadyTrain = false;
-        pendingTrain = false;
+
         currentState = STATE_IDLE;
         handler.removeCallbacksAndMessages(null);
         stopSsvepBlink();
@@ -221,17 +222,11 @@ public class TrainingFragment extends Fragment implements DataListener {
     }
 
     private void onModeSetOkInternal(int mode) {
-        if (!isTraining) return;
-        if (pendingTrain) {
-            pendingTrain = false;
-            CommandSender.getInstance().sendCommand("MODE,TRAIN");
-        }
     }
 
     private void trainingComplete() {
         isTraining = false;
         waitingReadyTrain = false;
-        pendingTrain = false;
         btnStartTraining.setEnabled(true);
         btnStopTraining.setEnabled(false);
 

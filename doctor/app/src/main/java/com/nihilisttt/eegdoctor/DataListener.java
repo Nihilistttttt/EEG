@@ -13,4 +13,8 @@ public interface DataListener {
     default void onReadyTrain() {}
     default void onReadyTest() {}
     default void onModeSetOk(int mode) {}
+    default void onTurnEvent(String from, String to) {}
+    default void onFallEvent() {}
+    default void onNoTurnAlert(long durationMin) {}
+    default void onPostureState(String posture, int turnCount) {}
 }

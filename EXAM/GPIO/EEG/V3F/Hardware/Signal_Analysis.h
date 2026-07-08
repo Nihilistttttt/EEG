@@ -8,7 +8,7 @@
 #define EEG_APP_MODE_INFER          2
 #define EEG_APP_MODE_COLLECT_CSP    3
 
-#define DIR_TEXT_PORT               SERIAL_PORT_DEBUG
+#define DIR_TEXT_PORT               SERIAL_PORT_WIFI
 
 void Signal_Analysis_Start(void);
 

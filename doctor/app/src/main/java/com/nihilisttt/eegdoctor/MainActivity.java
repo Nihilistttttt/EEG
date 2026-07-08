@@ -21,7 +21,7 @@ public class MainActivity extends AppCompatActivity {
 
     private ViewPager2 viewPager;
     private TcpServerManager tcpServer;
-    private final String[] pageTitles = {"脑电监测", "专注度", "波形对比", "频谱对比", "SSVEP训练", "MI训练", "方向识别"};
+    private final String[] pageTitles = {"脑电监测", "专注度", "波形对比", "频谱对比", "SSVEP训练", "MI训练", "方向识别", "姿态监护", "系统配置"};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,6 +41,8 @@ public class MainActivity extends AppCompatActivity {
         fragments.add(new SsvepTrainingFragment());
         fragments.add(new MiTrainingFragment());
         fragments.add(new InferenceFragment());
+        fragments.add(new PostureFragment());
+        fragments.add(new ConfigFragment());
 
         viewPager.setAdapter(new FragmentStateAdapter(this) {
             @NonNull

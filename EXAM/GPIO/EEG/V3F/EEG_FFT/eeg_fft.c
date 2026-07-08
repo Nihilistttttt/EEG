@@ -1,6 +1,7 @@
 #include "eeg_fft.h"
 #include "signal_analysis.h"
 #include "eeg_direction_collect.h"
+#include "eeg_direction_infer.h"
 #include "eeg_ab_extract.h"
 #include "FFT_Real.h"
 #include "malloc.h"
@@ -14,6 +15,7 @@
 
 extern uint8_t g_eeg_app_mode;
 extern uint8_t g_paused;
+extern WorkMode_t g_work_mode;
 
 #define DIR_DEBUG_POWER_PRINT       0
 #define DIR_1S_TEST_TEXT_ONLY       0
@@ -453,6 +455,24 @@ uint8_t Process_FFT_Step(void)
     case FFT_STEP_ATTENTION: {
         float artifact_ratio = compute_artifact_from_ringbuf(&RingBuf, fft_src_start);
 
+        {
+            static uint32_t s_mode_diag_count = 0;
+            s_mode_diag_count++;
+            if (s_mode_diag_count >= 500u) {
+                s_mode_diag_count = 0;
+                Serial_Printf(SERIAL_PORT_DEBUG,
+                    "MODE_DIAG,app=%u,work=%u,paused=%u\r\n",
+                    (unsigned)g_eeg_app_mode,
+                    (unsigned)g_work_mode,
+                    (unsigned)g_paused);
+                Serial_Printf(SERIAL_PORT_WIFI,
+                    "MODE_DIAG,app=%u,work=%u,paused=%u\r\n",
+                    (unsigned)g_eeg_app_mode,
+                    (unsigned)g_work_mode,
+                    (unsigned)g_paused);
+            }
+        }
+
         BandPowers_t fused_powers;
         fused_powers.delta_power  = 0.4f * (delta_pow_ch0 + delta_pow_ch1) +
                                     0.6f * (delta_pow_ch2 + delta_pow_ch3);
@@ -483,6 +503,34 @@ uint8_t Process_FFT_Step(void)
 
         AB_PrintAlphaBetaCSV(theta_arr, alpha_arr, beta_arr);
 
+        {
+            static uint32_t s_v5f_raw_diag_count = 0;
+            s_v5f_raw_diag_count++;
+            if (s_v5f_raw_diag_count >= 500u) {
+                s_v5f_raw_diag_count = 0;
+                uint32_t raw_valid = DualCore_IPC_GetLastV5FInferValid();
+                uint32_t raw_cnt = DualCore_IPC_GetLastV5FInferCount();
+                uint32_t raw_fft = DualCore_IPC_GetLastV5FFFTCount();
+                uint32_t raw_fv = DualCore_IPC_GetLastV5FFeatureValid();
+                Serial_Printf(SERIAL_PORT_DEBUG,
+                    "V5F_RAW,app=%u,valid=%lu,cnt=%lu,fft=%lu,fv=%lu,pred=%lu\r\n",
+                    (unsigned)g_eeg_app_mode,
+                    (unsigned long)raw_valid,
+                    (unsigned long)raw_cnt,
+                    (unsigned long)raw_fft,
+                    (unsigned long)raw_fv,
+                    (unsigned long)DualCore_IPC_GetLastV5FPred());
+                Serial_Printf(SERIAL_PORT_WIFI,
+                    "V5F_RAW,app=%u,valid=%lu,cnt=%lu,fft=%lu,fv=%lu,pred=%lu\r\n",
+                    (unsigned)g_eeg_app_mode,
+                    (unsigned long)raw_valid,
+                    (unsigned long)raw_cnt,
+                    (unsigned long)raw_fft,
+                    (unsigned long)raw_fv,
+                    (unsigned long)DualCore_IPC_GetLastV5FPred());
+            }
+        }
+
         if (g_eeg_app_mode == EEG_APP_MODE_COLLECT) {
             Direction_AutoCollectProcess(theta_arr, alpha_arr, beta_arr);
         } else if (g_eeg_app_mode == EEG_APP_MODE_COLLECT_CSP) {
@@ -497,13 +545,45 @@ uint8_t Process_FFT_Step(void)
                 uint32_t v5f_trained = DualCore_IPC_GetLastV5FModelTrained();
                 uint32_t v5f_infer_cnt = DualCore_IPC_GetLastV5FInferCount();
 
+                {
+                    static uint32_t s_v5f_diag_count = 0;
+                    s_v5f_diag_count++;
+                    if (s_v5f_diag_count >= 250u) {
+                        s_v5f_diag_count = 0;
+                        Serial_Printf(SERIAL_PORT_DEBUG,
+                            "V5F_DIAG,valid=%lu,cnt=%lu,last_cnt=%lu,trained=%lu,pred=%lu\r\n",
+                            (unsigned long)v5f_infer_valid,
+                            (unsigned long)v5f_infer_cnt,
+                            (unsigned long)s_last_infer_cnt,
+                            (unsigned long)v5f_trained,
+                            (unsigned long)v5f_pred);
+                        Serial_Printf(SERIAL_PORT_WIFI,
+                            "V5F_DIAG,valid=%lu,cnt=%lu,last_cnt=%lu,trained=%lu,pred=%lu\r\n",
+                            (unsigned long)v5f_infer_valid,
+                            (unsigned long)v5f_infer_cnt,
+                            (unsigned long)s_last_infer_cnt,
+                            (unsigned long)v5f_trained,
+                            (unsigned long)v5f_pred);
+                    }
+                }
+
                 if (v5f_infer_valid && v5f_infer_cnt != s_last_infer_cnt) {
                     s_last_infer_cnt = v5f_infer_cnt;
                     s_infer_row_tick++;
                     if (s_infer_row_tick >= DIR_DECISION_ROWS) {
                         s_infer_row_tick = 0;
                         const char *pred_str = (v5f_pred == 0u) ? "LEFT" : ((v5f_pred == 1u) ? "RIGHT" : "UNKNOWN");
-                        Serial_Printf(DIR_TEXT_PORT,
+                        Serial_Printf(SERIAL_PORT_DEBUG,
+                                      "RESULT,src=V5F,window=%lu,dt_ms=%u,win_rows=%u,INTENT=%s,S_LEFT=%ld,S_RIGHT=%ld,CONF=%ld,trained=%d\r\n",
+                                      (unsigned long)s_result_window,
+                                      (unsigned int)DIR_RESULT_DT_MS,
+                                      (unsigned int)DIR_DECISION_ROWS,
+                                      pred_str,
+                                      (long)v5f_score_l,
+                                      (long)v5f_score_r,
+                                      (long)v5f_conf,
+                                      (int)v5f_trained);
+                        Serial_Printf(SERIAL_PORT_WIFI,
                                       "RESULT,src=V5F,window=%lu,dt_ms=%u,win_rows=%u,INTENT=%s,S_LEFT=%ld,S_RIGHT=%ld,CONF=%ld,trained=%d\r\n",
                                       (unsigned long)s_result_window,
                                       (unsigned int)DIR_RESULT_DT_MS,

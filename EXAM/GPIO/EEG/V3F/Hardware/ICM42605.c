@@ -1,6 +1,9 @@
 #include "ICM42605.h"
 #include "debug.h"
 #include "OLED.h"
+#include "posture_detect.h"
+#include "patient_monitor.h"
+#include <math.h>
 
 
 /*
@@ -139,6 +142,9 @@ volatile uint32_t g_icm42605_dma_error_count = 0U;
  * 在 ICM42605_1msTickISR() 中累加，用于计算IMU实际采样间隔。
  */
 volatile uint32_t g_icm42605_ms_tick = 0U;
+
+volatile uint8_t  g_icm42605_pm_event_pending = 0U;
+volatile uint8_t  g_icm42605_pm_event_type    = 0U;
 
 /*
  * DMA启动时记录采样时间。
@@ -917,6 +923,9 @@ ICM42605_Status ICM42605_BCI_Init(void)
 
     ICM42605_DMA_Init();
 
+    Posture_Init(NULL);
+    PM_Init(NULL);
+
     g_icm42605_sample_request = 0U;
     g_icm42605_oled_request = 1U;
     g_icm42605_dma_busy = 0U;
@@ -999,6 +1008,27 @@ void ICM42605_Task(void)
 
         ICM42605_DMA_ParseRaw(&raw);
         ICM42605_UpdateAngleFromRaw(&raw);
+
+        {
+            float ax_g = (float)raw.acc_x * ICM42605_ACC_SCALE_G;
+            float ay_g = (float)raw.acc_y * ICM42605_ACC_SCALE_G;
+            float az_g = (float)raw.acc_z * ICM42605_ACC_SCALE_G;
+            Posture_FeedAccel(ax_g, ay_g, az_g, ICM42605_SAMPLE_PERIOD_MS);
+
+            float gx_dps = (float)(raw.gyro_x - icm42605_gyro_offset_x) * ICM42605_GYR_SCALE_DPS;
+            float gy_dps = (float)(raw.gyro_y - icm42605_gyro_offset_y) * ICM42605_GYR_SCALE_DPS;
+            float gz_dps = (float)(raw.gyro_z - icm42605_gyro_offset_z) * ICM42605_GYR_SCALE_DPS;
+            float acc_mag = sqrtf(ax_g * ax_g + ay_g * ay_g + az_g * az_g);
+
+            PM_Event_t pm_ev = PM_Update(Posture_GetResult(),
+                                      gx_dps, gy_dps, gz_dps,
+                                      acc_mag,
+                                      g_icm42605_ms_tick);
+            if (pm_ev != PM_EVENT_NONE) {
+                g_icm42605_pm_event_type = (uint8_t)pm_ev;
+                g_icm42605_pm_event_pending = 1U;
+            }
+        }
     }
 
     /*

@@ -49,9 +49,11 @@ public class InferenceFragment extends Fragment implements DataListener {
     }
 
     private void startInference() {
+        Log.i("Inference", "btnStartInfer clicked, isInferencing=" + isInferencing);
         if (isInferencing) return;
         isInferencing = true;
         CommandSender.getInstance().setModeInfer();
+        CommandSender.getInstance().startTest();
         btnStartInfer.setEnabled(false);
         btnStopInfer.setEnabled(true);
         tvDirection.setText("← →");
@@ -62,8 +64,9 @@ public class InferenceFragment extends Fragment implements DataListener {
     }
 
     private void stopInference() {
+        Log.i("Inference", "btnStopInfer clicked");
         isInferencing = false;
-        CommandSender.getInstance().setModeCollect();
+        CommandSender.getInstance().sendCommand("STOP");
         btnStartInfer.setEnabled(true);
         btnStopInfer.setEnabled(false);
         tvDirection.setText("← →");
@@ -132,4 +135,22 @@ public class InferenceFragment extends Fragment implements DataListener {
     public void onIpcDiag(IpcDiagInfo diag) {}
     @Override
     public void onDirConfig(String configJson) {}
+    @Override
+    public void onTaskStart(String side) {}
+    @Override
+    public void onTaskDone() {}
+    @Override
+    public void onReadyTrain() {}
+    @Override
+    public void onReadyTest() {}
+    @Override
+    public void onModeSetOk(int mode) {}
+    @Override
+    public void onTurnEvent(String from, String to) {}
+    @Override
+    public void onFallEvent() {}
+    @Override
+    public void onNoTurnAlert(long durationMin) {}
+    @Override
+    public void onPostureState(String posture, int turnCount) {}
 }

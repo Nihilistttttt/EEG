@@ -155,6 +155,7 @@ void Direction_PrintFeatureCSV(uint8_t label,
 
     if (len < (int)sizeof(line) - 3) {
         len += snprintf(line + len, sizeof(line) - len, "\r\n");
-        Serial_SendArray_DMA(DIR_TEXT_PORT, (const uint8_t *)line, (uint16_t)len);
+        Serial_SendArray_DMA(SERIAL_PORT_DEBUG, (const uint8_t *)line, (uint16_t)len);
+        Serial_SendArray_DMA(SERIAL_PORT_WIFI, (const uint8_t *)line, (uint16_t)len);
     }
 }

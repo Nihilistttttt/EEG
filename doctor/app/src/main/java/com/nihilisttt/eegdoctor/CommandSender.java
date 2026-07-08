@@ -1,80 +1,34 @@
 package com.nihilisttt.eegdoctor;
 
 import android.util.Log;
-import java.io.OutputStream;
-import java.net.Socket;
 
 public class CommandSender {
     private static final String TAG = "CommandSender";
-    private static final int DEFAULT_PORT = 41002;
     private static final CommandSender INSTANCE = new CommandSender();
-
-    private Socket commandSocket;
-    private OutputStream outputStream;
-    private String targetIp;
-    private int targetPort = DEFAULT_PORT;
 
     public static CommandSender getInstance() { return INSTANCE; }
 
-    public void setTarget(String ip, int port) {
-        this.targetIp = ip;
-        this.targetPort = port;
-    }
-
-    public void setTarget(String ip) {
-        setTarget(ip, DEFAULT_PORT);
-    }
+    public void setTarget(String ip, int port) {}
+    public void setTarget(String ip) {}
 
     public boolean connect() {
-        if (targetIp == null || targetIp.isEmpty()) {
-            Log.e(TAG, "Target IP not set");
-            return false;
-        }
-        try {
-            if (commandSocket != null && !commandSocket.isClosed()) {
-                commandSocket.close();
-            }
-            commandSocket = new Socket(targetIp, targetPort);
-            outputStream = commandSocket.getOutputStream();
-            Log.i(TAG, "Connected to " + targetIp + ":" + targetPort);
-            return true;
-        } catch (Exception e) {
-            Log.e(TAG, "Connect failed: " + e.getMessage());
-            outputStream = null;
-            return false;
-        }
+        return TcpServerManager.getInstance().isDeviceConnected();
     }
 
-    public void disconnect() {
-        try {
-            if (outputStream != null) outputStream.close();
-            if (commandSocket != null) commandSocket.close();
-        } catch (Exception ignored) {}
-        outputStream = null;
-        commandSocket = null;
-    }
+    public void disconnect() {}
 
     public boolean isConnected() {
-        return commandSocket != null && commandSocket.isConnected() && !commandSocket.isClosed();
+        return TcpServerManager.getInstance().isDeviceConnected();
     }
 
     public boolean sendCommand(String cmd) {
-        if (outputStream == null) {
-            Log.w(TAG, "Not connected, cannot send: " + cmd);
-            return false;
-        }
-        try {
-            outputStream.write((cmd + "\n").getBytes("UTF-8"));
-            outputStream.flush();
-            Log.i(TAG, "Sent: " + cmd);
-            return true;
-        } catch (Exception e) {
-            Log.e(TAG, "Send failed: " + e.getMessage());
-            return false;
-        }
+        Log.i(TAG, "sendCommand: [" + cmd + "]");
+        TcpServerManager.getInstance().sendToDevice(cmd);
+        return true;
     }
 
     public boolean setMode(int mode) {
+        Log.i(TAG, "setMode: " + mode);
         return sendCommand("MODE,SET," + mode);
     }
 
@@ -83,18 +37,22 @@ public class CommandSender {
     public boolean setModeCalibrate() { return setMode(3); }
 
     public boolean startTraining() {
+        Log.i(TAG, "startTraining");
         return sendCommand("MODE,TRAIN");
     }
 
     public boolean startTest() {
+        Log.i(TAG, "startTest");
         return sendCommand("MODE,TEST");
     }
 
     public boolean trialLeft() {
+        Log.i(TAG, "trialLeft");
         return sendCommand("TRIAL,LEFT");
     }
 
     public boolean trialRight() {
+        Log.i(TAG, "trialRight");
         return sendCommand("TRIAL,RIGHT");
     }
 

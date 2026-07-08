@@ -5,6 +5,7 @@ import com.nihilisttt.eegdoctor.R;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -26,12 +27,13 @@ public class MiTrainingFragment extends Fragment implements DataListener {
 
     private static final int REST_DURATION_MS = 5000;
     private static final int MI_TRIAL_DURATION_MS = 4000;
-    private static final String[] TRIAL_SEQUENCE = {"LEFT", "RIGHT", "LEFT", "RIGHT", "LEFT", "RIGHT"};
+    private static final String[] TRIAL_SEQUENCE = {"LEFT", "RIGHT", "LEFT", "RIGHT"};
 
     private int currentState = STATE_IDLE;
     private int currentTrialIndex = 0;
     private boolean isTraining = false;
     private boolean waitingReadyTrain = false;
+
 
     private TextView tvDirection;
     private TextView tvHint;
@@ -65,6 +67,7 @@ public class MiTrainingFragment extends Fragment implements DataListener {
     }
 
     private void startTraining() {
+        Log.i("MiTraining", "btnStartTraining clicked, isTraining=" + isTraining);
         if (isTraining) return;
         isTraining = true;
         currentTrialIndex = 0;
@@ -80,11 +83,14 @@ public class MiTrainingFragment extends Fragment implements DataListener {
         progressTrial.setProgress(0);
 
         CommandSender.getInstance().setModeCollect();
+        CommandSender.getInstance().startTraining();
     }
 
     private void stopTraining() {
+        Log.i("MiTraining", "btnStopTraining clicked");
         isTraining = false;
         waitingReadyTrain = false;
+
         currentState = STATE_IDLE;
         handler.removeCallbacksAndMessages(null);
         CommandSender.getInstance().sendCommand("STOP");
@@ -101,6 +107,7 @@ public class MiTrainingFragment extends Fragment implements DataListener {
 
     private void enterRestPhase() {
         if (!isTraining) return;
+        Log.i("MiTraining", "enterRestPhase: trialIndex=" + currentTrialIndex);
         currentState = STATE_REST;
         restStartTime = System.currentTimeMillis();
 
@@ -192,12 +199,15 @@ public class MiTrainingFragment extends Fragment implements DataListener {
     }
 
     private void handleReadyTrain() {
+        Log.i("MiTraining", "handleReadyTrain: isTraining=" + isTraining + " waitingReadyTrain=" + waitingReadyTrain);
         if (!isTraining) {
             isTraining = true;
             currentTrialIndex = 0;
         }
+        waitingReadyTrain = false;
         enterRestPhase();
     }
+
 
     private void handleReadyTest() {
         if (!isTraining || currentState != STATE_MODEL_TRAINING) return;

@@ -3,6 +3,6 @@
 
 #include <stdint.h>
 
-void Parse_Command(const char *cmd);
+void Parse_CommandEx(const char *cmd, const char *source);
 
 #endif

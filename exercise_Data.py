@@ -92,6 +92,15 @@ class MainWindow(QMainWindow):
         self.csp_win_id = 0
         self.csp_receiving = False
 
+        self.posture_name = "UNKNOWN"
+        self.posture_gx = 0
+        self.posture_gy = 0
+        self.posture_gz = 0
+        self.posture_conf = 0
+        self.posture_stable_ms = 0
+        self.turn_count = 0
+        self.fall_detected = False
+
         # ---------- UI ----------
         self.init_ui()
         self.apply_stylesheet()
@@ -159,6 +168,9 @@ class MainWindow(QMainWindow):
         QPushButton#ipcdiagBtn { background-color: #4cd137; }
         QPushButton#ipcdiagBtn:hover { background-color: #44bd32; }
         QPushButton#ipcdiagBtn:checked { background-color: #7f8c8d; }
+        QPushButton#postureBtn { background-color: #00cec9; }
+        QPushButton#postureBtn:hover { background-color: #01b5b0; }
+        QPushButton#postureBtn:checked { background-color: #7f8c8d; }
 
         QLineEdit, QComboBox, QPlainTextEdit, QTextEdit {
             border: 1px solid #d0d7de;
@@ -335,6 +347,14 @@ class MainWindow(QMainWindow):
         self.ipcdiag_btn.setEnabled(False)
         btn_row.addWidget(self.ipcdiag_btn)
 
+        self.posture_btn = QPushButton("姿态数据: ON")
+        self.posture_btn.setObjectName("postureBtn")
+        self.posture_btn.setCheckable(True)
+        self.posture_btn.setChecked(True)
+        self.posture_btn.clicked.connect(self.toggle_posture)
+        self.posture_btn.setEnabled(False)
+        btn_row.addWidget(self.posture_btn)
+
         self.cmd_edit = QLineEdit()
         self.cmd_edit.setPlaceholderText("命令...")
         self.cmd_edit.returnPressed.connect(self.send_manual_cmd)
@@ -374,6 +394,9 @@ class MainWindow(QMainWindow):
         self.stat_label = QLabel("特征: 0 行 | 测试结果: 0")
         self.stat_label.setStyleSheet("color: #2f3640; font-weight: bold; font-size: 9pt;")
         progress_layout.addWidget(self.stat_label)
+        self.posture_label = QLabel("姿态: 等待数据")
+        self.posture_label.setStyleSheet("color: #00cec9; font-weight: bold; font-size: 9pt;")
+        progress_layout.addWidget(self.posture_label)
         main_layout.addWidget(progress_group)
 
         # ============================================================
@@ -454,6 +477,7 @@ class MainWindow(QMainWindow):
             self.status_btn.setEnabled(False)
             self.apply_mode_btn.setEnabled(False)
             self.ipcdiag_btn.setEnabled(False)
+            self.posture_btn.setEnabled(False)
             self.append_log("[系统] 串口已断开", "gray")
             self.update_central_status("空闲 (串口断开)", "#7f8c8d")
             return
@@ -475,6 +499,7 @@ class MainWindow(QMainWindow):
         self.status_btn.setEnabled(True)
         self.apply_mode_btn.setEnabled(True)
         self.ipcdiag_btn.setEnabled(True)
+        self.posture_btn.setEnabled(True)
         self.append_log("[系统] 串口已连接", "green")
         self.serial_thread.send_command("STATUS")
         self.update_central_status("空闲", "#7f8c8d")
@@ -501,6 +526,18 @@ class MainWindow(QMainWindow):
             self.serial_thread.send_command("IPCDIAG,OFF")
             self.ipcdiag_btn.setText("IPCDIAG: OFF")
             self.append_log("[系统] IPCDIAG 已关闭", "orange")
+
+    def toggle_posture(self):
+        if not self.serial_thread:
+            return
+        if self.posture_btn.isChecked():
+            self.serial_thread.send_command("POSTURE,ON")
+            self.posture_btn.setText("姿态数据: ON")
+            self.append_log("[系统] 姿态数据流已开启", "green")
+        else:
+            self.serial_thread.send_command("POSTURE,OFF")
+            self.posture_btn.setText("姿态数据: OFF")
+            self.append_log("[系统] 姿态数据流已关闭（事件仍正常输出）", "orange")
 
     def apply_mode(self):
         if not self.serial_thread:
@@ -724,6 +761,71 @@ class MainWindow(QMainWindow):
             self.append_log("[系统] IPCDIAG 已关闭", "orange")
             return
 
+        # ---- POSTURE 确认 ----
+        if line == 'POSTURE,ON':
+            self.posture_btn.setChecked(True)
+            self.posture_btn.setText("姿态数据: ON")
+            self.append_log("[系统] 姿态数据流已开启", "green")
+            return
+        if line == 'POSTURE,OFF':
+            self.posture_btn.setChecked(False)
+            self.posture_btn.setText("姿态数据: OFF")
+            self.append_log("[系统] 姿态数据流已关闭（事件仍正常输出）", "orange")
+            return
+
+        # ---- POSTURE 数据（含重力向量） ----
+        match = re.match(r'POSTURE,(\w+),gx=(-?\d+),gy=(-?\d+),gz=(-?\d+),conf=(-?\d+),stable=(\d+)', line)
+        if match:
+            self.posture_name = match.group(1)
+            self.posture_gx = int(match.group(2))
+            self.posture_gy = int(match.group(3))
+            self.posture_gz = int(match.group(4))
+            self.posture_conf = int(match.group(5))
+            self.posture_stable_ms = int(match.group(6))
+            self.update_posture_display()
+            return
+
+        # ---- PSTATUS 数据（轻量，无重力向量） ----
+        match = re.match(r'PSTATUS,(\w+),conf=(-?\d+),stable=(\d+),turns=(\d+)', line)
+        if match:
+            self.posture_name = match.group(1)
+            self.posture_conf = int(match.group(2))
+            self.posture_stable_ms = int(match.group(3))
+            self.turn_count = int(match.group(4))
+            self.update_posture_display()
+            return
+
+        # ---- 翻身事件 ----
+        match = re.match(r'TURN_EVENT,count=(\d+),from=(\w+),to=(\w+),tick=(\d+)', line)
+        if match:
+            self.turn_count = int(match.group(1))
+            turn_from = match.group(2)
+            turn_to = match.group(3)
+            self.posture_name = turn_to
+            self.append_log(f"[翻身] 第{self.turn_count}次: {turn_from} -> {turn_to}", "#00cec9")
+            self.update_posture_display()
+            return
+
+        # ---- 坠床事件 ----
+        match = re.match(r'FALL_EVENT,gyro=(-?\d+),acc=(-?\d+),posture=(\w+),tick=(\d+)', line)
+        if match:
+            gyro = int(match.group(1))
+            acc = int(match.group(2))
+            fall_posture = match.group(3)
+            self.fall_detected = True
+            self.posture_name = fall_posture
+            self.append_log(f"[!!坠床!!] 角速度={gyro/10.0:.0f}dps 加速度={acc/100.0:.2f}g", "red")
+            self.update_posture_display()
+            QTimer.singleShot(10000, self.clear_fall_alert)
+            return
+
+        # ---- 未翻身报警 ----
+        match = re.match(r'NO_TURN_ALERT,duration_min=(\d+)', line)
+        if match:
+            dur = int(match.group(1))
+            self.append_log(f"[未翻身报警] 已{dur}分钟未翻身!", "red")
+            return
+
     # ======================= 箭头显示 =======================
     def show_arrow_left(self):
         self.update_central_status("← 左手", "#0984e3", is_arrow=True)
@@ -738,6 +840,35 @@ class MainWindow(QMainWindow):
             self.update_central_status("测试中", "#e1b12c")
         else:
             self.update_central_status("空闲", "#7f8c8d")
+
+    # ======================= 姿态显示 =======================
+    def update_posture_display(self):
+        posture_cn = {
+            "SUPINE": "仰躺", "PRONE": "趴着",
+            "LEFT": "左侧卧", "RIGHT": "右侧卧",
+            "SITTING": "坐起", "UNKNOWN": "未知"
+        }
+        name = posture_cn.get(self.posture_name, self.posture_name)
+        conf_pct = self.posture_conf / 100.0
+        stable_s = self.posture_stable_ms / 1000.0
+
+        if self.fall_detected:
+            self.posture_label.setText(
+                f"!! 坠床报警 !!  姿态: {name}  翻身: {self.turn_count}次"
+            )
+            self.posture_label.setStyleSheet("color: #e84118; font-weight: bold; font-size: 11pt; background-color: #ffeaa7;")
+            return
+
+        self.posture_label.setText(
+            f"姿态: {name} ({conf_pct:.0f}%)  稳定: {stable_s:.1f}s  "
+            f"重力: X={self.posture_gx} Y={self.posture_gy} Z={self.posture_gz}  "
+            f"翻身: {self.turn_count}次"
+        )
+        self.posture_label.setStyleSheet("color: #00cec9; font-weight: bold; font-size: 9pt;")
+
+    def clear_fall_alert(self):
+        self.fall_detected = False
+        self.update_posture_display()
 
     # ======================= 训练流程 =======================
     def start_training(self):

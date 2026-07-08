@@ -166,6 +166,8 @@ extern volatile uint32_t g_icm42605_dma_lost_count;
 extern volatile uint32_t g_icm42605_dma_error_count;
 extern volatile uint32_t g_icm42605_ms_tick;
 
+extern volatile uint8_t g_icm42605_pm_event_pending;
+extern volatile uint8_t g_icm42605_pm_event_type;
 
 #ifdef __cplusplus
 }

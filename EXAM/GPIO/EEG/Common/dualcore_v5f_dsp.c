@@ -363,7 +363,15 @@ static void DualCore_V5F_RunClassifier(const volatile int32_t feature_q[DUALCORE
     g_ipc_v5f_score_right = sr;
     g_ipc_v5f_confidence = conf;
 #if DUALCORE_V5F_CSP_ENABLE && DUALCORE_V5F_USE_CSP_WHEN_TRAINED
-    g_ipc_v5f_model_trained = CSP4CH_WEIGHTS_TRAINED ? 1u : 0u;
+    if (CSP4CH_WEIGHTS_TRAINED) {
+        g_ipc_v5f_model_trained = 1u;
+    } else {
+#ifdef DIR4CH_WEIGHTS_TRAINED
+        g_ipc_v5f_model_trained = DIR4CH_WEIGHTS_TRAINED ? 1u : 0u;
+#else
+        g_ipc_v5f_model_trained = 1u;
+#endif
+    }
 #else
 #ifdef DIR4CH_WEIGHTS_TRAINED
     g_ipc_v5f_model_trained = DIR4CH_WEIGHTS_TRAINED ? 1u : 0u;

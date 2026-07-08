@@ -72,6 +72,7 @@
             android:fontFamily="sans-serif-medium"
             android:letterSpacing="0.05" />
 
+        <!-- Row 1: 脑电监测 | 专注度分析 | 波形对比 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -80,9 +81,9 @@
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/card_realtime"
                 android:layout_width="0dp"
-                android:layout_height="160dp"
+                android:layout_height="120dp"
                 android:layout_weight="1"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="4dp"
                 android:clickable="true"
                 android:focusable="true"
                 app:cardCornerRadius="12dp"
@@ -96,12 +97,12 @@
                     android:layout_height="match_parent"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="12dp">
 
                     <View
                         android:layout_width="36dp"
                         android:layout_height="4dp"
-                        android:layout_marginBottom="16dp"
+                        android:layout_marginBottom="12dp"
                         android:background="@color/wave_ch0" />
 
                     <TextView
@@ -109,24 +110,24 @@
                         android:layout_height="wrap_content"
                         android:text="脑电监测"
                         android:textColor="@color/text_primary"
-                        android:textSize="16sp"
+                        android:textSize="15sp"
                         android:fontFamily="sans-serif-medium" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="4dp"
                         android:gravity="center"
                         android:text="波形·频谱·专注度"
                         android:textColor="@color/text_secondary"
-                        android:textSize="11sp" />
+                        android:textSize="10sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/card_focus"
                 android:layout_width="0dp"
-                android:layout_height="160dp"
+                android:layout_height="120dp"
                 android:layout_weight="1"
                 android:layout_marginStart="4dp"
                 android:layout_marginEnd="4dp"
@@ -143,12 +144,12 @@
                     android:layout_height="match_parent"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="12dp">
 
                     <View
                         android:layout_width="36dp"
                         android:layout_height="4dp"
-                        android:layout_marginBottom="16dp"
+                        android:layout_marginBottom="12dp"
                         android:background="@color/focus_line" />
 
                     <TextView
@@ -156,26 +157,26 @@
                         android:layout_height="wrap_content"
                         android:text="专注度分析"
                         android:textColor="@color/text_primary"
-                        android:textSize="16sp"
+                        android:textSize="15sp"
                         android:fontFamily="sans-serif-medium" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="4dp"
                         android:gravity="center"
                         android:text="EMA趋势·状态判定"
                         android:textColor="@color/text_secondary"
-                        android:textSize="11sp" />
+                        android:textSize="10sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/card_wave_compare"
                 android:layout_width="0dp"
-                android:layout_height="160dp"
+                android:layout_height="120dp"
                 android:layout_weight="1"
-                android:layout_marginStart="8dp"
+                android:layout_marginStart="4dp"
                 android:clickable="true"
                 android:focusable="true"
                 app:cardCornerRadius="12dp"
@@ -189,12 +190,12 @@
                     android:layout_height="match_parent"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="12dp">
 
                     <View
                         android:layout_width="36dp"
                         android:layout_height="4dp"
-                        android:layout_marginBottom="16dp"
+                        android:layout_marginBottom="12dp"
                         android:background="@color/wave_filtered" />
 
                     <TextView
@@ -202,21 +203,22 @@
                         android:layout_height="wrap_content"
                         android:text="波形对比"
                         android:textColor="@color/text_primary"
-                        android:textSize="16sp"
+                        android:textSize="15sp"
                         android:fontFamily="sans-serif-medium" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="4dp"
                         android:gravity="center"
                         android:text="原始·滤波对比"
                         android:textColor="@color/text_secondary"
-                        android:textSize="11sp" />
+                        android:textSize="10sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
 
+        <!-- Row 2: 频谱对比 | SSVEP训练 | 方向推理 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -226,9 +228,9 @@
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/card_spectrum_compare"
                 android:layout_width="0dp"
-                android:layout_height="160dp"
+                android:layout_height="120dp"
                 android:layout_weight="1"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="4dp"
                 android:clickable="true"
                 android:focusable="true"
                 app:cardCornerRadius="12dp"
@@ -242,12 +244,12 @@
                     android:layout_height="match_parent"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="12dp">
 
                     <View
                         android:layout_width="36dp"
                         android:layout_height="4dp"
-                        android:layout_marginBottom="16dp"
+                        android:layout_marginBottom="12dp"
                         android:background="@color/spectrum_bar" />
 
                     <TextView
@@ -255,24 +257,24 @@
                         android:layout_height="wrap_content"
                         android:text="频谱对比"
                         android:textColor="@color/text_primary"
-                        android:textSize="16sp"
+                        android:textSize="15sp"
                         android:fontFamily="sans-serif-medium" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="4dp"
                         android:gravity="center"
                         android:text="原始·频域·时域频谱"
                         android:textColor="@color/text_secondary"
-                        android:textSize="11sp" />
+                        android:textSize="10sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/card_training"
                 android:layout_width="0dp"
-                android:layout_height="160dp"
+                android:layout_height="120dp"
                 android:layout_weight="1"
                 android:layout_marginStart="4dp"
                 android:layout_marginEnd="4dp"
@@ -289,12 +291,12 @@
                     android:layout_height="match_parent"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="12dp">
 
                     <View
                         android:layout_width="36dp"
                         android:layout_height="4dp"
-                        android:layout_marginBottom="16dp"
+                        android:layout_marginBottom="12dp"
                         android:background="@color/accent_success" />
 
                     <TextView
@@ -302,26 +304,26 @@
                         android:layout_height="wrap_content"
                         android:text="SSVEP训练"
                         android:textColor="@color/text_primary"
-                        android:textSize="16sp"
+                        android:textSize="15sp"
                         android:fontFamily="sans-serif-medium" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="4dp"
                         android:gravity="center"
                         android:text="校准·采集·模型训练"
                         android:textColor="@color/text_secondary"
-                        android:textSize="11sp" />
+                        android:textSize="10sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/card_inference"
                 android:layout_width="0dp"
-                android:layout_height="160dp"
+                android:layout_height="120dp"
                 android:layout_weight="1"
-                android:layout_marginStart="8dp"
+                android:layout_marginStart="4dp"
                 android:clickable="true"
                 android:focusable="true"
                 app:cardCornerRadius="12dp"
@@ -335,12 +337,12 @@
                     android:layout_height="match_parent"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="12dp">
 
                     <View
                         android:layout_width="36dp"
                         android:layout_height="4dp"
-                        android:layout_marginBottom="16dp"
+                        android:layout_marginBottom="12dp"
                         android:background="@color/direction_left" />
 
                     <TextView
@@ -348,17 +350,164 @@
                         android:layout_height="wrap_content"
                         android:text="方向推理"
                         android:textColor="@color/text_primary"
-                        android:textSize="16sp"
+                        android:textSize="15sp"
                         android:fontFamily="sans-serif-medium" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="4dp"
                         android:gravity="center"
                         android:text="左/右识别·置信度"
                         android:textColor="@color/text_secondary"
-                        android:textSize="11sp" />
+                        android:textSize="10sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
+
+        <!-- Row 3: MI训练 | 姿态监护 | 系统配置 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_mi_train"
+                android:layout_width="0dp"
+                android:layout_height="120dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/surface_low"
+                app:strokeColor="@color/direction_right"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <View
+                        android:layout_width="36dp"
+                        android:layout_height="4dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@color/direction_right" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="MI训练"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center"
+                        android:text="运动想象·CSP分类"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_posture"
+                android:layout_width="0dp"
+                android:layout_height="120dp"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/surface_low"
+                app:strokeColor="@color/accent_error"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <View
+                        android:layout_width="36dp"
+                        android:layout_height="4dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@color/accent_error" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="姿态监护"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center"
+                        android:text="翻身·坠床·未动报警"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_system_config"
+                android:layout_width="0dp"
+                android:layout_height="120dp"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/surface_low"
+                app:strokeColor="@color/surface_overlay"
+                app:strokeWidth="0.5dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <View
+                        android:layout_width="36dp"
+                        android:layout_height="4dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@color/text_secondary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="系统配置"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center"
+                        android:text="WiFi·设备·参数"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>

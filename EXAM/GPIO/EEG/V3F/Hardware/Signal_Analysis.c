@@ -79,6 +79,7 @@ void Signal_Analysis_Start(void)
 
     while (1) {
 #if CMD_MODE_ENABLE
+        Retry_Tick();
         if (Serial_IsDataReady(SERIAL_PORT_DEBUG)) {
             uint8_t *cmd_buf;
             uint16_t len = Serial_GetDataPacket(SERIAL_PORT_DEBUG, &cmd_buf);
@@ -254,14 +255,13 @@ void Signal_Analysis_Start(void)
         if (pr->posture != POSTURE_UNKNOWN && pr->posture != s_last_wifi_posture) {
             s_last_wifi_posture = pr->posture;
             const PM_Result_t *pm = PM_GetResult();
-            Serial_Printf(SERIAL_PORT_DEBUG,
-                "POSTURE_STATE,%s,turns=%lu\r\n",
-                Posture_ToString(pr->posture),
-                (unsigned long)pm->turn_count);
-            Serial_Printf(SERIAL_PORT_WIFI,
-                "POSTURE_STATE,%s,turns=%lu\r\n",
-                Posture_ToString(pr->posture),
-                (unsigned long)pm->turn_count);
+            uint8_t seq = Retry_GetSeq();
+            char buf[80];
+            snprintf(buf, sizeof(buf), "POSTURE_STATE,seq=%u,%s,turns=%lu\r\n",
+                (unsigned)seq, Posture_ToString(pr->posture), (unsigned long)pm->turn_count);
+            Serial_Printf(SERIAL_PORT_DEBUG, "%s", buf);
+            Serial_Printf(SERIAL_PORT_WIFI, "%s", buf);
+            Retry_StoreEx(buf, 20);
         }
     }
 
@@ -270,43 +270,49 @@ void Signal_Analysis_Start(void)
         const PM_Result_t *pm = PM_GetResult();
         switch ((PM_Event_t)g_icm42605_pm_event_type) {
         case PM_EVENT_TURN:
-            Serial_Printf(SERIAL_PORT_DEBUG,
-                "TURN_EVENT,count=%lu,from=%s,to=%s,tick=%lu\r\n",
+        {
+            uint8_t seq = Retry_GetSeq();
+            char buf[96];
+            snprintf(buf, sizeof(buf), "TURN_EVENT,seq=%u,count=%lu,from=%s,to=%s,tick=%lu\r\n",
+                (unsigned)seq,
                 (unsigned long)pm->turn_count,
                 Posture_ToString(pm->turn_from),
                 Posture_ToString(pm->turn_to),
                 (unsigned long)pm->last_turn_tick);
-            Serial_Printf(SERIAL_PORT_WIFI,
-                "TURN_EVENT,count=%lu,from=%s,to=%s,tick=%lu\r\n",
-                (unsigned long)pm->turn_count,
-                Posture_ToString(pm->turn_from),
-                Posture_ToString(pm->turn_to),
-                (unsigned long)pm->last_turn_tick);
+            Serial_Printf(SERIAL_PORT_DEBUG, "%s", buf);
+            Serial_Printf(SERIAL_PORT_WIFI, "%s", buf);
+            Retry_StoreEx(buf, 20);
             break;
+        }
         case PM_EVENT_FALL:
-            Serial_Printf(SERIAL_PORT_DEBUG,
-                "FALL_EVENT,gyro=%d,acc=%d,posture=%s,tick=%lu\r\n",
+        {
+            uint8_t seq = Retry_GetSeq();
+            char buf[96];
+            snprintf(buf, sizeof(buf), "FALL_EVENT,seq=%u,gyro=%d,acc=%d,posture=%s,tick=%lu\r\n",
+                (unsigned)seq,
                 (int)(pm->fall_peak_gyro * 100.0f),
                 (int)(pm->fall_peak_acc * 100.0f),
                 Posture_ToString(pm->fall_posture),
                 (unsigned long)pm->fall_tick);
-            Serial_Printf(SERIAL_PORT_WIFI,
-                "FALL_EVENT,gyro=%d,acc=%d,posture=%s,tick=%lu\r\n",
-                (int)(pm->fall_peak_gyro * 100.0f),
-                (int)(pm->fall_peak_acc * 100.0f),
-                Posture_ToString(pm->fall_posture),
-                (unsigned long)pm->fall_tick);
+            Serial_Printf(SERIAL_PORT_DEBUG, "%s", buf);
+            Serial_Printf(SERIAL_PORT_WIFI, "%s", buf);
+            Retry_StoreEx(buf, 20);
             PM_ClearFall();
             break;
+        }
         case PM_EVENT_NO_TURN:
-            Serial_Printf(SERIAL_PORT_DEBUG,
-                "NO_TURN_ALERT,duration_min=%lu\r\n",
+        {
+            uint8_t seq = Retry_GetSeq();
+            char buf[64];
+            snprintf(buf, sizeof(buf), "NO_TURN_ALERT,seq=%u,duration_min=%lu\r\n",
+                (unsigned)seq,
                 (unsigned long)(pm->no_turn_duration_ms / 60000u));
-            Serial_Printf(SERIAL_PORT_WIFI,
-                "NO_TURN_ALERT,duration_min=%lu\r\n",
-                (unsigned long)(pm->no_turn_duration_ms / 60000u));
+            Serial_Printf(SERIAL_PORT_DEBUG, "%s", buf);
+            Serial_Printf(SERIAL_PORT_WIFI, "%s", buf);
+            Retry_StoreEx(buf, 20);
             PM_ClearNoTurnAlert();
             break;
+        }
         default:
             break;
         }

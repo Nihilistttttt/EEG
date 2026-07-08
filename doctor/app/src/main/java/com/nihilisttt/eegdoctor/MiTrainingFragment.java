@@ -183,19 +183,24 @@ public class MiTrainingFragment extends Fragment implements DataListener {
         if (currentTrialIndex < TRIAL_SEQUENCE.length) {
             enterRestPhase();
         } else {
-            startModelTraining();
+            trainingComplete();
         }
     }
 
-    private void startModelTraining() {
-        currentState = STATE_MODEL_TRAINING;
-        tvDirection.setText("训练模型");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_info));
-        tvHint.setText("正在训练模型，请稍候...");
-        tvTrialCount.setText("");
-        progressTrial.setIndeterminate(true);
+    private void trainingComplete() {
+        isTraining = false;
+        currentState = STATE_IDLE;
+        handler.removeCallbacksAndMessages(null);
 
-        CommandSender.getInstance().startTraining();
+        btnStartTraining.setEnabled(true);
+        btnStopTraining.setEnabled(false);
+
+        tvDirection.setText("训练完成");
+        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_success));
+        tvHint.setText("可以前往方向识别页面测试");
+        tvTrialCount.setText("");
+        progressTrial.setIndeterminate(false);
+        progressTrial.setProgress(progressTrial.getMax());
     }
 
     private void handleReadyTrain() {
@@ -210,22 +215,7 @@ public class MiTrainingFragment extends Fragment implements DataListener {
 
 
     private void handleReadyTest() {
-        if (!isTraining || currentState != STATE_MODEL_TRAINING) return;
-        CommandSender.getInstance().startTest();
-        trainingComplete();
-    }
 
-    private void trainingComplete() {
-        isTraining = false;
-        btnStartTraining.setEnabled(true);
-        btnStopTraining.setEnabled(false);
-
-        tvDirection.setText("训练完成");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_success));
-        tvHint.setText("可以前往方向识别页面测试");
-        tvTrialCount.setText("");
-        progressTrial.setIndeterminate(false);
-        progressTrial.setProgress(progressTrial.getMax());
     }
 
     @Override

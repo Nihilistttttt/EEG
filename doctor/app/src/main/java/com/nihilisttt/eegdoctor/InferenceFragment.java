@@ -93,7 +93,7 @@ public class InferenceFragment extends Fragment implements DataListener {
 
     @Override
     public void onInferenceResult(InferenceResult result) {
-        if (!isInferencing || tvDirection == null || tvConfidence == null) return;
+        if (tvDirection == null) return;
 
         String intent = result.getIntent();
         if ("LEFT".equals(intent)) {
@@ -103,16 +103,6 @@ public class InferenceFragment extends Fragment implements DataListener {
             tvDirection.setText("→");
             tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.direction_right));
         }
-
-        float confPct = result.getConfidence() * 100f;
-        tvConfidence.setText(String.format(Locale.getDefault(), "置信度: %.0f%%", confPct));
-        progressConfidence.setProgress((int) confPct);
-
-        int confColor;
-        if (confPct >= 80) confColor = ContextCompat.getColor(requireContext(), R.color.confidence_high);
-        else if (confPct >= 50) confColor = ContextCompat.getColor(requireContext(), R.color.confidence_medium);
-        else confColor = ContextCompat.getColor(requireContext(), R.color.confidence_low);
-        tvConfidence.setTextColor(confColor);
 
         if (result.isTrained()) {
             tvModelStatus.setText("模型已就绪");

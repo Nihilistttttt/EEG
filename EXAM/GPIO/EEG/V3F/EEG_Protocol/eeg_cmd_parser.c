@@ -10,15 +10,71 @@
 #include <stdio.h>
 
 extern uint8_t g_eeg_app_mode;
-
 extern uint8_t g_ipc_diag_enable;
-
 extern uint8_t g_posture_diag_enable;
+extern volatile uint32_t g_icm42605_ms_tick;
 
 #define RESP(fmt, ...) do { \
     Serial_Printf(SERIAL_PORT_DEBUG, fmt, ##__VA_ARGS__); \
     Serial_Printf(SERIAL_PORT_WIFI, fmt, ##__VA_ARGS__); \
 } while(0)
+
+#define RETRY_BUF_SIZE 128
+#define RETRY_TIMEOUT_MS 300
+
+static char s_retry_buf[RETRY_BUF_SIZE];
+static uint8_t s_retry_seq = 0;
+static uint8_t s_retry_count = 0;
+static uint8_t s_retry_max = 7;
+static uint32_t s_retry_send_tick = 0;
+
+uint8_t Retry_GetSeq(void)
+{
+    return s_retry_seq + 1u;
+}
+
+void Retry_Store(const char *msg)
+{
+    s_retry_seq++;
+    strncpy(s_retry_buf, msg, RETRY_BUF_SIZE - 1);
+    s_retry_buf[RETRY_BUF_SIZE - 1] = '\0';
+    s_retry_count = 0;
+    s_retry_max = 7;
+    s_retry_send_tick = g_icm42605_ms_tick;
+}
+
+void Retry_StoreEx(const char *msg, uint8_t max_count)
+{
+    s_retry_seq++;
+    strncpy(s_retry_buf, msg, RETRY_BUF_SIZE - 1);
+    s_retry_buf[RETRY_BUF_SIZE - 1] = '\0';
+    s_retry_count = 0;
+    s_retry_max = max_count;
+    s_retry_send_tick = g_icm42605_ms_tick;
+}
+
+void Retry_Tick(void)
+{
+    if (s_retry_buf[0] == '\0') return;
+    if (s_retry_count >= s_retry_max) {
+        s_retry_buf[0] = '\0';
+        return;
+    }
+    uint32_t elapsed = g_icm42605_ms_tick - s_retry_send_tick;
+    if (elapsed >= RETRY_TIMEOUT_MS) {
+        s_retry_count++;
+        s_retry_send_tick = g_icm42605_ms_tick;
+        Serial_Printf(SERIAL_PORT_WIFI, "%s", s_retry_buf);
+        Serial_Printf(SERIAL_PORT_DEBUG, "[RETRY:%u] %s", s_retry_count, s_retry_buf);
+    }
+}
+
+static void Retry_Ack(uint8_t seq)
+{
+    if (seq == s_retry_seq && s_retry_buf[0] != '\0') {
+        s_retry_buf[0] = '\0';
+    }
+}
 
 void Parse_CommandEx(const char *cmd, const char *source)
 {
@@ -34,6 +90,11 @@ void Parse_CommandEx(const char *cmd, const char *source)
     Serial_Printf(SERIAL_PORT_DEBUG, "RX[%s]: %s\r\n", source, clean_cmd);
     Serial_Printf(SERIAL_PORT_WIFI, "RX[%s]: %s\r\n", source, clean_cmd);
 
+    if (strncmp(clean_cmd, "ACK,", 4) == 0) {
+        uint8_t ack_seq = (uint8_t)atoi(clean_cmd + 4);
+        Retry_Ack(ack_seq);
+        return;
+    }
 
     if (strcmp(clean_cmd, "MODE,TRAIN") == 0) {
         g_work_mode = WORK_MODE_TRAIN;

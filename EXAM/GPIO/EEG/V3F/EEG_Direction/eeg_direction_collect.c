@@ -1,6 +1,7 @@
 #include "eeg_direction_collect.h"
 #include "signal_analysis.h"
 #include "eeg_direction_feature.h"
+#include "eeg_cmd_parser.h"
 #include "Serial.h"
 #include <stdio.h>
 #include <string.h>
@@ -97,10 +98,13 @@ void Direction_AutoCollectCSPProcess(RingBuffer_t *filt_buf)
         }
         if (g_trial_row_count >= TRIAL_DURATION_ROWS) {
             g_trial_state = TRIAL_DONE;
-            Serial_Printf(SERIAL_PORT_DEBUG, "TASK,DONE,label=%d,rows=%u,csp_win=%lu\r\n",
-                (int)g_trial_label, (unsigned)g_trial_row_count, (unsigned long)csp_window_id);
-            Serial_Printf(SERIAL_PORT_WIFI, "TASK,DONE,label=%d,rows=%u,csp_win=%lu\r\n",
-                (int)g_trial_label, (unsigned)g_trial_row_count, (unsigned long)csp_window_id);
+            uint8_t seq = Retry_GetSeq();
+            char buf[96];
+            snprintf(buf, sizeof(buf), "TASK,DONE,seq=%u,label=%d,rows=%u,csp_win=%lu\r\n",
+                (unsigned)seq, (int)g_trial_label, (unsigned)g_trial_row_count, (unsigned long)csp_window_id);
+            Serial_Printf(SERIAL_PORT_DEBUG, "%s", buf);
+            Serial_Printf(SERIAL_PORT_WIFI, "%s", buf);
+            Retry_Store(buf);
         }
         return;
     }
@@ -177,10 +181,13 @@ void Direction_AutoCollectProcess(float theta_pow[NUM_CHANNELS],
         }
         if (g_trial_row_count >= TRIAL_DURATION_ROWS) {
             g_trial_state = TRIAL_DONE;
-            Serial_Printf(SERIAL_PORT_DEBUG, "TASK,DONE,label=%d,rows=%u,skip=%u\r\n",
-                (int)g_trial_label, (unsigned)g_trial_row_count, (unsigned)g_skip_rows);
-            Serial_Printf(SERIAL_PORT_WIFI, "TASK,DONE,label=%d,rows=%u,skip=%u\r\n",
-                (int)g_trial_label, (unsigned)g_trial_row_count, (unsigned)g_skip_rows);
+            uint8_t seq = Retry_GetSeq();
+            char buf[96];
+            snprintf(buf, sizeof(buf), "TASK,DONE,seq=%u,label=%d,rows=%u,skip=%u\r\n",
+                (unsigned)seq, (int)g_trial_label, (unsigned)g_trial_row_count, (unsigned)g_skip_rows);
+            Serial_Printf(SERIAL_PORT_DEBUG, "%s", buf);
+            Serial_Printf(SERIAL_PORT_WIFI, "%s", buf);
+            Retry_Store(buf);
         }
         return;
     }

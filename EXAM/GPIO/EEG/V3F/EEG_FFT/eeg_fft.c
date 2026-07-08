@@ -3,6 +3,7 @@
 #include "eeg_direction_collect.h"
 #include "eeg_direction_infer.h"
 #include "eeg_ab_extract.h"
+#include "eeg_cmd_parser.h"
 #include "FFT_Real.h"
 #include "malloc.h"
 #include "Message_Parser.h"
@@ -572,27 +573,30 @@ uint8_t Process_FFT_Step(void)
                     s_infer_row_tick++;
                     if (s_infer_row_tick >= DIR_DECISION_ROWS) {
                         s_infer_row_tick = 0;
-                        const char *pred_str = (v5f_pred == 0u) ? "LEFT" : ((v5f_pred == 1u) ? "RIGHT" : "UNKNOWN");
-                        Serial_Printf(SERIAL_PORT_DEBUG,
-                                      "RESULT,src=V5F,window=%lu,dt_ms=%u,win_rows=%u,INTENT=%s,S_LEFT=%ld,S_RIGHT=%ld,CONF=%ld,trained=%d\r\n",
-                                      (unsigned long)s_result_window,
-                                      (unsigned int)DIR_RESULT_DT_MS,
-                                      (unsigned int)DIR_DECISION_ROWS,
-                                      pred_str,
-                                      (long)v5f_score_l,
-                                      (long)v5f_score_r,
-                                      (long)v5f_conf,
-                                      (int)v5f_trained);
-                        Serial_Printf(SERIAL_PORT_WIFI,
-                                      "RESULT,src=V5F,window=%lu,dt_ms=%u,win_rows=%u,INTENT=%s,S_LEFT=%ld,S_RIGHT=%ld,CONF=%ld,trained=%d\r\n",
-                                      (unsigned long)s_result_window,
-                                      (unsigned int)DIR_RESULT_DT_MS,
-                                      (unsigned int)DIR_DECISION_ROWS,
-                                      pred_str,
-                                      (long)v5f_score_l,
-                                      (long)v5f_score_r,
-                                      (long)v5f_conf,
-                                      (int)v5f_trained);
+                        const char *pred_str;
+                        if (v5f_pred == 0u) {
+                            pred_str = "LEFT";
+                        } else if (v5f_pred == 1u) {
+                            pred_str = "RIGHT";
+                        } else {
+                            pred_str = (v5f_score_l >= v5f_score_r) ? "LEFT" : "RIGHT";
+                        }
+                        uint8_t seq = Retry_GetSeq();
+                        char result_buf[128];
+                        snprintf(result_buf, sizeof(result_buf),
+                                 "RESULT,seq=%u,src=V5F,window=%lu,dt_ms=%u,win_rows=%u,INTENT=%s,S_LEFT=%ld,S_RIGHT=%ld,CONF=%ld,trained=%d\r\n",
+                                 (unsigned)seq,
+                                 (unsigned long)s_result_window,
+                                 (unsigned int)DIR_RESULT_DT_MS,
+                                 (unsigned int)DIR_DECISION_ROWS,
+                                 pred_str,
+                                 (long)v5f_score_l,
+                                 (long)v5f_score_r,
+                                 (long)v5f_conf,
+                                 (int)v5f_trained);
+                        Serial_Printf(SERIAL_PORT_DEBUG, "%s", result_buf);
+                        Serial_Printf(SERIAL_PORT_WIFI, "%s", result_buf);
+                        Retry_Store(result_buf);
                         s_result_window++;
                     }
                 }

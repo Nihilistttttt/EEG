@@ -30,34 +30,7 @@
                 android:textStyle="bold"
                 android:textColor="@color/text_secondary" />
 
-            <TextView
-                android:id="@+id/tv_confidence"
-                android:layout_width="wrap_content"
-                android:layout_height="0dp"
-                android:text=""
-                android:textSize="24sp"
-                android:textColor="@color/text_secondary"
-                android:visibility="gone" />
-
-            <ProgressBar
-                android:id="@+id/progress_confidence"
-                style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="400dp"
-                android:layout_height="0dp"
-                android:layout_marginTop="16dp"
-                android:max="100"
-                android:progress="0"
-                android:visibility="gone" />
-
-            <TextView
-                android:id="@+id/tv_model_status"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textSize="16sp"
-                android:textColor="@color/accent_warning"
-                android:paddingTop="12dp" />
-        </LinearLayout>
+         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
     <LinearLayout

@@ -17,7 +17,7 @@ import com.google.android.material.button.MaterialButton;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements TcpServerManager.ConnectionListener {
 
     private ViewPager2 viewPager;
     private TcpServerManager tcpServer;
@@ -67,6 +67,7 @@ public class MainActivity extends AppCompatActivity {
 
         tcpServer = TcpServerManager.getInstance();
         tcpServer.start();
+        tcpServer.addConnectionListener(this);
 
         MaterialButton btnHome = findViewById(R.id.btn_home);
         btnHome.setOnClickListener(v -> {
@@ -80,11 +81,16 @@ public class MainActivity extends AppCompatActivity {
             public void onPageSelected(int position) {
                 super.onPageSelected(position);
                 updatePageTitle(position);
+                Log.i("DOCTOR", ">>> onPageSelected: " + position + " -> sending PAGE," + position);
                 TcpServerManager.getInstance().sendToPatient("PAGE," + position);
             }
         });
 
         updatePageTitle(viewPager.getCurrentItem());
+
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            TcpServerManager.getInstance().sendToPatient("PAGE," + viewPager.getCurrentItem());
+        }, 2000);
     }
 
     private void updatePageTitle(int position) {
@@ -103,8 +109,25 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (tcpServer != null) {
-            tcpServer.stop();
+        tcpServer.removeConnectionListener(this);
+
+    }
+
+    @Override
+    public void onDeviceConnected(boolean connected) {}
+
+    @Override
+    public void onPatientConnected(boolean connected) {
+        if (connected) {
+            runOnUiThread(() -> sendCurrentPage());
+        }
+    }
+
+    public void sendCurrentPage() {
+        if (viewPager != null) {
+            int page = viewPager.getCurrentItem();
+            Log.i("DOCTOR", ">>> sendCurrentPage: " + page);
+            TcpServerManager.getInstance().sendToPatient("PAGE," + page);
         }
     }
 }

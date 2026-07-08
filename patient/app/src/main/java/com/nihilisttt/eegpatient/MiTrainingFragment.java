@@ -11,7 +11,6 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
 public class MiTrainingFragment extends Fragment implements DoctorConnector.DataListener {
@@ -22,7 +21,8 @@ public class MiTrainingFragment extends Fragment implements DoctorConnector.Data
     private static final int STATE_MODEL_TRAINING = 3;
 
     private static final int REST_DURATION_MS = 5000;
-    private static final String[] TRIAL_SEQUENCE = {"LEFT", "RIGHT", "LEFT", "RIGHT", "LEFT", "RIGHT"};
+    private static final int MI_TRIAL_DURATION_MS = 4000;
+    private static final String[] TRIAL_SEQUENCE = {"LEFT", "RIGHT", "LEFT", "RIGHT"};
 
     private int currentState = STATE_IDLE;
     private int currentTrialIndex = 0;
@@ -35,6 +35,7 @@ public class MiTrainingFragment extends Fragment implements DoctorConnector.Data
 
     private Handler handler = new Handler(Looper.getMainLooper());
     private long restStartTime;
+    private long trialStartTime;
 
     @Nullable
     @Override
@@ -48,20 +49,10 @@ public class MiTrainingFragment extends Fragment implements DoctorConnector.Data
         tvTrialCount = root.findViewById(R.id.tv_mi_trial_count);
         progressTrial = root.findViewById(R.id.progress_mi_trial);
 
-        View btnStart = root.findViewById(R.id.btn_mi_start_training);
-        View btnStop = root.findViewById(R.id.btn_mi_stop_training);
-        if (btnStart != null) btnStart.setVisibility(View.GONE);
-        if (btnStop != null) btnStop.setVisibility(View.GONE);
-
         tvDirection.setText("运动想象训练");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.training_rest));
         tvHint.setText("训练由医生端控制");
 
         return root;
-    }
-
-    private void sendCmd(String cmd) {
-        DoctorConnector.getInstance().sendCommand(cmd);
     }
 
     private void enterRestPhase() {
@@ -70,7 +61,7 @@ public class MiTrainingFragment extends Fragment implements DoctorConnector.Data
         restStartTime = System.currentTimeMillis();
 
         tvDirection.setText("休息");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.training_rest));
+        tvDirection.setTextColor(0xFF607D8B);
         tvHint.setText("放松，准备下一个想象任务");
         tvTrialCount.setText("试次 " + (currentTrialIndex + 1) + " / " + TRIAL_SEQUENCE.length);
         progressTrial.setMax(REST_DURATION_MS / 100);
@@ -86,32 +77,37 @@ public class MiTrainingFragment extends Fragment implements DoctorConnector.Data
         tvHint.setText("放松，" + remaining + " 秒后开始");
         progressTrial.setProgress((int) (elapsed / 100));
         if (elapsed >= REST_DURATION_MS) {
-            sendNextTrial();
+            progressTrial.setProgress(progressTrial.getMax());
         } else {
             handler.postDelayed(this::updateRestTimer, 100);
-        }
-    }
-
-    private void sendNextTrial() {
-        if (!isTraining) return;
-        if (currentTrialIndex < TRIAL_SEQUENCE.length) {
-            String side = TRIAL_SEQUENCE[currentTrialIndex];
-            sendCmd("TRIAL," + side);
         }
     }
 
     private void handleTaskStart(String side) {
         if (!isTraining) return;
         currentState = STATE_TRIAL_ACTIVE;
+        trialStartTime = System.currentTimeMillis();
         boolean isLeft = "LEFT".equals(side);
 
-        tvDirection.setText(isLeft ? "← 想象左手" : "想象右手 →");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(),
-                isLeft ? R.color.direction_left : R.color.direction_right));
-        tvHint.setText("运动想象（" + side + "）");
+        tvDirection.setText(isLeft ? "←" : "→");
+        tvDirection.setTextColor(isLeft ? 0xFF1565C0 : 0xFFE65100);
+        tvHint.setText(isLeft ? "想象左手" : "想象右手");
         tvTrialCount.setText("试次 " + (currentTrialIndex + 1) + " / " + TRIAL_SEQUENCE.length);
-        progressTrial.setMax(100);
+        progressTrial.setMax(MI_TRIAL_DURATION_MS / 100);
         progressTrial.setProgress(0);
+
+        updateTrialTimer();
+    }
+
+    private void updateTrialTimer() {
+        if (!isTraining || currentState != STATE_TRIAL_ACTIVE) return;
+        long elapsed = System.currentTimeMillis() - trialStartTime;
+        progressTrial.setProgress((int) (elapsed / 100));
+        if (elapsed >= MI_TRIAL_DURATION_MS) {
+            progressTrial.setProgress(progressTrial.getMax());
+        } else {
+            handler.postDelayed(this::updateTrialTimer, 100);
+        }
     }
 
     private void handleTaskDone() {
@@ -121,19 +117,17 @@ public class MiTrainingFragment extends Fragment implements DoctorConnector.Data
         if (currentTrialIndex < TRIAL_SEQUENCE.length) {
             enterRestPhase();
         } else {
-            startModelTraining();
+            trainingComplete();
         }
     }
 
     private void startModelTraining() {
         currentState = STATE_MODEL_TRAINING;
-        tvDirection.setText("训练模型");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_info));
+        tvDirection.setText("训练中");
+        tvDirection.setTextColor(0xFF40C4FF);
         tvHint.setText("正在训练模型，请稍候...");
         tvTrialCount.setText("");
         progressTrial.setIndeterminate(true);
-
-        sendCmd("MODE,TRAIN");
     }
 
     private void handleReadyTrain() {
@@ -146,14 +140,15 @@ public class MiTrainingFragment extends Fragment implements DoctorConnector.Data
 
     private void handleReadyTest() {
         if (!isTraining || currentState != STATE_MODEL_TRAINING) return;
-        sendCmd("MODE,TEST");
         trainingComplete();
     }
 
     private void trainingComplete() {
         isTraining = false;
+        currentState = STATE_IDLE;
+        handler.removeCallbacksAndMessages(null);
         tvDirection.setText("训练完成");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_success));
+        tvDirection.setTextColor(0xFF00C853);
         tvHint.setText("可以前往方向识别页面测试");
         tvTrialCount.setText("");
         progressTrial.setIndeterminate(false);
@@ -210,7 +205,7 @@ public class MiTrainingFragment extends Fragment implements DoctorConnector.Data
     public void onModeSetOk(int mode) {
         handler.post(() -> {
             if (!isTraining) return;
-            if (mode == 1) sendCmd("MODE,TRAIN");
+            if (mode == 1) startModelTraining();
         });
     }
 

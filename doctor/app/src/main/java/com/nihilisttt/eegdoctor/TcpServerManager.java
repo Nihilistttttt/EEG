@@ -148,14 +148,16 @@ public class TcpServerManager {
                 Log.i("TCP", "Doctor-to-patient cmd server started on port " + DOCTOR_TO_PATIENT_PORT);
                 while (running) {
                     Socket client = d2pServer.accept();
-                    Log.i("TCP", "Doctor-to-patient client connected: " + client.getRemoteSocketAddress());
+                    Log.i("DOCTOR", ">>> Patient D2P connected: " + client.getRemoteSocketAddress());
                     doctorToPatientClient = client;
                     notifyPatientConnected(true);
                     new Thread(() -> {
+
                         try {
                             client.getInputStream().read();
                         } catch (IOException ignored) {
                         } finally {
+                            Log.w("DOCTOR", ">>> Patient D2P disconnected");
                             doctorToPatientClient = null;
                             notifyPatientConnected(false);
                         }
@@ -440,6 +442,7 @@ public class TcpServerManager {
         if (deviceClient == null || deviceClient.isClosed() || !deviceClient.isConnected()) {
             Log.w("TCP", "Cannot send to device (not connected): [" + command + "]");
             return;
+
         }
         try {
             byte[] data = (command + "\n").getBytes("UTF-8");
@@ -525,17 +528,114 @@ public class TcpServerManager {
         sendV2FrameToDevice((byte) 0xF0, trimmed);
     }
 
+    // ========== V2帧下行发送（Android→ESP8266，无CRC） ==========
+    // 格式: 0x7E [VER=0x01] [CMD] [LEN_LO] [LEN_HI] [PAYLOAD] 0x7E
+    private static final byte V2_FRAME_CHAR = 0x7E;
+    private static final byte V2_ESCAPE_CHAR = 0x7D;
+    private static final byte V2_ESCAPE_XOR = 0x20;
+
+    public void sendV2FrameToDevice(byte cmd, byte[] payload) {
+        if (deviceClient == null || deviceClient.isClosed() || !deviceClient.isConnected()) {
+            Log.w("TCP", "Cannot send v2 frame (not connected)");
+            return;
+        }
+        try {
+            byte[] frame = packV2Frame(cmd, payload);
+            sendQueue.offer(frame);
+            Log.i("TCP", "Queued v2 frame: cmd=0x" + String.format("%02X", cmd) + " len=" + payload.length);
+        } catch (Exception e) {
+            Log.e("TCP", "Failed to queue v2 frame", e);
+        }
+    }
+
+    private static byte[] packV2Frame(byte cmd, byte[] payload) {
+        int payLen = payload.length;
+        byte[] buf = new byte[2 + 4 * 2 + payLen * 2 + 2];
+        int idx = 0;
+        buf[idx++] = V2_FRAME_CHAR;
+        idx = v2EscapeWrite(buf, idx, (byte) 0x01);
+        idx = v2EscapeWrite(buf, idx, cmd);
+        idx = v2EscapeWrite(buf, idx, (byte) (payLen & 0xFF));
+        idx = v2EscapeWrite(buf, idx, (byte) ((payLen >> 8) & 0xFF));
+        for (byte b : payload) idx = v2EscapeWrite(buf, idx, b);
+        buf[idx++] = V2_FRAME_CHAR;
+        byte[] result = new byte[idx];
+        System.arraycopy(buf, 0, result, 0, idx);
+        return result;
+    }
+
+    private static int v2EscapeWrite(byte[] buf, int idx, byte b) {
+        if ((b & 0xFF) == (V2_FRAME_CHAR & 0xFF) || (b & 0xFF) == (V2_ESCAPE_CHAR & 0xFF)) {
+            buf[idx++] = V2_ESCAPE_CHAR;
+            buf[idx++] = (byte) ((b & 0xFF) ^ (V2_ESCAPE_XOR & 0xFF));
+        } else {
+            buf[idx++] = b;
+        }
+        return idx;
+    }
+
+    public void sendWifiAdd(String ssid, String password) {
+        byte[] ssidBytes = ssid.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] pwdBytes = password.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] payload = new byte[2 + ssidBytes.length + 1 + pwdBytes.length + 1];
+        int off = 0;
+        payload[off++] = (byte) 0xF0;
+        payload[off++] = 0x01;
+        System.arraycopy(ssidBytes, 0, payload, off, ssidBytes.length); off += ssidBytes.length;
+        payload[off++] = 0;
+        System.arraycopy(pwdBytes, 0, payload, off, pwdBytes.length); off += pwdBytes.length;
+        payload[off++] = 0;
+        byte[] trimmed = new byte[off];
+        System.arraycopy(payload, 0, trimmed, 0, off);
+        sendV2FrameToDevice((byte) 0xF0, trimmed);
+    }
+
+    public void sendWifiDelete(String ssid) {
+        byte[] ssidBytes = ssid.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] payload = new byte[2 + ssidBytes.length + 1];
+        int off = 0;
+        payload[off++] = (byte) 0xF0;
+        payload[off++] = 0x02;
+        System.arraycopy(ssidBytes, 0, payload, off, ssidBytes.length); off += ssidBytes.length;
+        payload[off++] = 0;
+        byte[] trimmed = new byte[off];
+        System.arraycopy(payload, 0, trimmed, 0, off);
+        sendV2FrameToDevice((byte) 0xF0, trimmed);
+    }
+
     public void sendToPatient(String command) {
+        Log.i("DOCTOR", ">>> sendToPatient: [" + command + "]");
+        sendToPatientViaD2p(command);
+        sendToPatientViaData(command);
+    }
+
+    private void sendToPatientViaD2p(String command) {
         if (doctorToPatientClient != null && !doctorToPatientClient.isClosed()
                 && doctorToPatientClient.isConnected()) {
             try {
                 OutputStream os = doctorToPatientClient.getOutputStream();
                 os.write((command + "\n").getBytes("UTF-8"));
                 os.flush();
-                Log.i("TCP", "Sent to patient: " + command);
+                Log.i("DOCTOR", ">>> D2P OK: [" + command + "]");
             } catch (Exception e) {
-                Log.e("TCP", "Failed to send to patient: " + e.getMessage());
+                Log.e("DOCTOR", ">>> D2P FAIL: [" + command + "] " + e.getMessage());
             }
+        } else {
+            Log.w("DOCTOR", ">>> D2P SKIP (no patient connected)");
+        }
+    }
+
+    public void sendToPatientViaData(String command) {
+        if (patientDataManager != null) {
+            try {
+                byte[] data = (command + "\n").getBytes("UTF-8");
+                patientDataManager.broadcast(data);
+                Log.i("DOCTOR", ">>> DATA OK: [" + command + "]");
+            } catch (Exception e) {
+                Log.e("DOCTOR", ">>> DATA FAIL: [" + command + "] " + e.getMessage());
+            }
+        } else {
+            Log.w("DOCTOR", ">>> DATA SKIP (patientDataManager null)");
         }
     }
 

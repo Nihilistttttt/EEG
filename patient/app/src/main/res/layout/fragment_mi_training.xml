@@ -1,90 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@color/surface_base"
-    android:padding="12dp">
+    android:background="#FF000000">
 
-    <com.google.android.material.card.MaterialCardView
+    <TextView
+        android:id="@+id/tv_mi_direction"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        app:cardElevation="2dp"
-        app:cardCornerRadius="12dp"
-        app:cardBackgroundColor="@color/surface_low">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:gravity="center">
-
-            <TextView
-                android:id="@+id/tv_mi_direction"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="运动想象训练"
-                android:textSize="80sp"
-                android:textStyle="bold"
-                android:textColor="@color/training_rest" />
-
-            <TextView
-                android:id="@+id/tv_mi_hint"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="训练由医生端控制"
-                android:textSize="18sp"
-                android:textColor="@color/text_secondary"
-                android:paddingTop="12dp" />
-
-            <ProgressBar
-                android:id="@+id/progress_mi_trial"
-                style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="400dp"
-                android:layout_height="16dp"
-                android:layout_marginTop="24dp"
-                android:max="100"
-                android:progress="0" />
-
-            <TextView
-                android:id="@+id/tv_mi_trial_count"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textSize="16sp"
-                android:textColor="@color/text_secondary"
-                android:paddingTop="8dp" />
-        </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:text="运动想象训练"
+        android:textSize="160sp"
+        android:textStyle="bold"
+        android:textColor="#FF607D8B" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingTop="12dp"
-        android:gravity="center"
-        android:visibility="gone">
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:gravity="center">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_mi_start_training"
-            android:layout_width="0dp"
-            android:layout_height="56dp"
-            android:layout_weight="1"
-            android:layout_marginEnd="4dp"
-            android:text="开始MI训练"
-            android:textSize="16sp" />
+        <TextView
+            android:id="@+id/tv_mi_hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="训练由医生端控制"
+            android:textSize="20sp"
+            android:textColor="#FFAAAAAA"
+            android:paddingBottom="4dp" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_mi_stop_training"
-            android:layout_width="0dp"
-            android:layout_height="56dp"
-            android:layout_weight="1"
-            android:layout_marginStart="4dp"
-            android:text="停止"
+        <ProgressBar
+            android:id="@+id/progress_mi_trial"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="300dp"
+            android:layout_height="8dp"
+            android:max="100"
+            android:progress="0" />
+
+        <TextView
+            android:id="@+id/tv_mi_trial_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
             android:textSize="16sp"
-            android:enabled="false" />
+            android:textColor="#FFAAAAAA"
+            android:paddingTop="4dp" />
     </LinearLayout>
 
-</LinearLayout>
+</FrameLayout>

@@ -3,6 +3,7 @@ package com.nihilisttt.eegdoctor;
 import com.nihilisttt.eegdoctor.R;
 
 import android.content.Intent;
+import android.util.Log;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -11,13 +12,16 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
-public class HomeActivity extends AppCompatActivity {
+public class HomeActivity extends AppCompatActivity implements TcpServerManager.ConnectionListener {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (getSupportActionBar() != null) getSupportActionBar().hide();
         setContentView(R.layout.activity_home);
+
+        TcpServerManager.getInstance().start();
+        TcpServerManager.getInstance().addConnectionListener(this);
 
         findViewById(R.id.card_realtime).setOnClickListener(v -> launchMonitor(0));
         findViewById(R.id.card_focus).setOnClickListener(v -> launchMonitor(1));
@@ -30,9 +34,26 @@ public class HomeActivity extends AppCompatActivity {
         findViewById(R.id.card_system_config).setOnClickListener(v -> launchMonitor(8));
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        TcpServerManager.getInstance().removeConnectionListener(this);
+    }
+
     private void launchMonitor(int page) {
         Intent intent = new Intent(this, MainActivity.class);
         intent.putExtra("initial_page", page);
         startActivity(intent);
+    }
+
+    @Override
+    public void onDeviceConnected(boolean connected) {}
+
+    @Override
+    public void onPatientConnected(boolean connected) {
+        if (connected) {
+            Log.i("DOCTOR", ">>> HomeActivity: patient connected, sending PAGE,0");
+            TcpServerManager.getInstance().sendToPatient("PAGE,0");
+        }
     }
 }

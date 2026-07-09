@@ -26,8 +26,14 @@ int main(void)
 
     Serial_Printf(SERIAL_PORT_DEBUG, "\r\n[V3F] boot\r\n");
     Serial_Printf(SERIAL_PORT_DEBUG, "[V3F] SystemCoreClk:%d\r\n", SystemCoreClock);
-
-    {
+    // Serial_Printf(SERIAL_PORT_DEBUG,
+    //     "CLKDBG,CTLR=0x%08lX,CFGR0=0x%08lX,PLLCFGR=0x%08lX,PLLCFGR2=0x%08lX,SWS=0x%02lX\r\n",
+    //     (unsigned long)RCC->CTLR,
+    //     (unsigned long)RCC->CFGR0,
+    //     (unsigned long)RCC->PLLCFGR,
+    //     (unsigned long)RCC->PLLCFGR2,
+    //     (unsigned long)(RCC->CFGR0 & RCC_SWS));
+    
         uint32_t rst = RCC->RSTSCKR;
         Serial_Printf(SERIAL_PORT_DEBUG, "[V3F] RSTSCKR=0x%08lX", (unsigned long)rst);
         if (rst & RCC_LOCKUPRSTF) Serial_Printf(SERIAL_PORT_DEBUG, " LOCKUP");
@@ -38,7 +44,7 @@ int main(void)
         if (rst & RCC_PINRSTF)    Serial_Printf(SERIAL_PORT_DEBUG, " PIN");
         Serial_Printf(SERIAL_PORT_DEBUG, "\r\n");
         RCC->RSTSCKR |= RCC_RMVF;
-    }
+    
     Delay_Ms(200);
 
 #if (Run_Core == Run_Core_V3FandV5F)

@@ -9,7 +9,49 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ChA"
+            android:textSize="13sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginEnd="4dp" />
+
+        <Spinner
+            android:id="@+id/spinner_ch_a"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="16dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ChB"
+            android:textSize="13sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginEnd="4dp" />
+
+        <Spinner
+            android:id="@+id/spinner_ch_b"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:orientation="horizontal">
 
         <com.google.android.material.card.MaterialCardView
@@ -30,10 +72,11 @@
                 android:padding="4dp">
 
                 <TextView
+                    android:id="@+id/label_raw_a"
                     style="@style/ChannelLabel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Ch0 原始频谱" />
+                    android:text="ChA 原始频谱" />
 
                 <com.nihilisttt.eegdoctor.SpectrumView
                     android:id="@+id/raw_spec_ch0"
@@ -44,24 +87,11 @@
                     app:spectrumColorEnd="@color/spectrum_bar_end" />
 
                 <TextView
+                    android:id="@+id/label_filt_a"
                     style="@style/ChannelLabel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Ch0 频域滤波频谱" />
-
-                <com.nihilisttt.eegdoctor.SpectrumView
-                    android:id="@+id/freq_spec_ch0"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    app:spectrumColor="@color/spectrum_bar"
-                    app:spectrumColorEnd="@color/spectrum_bar_end" />
-
-                <TextView
-                    style="@style/ChannelLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Ch0 时域滤波频谱" />
+                    android:text="ChA 时域滤波频谱" />
 
                 <com.nihilisttt.eegdoctor.SpectrumView
                     android:id="@+id/filt_spec_ch0"
@@ -91,10 +121,11 @@
                 android:padding="4dp">
 
                 <TextView
+                    android:id="@+id/label_raw_b"
                     style="@style/ChannelLabel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Ch1 原始频谱" />
+                    android:text="ChB 原始频谱" />
 
                 <com.nihilisttt.eegdoctor.SpectrumView
                     android:id="@+id/raw_spec_ch1"
@@ -105,24 +136,11 @@
                     app:spectrumColorEnd="@color/spectrum_bar_end" />
 
                 <TextView
+                    android:id="@+id/label_filt_b"
                     style="@style/ChannelLabel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Ch1 频域滤波频谱" />
-
-                <com.nihilisttt.eegdoctor.SpectrumView
-                    android:id="@+id/freq_spec_ch1"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    app:spectrumColor="@color/spectrum_bar"
-                    app:spectrumColorEnd="@color/spectrum_bar_end" />
-
-                <TextView
-                    style="@style/ChannelLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Ch1 时域滤波频谱" />
+                    android:text="ChB 时域滤波频谱" />
 
                 <com.nihilisttt.eegdoctor.SpectrumView
                     android:id="@+id/filt_spec_ch1"

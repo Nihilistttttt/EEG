@@ -9,6 +9,47 @@
 
     <LinearLayout
         android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ChA"
+            android:textSize="13sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginEnd="4dp" />
+
+        <Spinner
+            android:id="@+id/spinner_ch_a"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="16dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ChB"
+            android:textSize="13sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginEnd="4dp" />
+
+        <Spinner
+            android:id="@+id/spinner_ch_b"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:orientation="horizontal">
@@ -31,10 +72,11 @@
                 android:padding="4dp">
 
                 <TextView
+                    android:id="@+id/label_raw_a"
                     style="@style/ChannelLabel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Ch0 原始波形" />
+                    android:text="ChA 原始波形" />
 
                 <com.nihilisttt.eegdoctor.WaveformView
                     android:id="@+id/raw_wave_ch0"
@@ -45,10 +87,11 @@
                     app:channelIndex="0" />
 
                 <TextView
+                    android:id="@+id/label_filt_a"
                     style="@style/ChannelLabel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Ch0 时域滤波波形" />
+                    android:text="ChA 时域滤波波形" />
 
                 <com.nihilisttt.eegdoctor.WaveformView
                     android:id="@+id/filt_wave_ch0"
@@ -78,10 +121,11 @@
                 android:padding="4dp">
 
                 <TextView
+                    android:id="@+id/label_raw_b"
                     style="@style/ChannelLabel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Ch1 原始波形" />
+                    android:text="ChB 原始波形" />
 
                 <com.nihilisttt.eegdoctor.WaveformView
                     android:id="@+id/raw_wave_ch1"
@@ -92,10 +136,11 @@
                     app:channelIndex="1" />
 
                 <TextView
+                    android:id="@+id/label_filt_b"
                     style="@style/ChannelLabel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Ch1 时域滤波波形" />
+                    android:text="ChB 时域滤波波形" />
 
                 <com.nihilisttt.eegdoctor.WaveformView
                     android:id="@+id/filt_wave_ch1"

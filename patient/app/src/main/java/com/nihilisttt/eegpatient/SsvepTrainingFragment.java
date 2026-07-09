@@ -11,16 +11,14 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
 public class SsvepTrainingFragment extends Fragment implements DoctorConnector.DataListener {
 
     private static final int STATE_IDLE = 0;
-    private static final int STATE_WAIT_READY = 1;
-    private static final int STATE_REST = 2;
-    private static final int STATE_TRIAL_ACTIVE = 3;
-    private static final int STATE_MODEL_TRAINING = 4;
+    private static final int STATE_REST = 1;
+    private static final int STATE_TRIAL_ACTIVE = 2;
+    private static final int STATE_MODEL_TRAINING = 3;
 
     private static final int REST_DURATION_MS = 3000;
     private static final int SSVEP_FREQ_LEFT_HZ = 8;
@@ -66,36 +64,11 @@ public class SsvepTrainingFragment extends Fragment implements DoctorConnector.D
         tvSsvepFreq = root.findViewById(R.id.tv_ssvep_freq);
         tvSsvepHint = root.findViewById(R.id.tv_ssvep_hint);
 
-        View btnStart = root.findViewById(R.id.btn_start_training);
-        View btnStop = root.findViewById(R.id.btn_stop_training);
-        if (btnStart != null) btnStart.setVisibility(View.GONE);
-        if (btnStop != null) btnStop.setVisibility(View.GONE);
-
         showIdleLayout();
         tvDirection.setText("等待指令");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.training_rest));
         tvHint.setText("训练由医生端控制");
 
         return root;
-    }
-
-    private void sendCmd(String cmd) {
-        DoctorConnector.getInstance().sendCommand(cmd);
-    }
-
-    private void startTraining() {
-        if (isTraining) return;
-        isTraining = true;
-        currentTrialIndex = 0;
-
-        showIdleLayout();
-        tvDirection.setText("启动中...");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_info));
-        tvHint.setText("等待下位机就绪");
-        tvTrialCount.setText("");
-        progressTrial.setProgress(0);
-
-        sendCmd("MODE,SET,1");
     }
 
     private void enterRestPhase() {
@@ -105,7 +78,7 @@ public class SsvepTrainingFragment extends Fragment implements DoctorConnector.D
 
         showIdleLayout();
         tvDirection.setText("休息");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.training_rest));
+        tvDirection.setTextColor(0xFF607D8B);
         tvHint.setText("放松，准备注视下一个刺激");
         tvTrialCount.setText("试次 " + (currentTrialIndex + 1) + " / " + TRIAL_SEQUENCE.length);
         progressTrial.setMax(REST_DURATION_MS / 100);
@@ -121,19 +94,9 @@ public class SsvepTrainingFragment extends Fragment implements DoctorConnector.D
         tvHint.setText("放松，" + remaining + " 秒后开始");
         progressTrial.setProgress((int) (elapsed / 100));
         if (elapsed >= REST_DURATION_MS) {
-            sendNextTrial();
+            progressTrial.setProgress(progressTrial.getMax());
         } else {
             handler.postDelayed(this::updateRestTimer, 100);
-        }
-    }
-
-    private void sendNextTrial() {
-        if (!isTraining) return;
-        if (currentTrialIndex < TRIAL_SEQUENCE.length) {
-            String side = TRIAL_SEQUENCE[currentTrialIndex];
-            sendCmd("TRIAL," + side);
-            tvDirection.setText("发送 " + side + " 试次...");
-            tvHint.setText("等待下位机确认");
         }
     }
 
@@ -144,8 +107,7 @@ public class SsvepTrainingFragment extends Fragment implements DoctorConnector.D
 
         showSsvepLayout();
         tvSsvepArrow.setText(isLeft ? "←" : "→");
-        tvSsvepArrow.setTextColor(ContextCompat.getColor(requireContext(),
-                isLeft ? R.color.direction_left : R.color.direction_right));
+        tvSsvepArrow.setTextColor(isLeft ? 0xFF1565C0 : 0xFFE65100);
 
         int freqHz = isLeft ? SSVEP_FREQ_LEFT_HZ : SSVEP_FREQ_RIGHT_HZ;
         tvSsvepFreq.setText(freqHz + " Hz");
@@ -173,13 +135,11 @@ public class SsvepTrainingFragment extends Fragment implements DoctorConnector.D
     private void startModelTraining() {
         currentState = STATE_MODEL_TRAINING;
         showIdleLayout();
-        tvDirection.setText("训练模型");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_info));
+        tvDirection.setText("训练中");
+        tvDirection.setTextColor(0xFF40C4FF);
         tvHint.setText("正在训练模型，请稍候...");
         tvTrialCount.setText("");
         progressTrial.setIndeterminate(true);
-
-        sendCmd("MODE,TRAIN");
     }
 
     private void handleReadyTrain() {
@@ -192,22 +152,14 @@ public class SsvepTrainingFragment extends Fragment implements DoctorConnector.D
 
     private void handleReadyTest() {
         if (!isTraining || currentState != STATE_MODEL_TRAINING) return;
-        sendCmd("MODE,TEST");
         trainingComplete();
-    }
-
-    private void handleModeSetOk(int mode) {
-        if (!isTraining) return;
-        if (mode == 1) {
-            sendCmd("MODE,TRAIN");
-        }
     }
 
     private void trainingComplete() {
         isTraining = false;
         showIdleLayout();
         tvDirection.setText("训练完成");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_success));
+        tvDirection.setTextColor(0xFF00C853);
         tvHint.setText("可以前往方向识别页面测试");
         tvTrialCount.setText("");
         progressTrial.setIndeterminate(false);
@@ -300,7 +252,10 @@ public class SsvepTrainingFragment extends Fragment implements DoctorConnector.D
 
     @Override
     public void onModeSetOk(int mode) {
-        handler.post(() -> handleModeSetOk(mode));
+        handler.post(() -> {
+            if (!isTraining) return;
+            if (mode == 1) startModelTraining();
+        });
     }
 
     @Override public void onPageSwitch(int page) {}

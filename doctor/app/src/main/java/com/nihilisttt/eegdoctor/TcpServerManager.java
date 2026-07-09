@@ -47,7 +47,8 @@ public class TcpServerManager {
 
     private final CopyOnWriteArrayList<ConnectionListener> connectionListeners = new CopyOnWriteArrayList<>();
 
-
+    private final AtomicBoolean pongReceived = new AtomicBoolean(false);
+    private Thread heartbeatThread;
     private Thread senderThread;
     private final BlockingQueue<byte[]> sendQueue = new ArrayBlockingQueue<>(256);
 
@@ -147,14 +148,16 @@ public class TcpServerManager {
                 Log.i("TCP", "Doctor-to-patient cmd server started on port " + DOCTOR_TO_PATIENT_PORT);
                 while (running) {
                     Socket client = d2pServer.accept();
-                    Log.i("TCP", "Doctor-to-patient client connected: " + client.getRemoteSocketAddress());
+                    Log.i("DOCTOR", ">>> Patient D2P connected: " + client.getRemoteSocketAddress());
                     doctorToPatientClient = client;
                     notifyPatientConnected(true);
                     new Thread(() -> {
+
                         try {
                             client.getInputStream().read();
                         } catch (IOException ignored) {
                         } finally {
+                            Log.w("DOCTOR", ">>> Patient D2P disconnected");
                             doctorToPatientClient = null;
                             notifyPatientConnected(false);
                         }
@@ -209,10 +212,41 @@ public class TcpServerManager {
     }
 
     private void startHeartbeat() {
+        stopHeartbeat();
         startSender();
+        heartbeatThread = new Thread(() -> {
+            Log.i("HEARTBEAT", "Heartbeat thread started");
+            while (!Thread.currentThread().isInterrupted() && running) {
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    break;
+                }
+                if (!isDeviceConnected()) continue;
+                pongReceived.set(false);
+                sendToDevice("PING");
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    break;
+                }
+                if (!pongReceived.get()) {
+                    Log.w("HEARTBEAT", "PONG not received! ESP8266 may not be responding to PING");
+                } else {
+                    Log.i("HEARTBEAT", "Heartbeat OK");
+                }
+            }
+            Log.i("HEARTBEAT", "Heartbeat thread stopped");
+        });
+        heartbeatThread.setDaemon(true);
+        heartbeatThread.start();
     }
 
     private void stopHeartbeat() {
+        if (heartbeatThread != null) {
+            heartbeatThread.interrupt();
+            heartbeatThread = null;
+        }
         stopSender();
     }
 
@@ -494,16 +528,38 @@ public class TcpServerManager {
     }
 
     public void sendToPatient(String command) {
+        Log.i("DOCTOR", ">>> sendToPatient: [" + command + "]");
+        sendToPatientViaD2p(command);
+        sendToPatientViaData(command);
+    }
+
+    private void sendToPatientViaD2p(String command) {
         if (doctorToPatientClient != null && !doctorToPatientClient.isClosed()
                 && doctorToPatientClient.isConnected()) {
             try {
                 OutputStream os = doctorToPatientClient.getOutputStream();
                 os.write((command + "\n").getBytes("UTF-8"));
                 os.flush();
-                Log.i("TCP", "Sent to patient: " + command);
+                Log.i("DOCTOR", ">>> D2P OK: [" + command + "]");
             } catch (Exception e) {
-                Log.e("TCP", "Failed to send to patient: " + e.getMessage());
+                Log.e("DOCTOR", ">>> D2P FAIL: [" + command + "] " + e.getMessage());
             }
+        } else {
+            Log.w("DOCTOR", ">>> D2P SKIP (no patient connected)");
+        }
+    }
+
+    public void sendToPatientViaData(String command) {
+        if (patientDataManager != null) {
+            try {
+                byte[] data = (command + "\n").getBytes("UTF-8");
+                patientDataManager.broadcast(data);
+                Log.i("DOCTOR", ">>> DATA OK: [" + command + "]");
+            } catch (Exception e) {
+                Log.e("DOCTOR", ">>> DATA FAIL: [" + command + "] " + e.getMessage());
+            }
+        } else {
+            Log.w("DOCTOR", ">>> DATA SKIP (patientDataManager null)");
         }
     }
 
@@ -546,7 +602,12 @@ public class TcpServerManager {
                 totalPacketsRead.addAndGet(1);
 
                 String peek = new String(buf, 0, len, "UTF-8");
+                if (peek.contains("PONG")) {
+                    pongReceived.set(true);
+                    Log.i("HEARTBEAT", "PONG received from ESP8266");
+                }
                 parseMcuTextResponses(peek);
+
 
                 byte[] copy = new byte[len];
                 System.arraycopy(buf, 0, copy, 0, len);
@@ -789,6 +850,14 @@ public class TcpServerManager {
                     dispatcher.postWaveData(cmd, ch0, ch1);
                     udpSender.sendWaveData(ch0, ch1);
                 }
+            } else if (cmd == 0x20 || cmd == 0x21) {
+                if (loadLen == 32) {
+                    valid = true;
+                    ByteBuffer buf = ByteBuffer.wrap(payload, 1, 32).order(ByteOrder.LITTLE_ENDIAN);
+                    float[] ch = new float[8];
+                    for (int i = 0; i < 8; i++) ch[i] = buf.getFloat();
+                    dispatcher.postWaveData8ch(cmd, ch);
+                }
             } else if (cmd == 0x05) {
                 if (loadLen == 18) {
                     valid = true;
@@ -798,8 +867,7 @@ public class TcpServerManager {
                     int instant = payload[1 + 17] & 0xFF;
                     dispatcher.postFocusData(a0, a1, e0, e1, trend, instant);
                 }
-            } else if (cmd == 0x02 || cmd == 0x03 || cmd == 0x06 ||
-                    cmd == 0x07 || cmd == 0x08 || cmd == 0x09) {
+            } else if (isSpectrumCmd(cmd)) {
                 if (loadLen >= 2) {
                     int fragIdx = payload[1] & 0xFF;
                     int totalFrags = payload[2] & 0xFF;
@@ -823,6 +891,13 @@ public class TcpServerManager {
             } else {
                 framesParsed.incrementAndGet();
             }
+        }
+
+        private boolean isSpectrumCmd(int cmd) {
+            return (cmd >= 0x02 && cmd <= 0x03)
+                || (cmd >= 0x06 && cmd <= 0x09)
+                || (cmd >= 0x30 && cmd <= 0x37)
+                || (cmd >= 0x38 && cmd <= 0x3F);
         }
 
         private int textLineLogCounter = 0;

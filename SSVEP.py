@@ -564,7 +564,7 @@ def gain_adjust_thread():
 # 集成全屏窗口：刺激 + FBCCA 结果显示
 # ============================================================
 
-def integrated_window():
+def integrated_window(host=None, port=FORWARD_PORT):
     global USER_GAIN
 
     # ---------- 初始化 Pygame（全屏）----------
@@ -590,10 +590,11 @@ def integrated_window():
     current_stim_freq = TARGET_FREQS[current_freq_index]
 
     # ---------- 创建数据队列并启动无线接收线程 ----------
-    host = get_default_gateway()
-    print(f"无线数据接收目标: {host}:{FORWARD_PORT}")
+    if host is None:
+        host = get_default_gateway()
+    print(f"无线数据接收目标: {host}:{port}")
     data_queue = queue.Queue()
-    receiver = DataReceiver(host, FORWARD_PORT, data_queue)
+    receiver = DataReceiver(host, port, data_queue)
     receiver.start()
 
     # ---------- 信号处理组件 ----------
@@ -835,11 +836,18 @@ def integrated_window():
 # ============================================================
 
 def main():
+    import argparse
+    ap = argparse.ArgumentParser(description="SSVEP + FBCCA 系统")
+    ap.add_argument("--host", default=None, help="Android医生端IP地址（默认自动获取网关）")
+    ap.add_argument("--port", type=int, default=FORWARD_PORT, help="转发端口（默认41003）")
+    args = ap.parse_args()
+
+    host = args.host or get_default_gateway()
     print("\n无线版全屏 SSVEP + FBCCA 系统")
     print(f"目标频率: {TARGET_FREQS}")
     print("使用 UP/DOWN 键切换刺激频率，ESC 退出")
-    print("正在自动获取网关并连接无线设备...")
-    integrated_window()
+    print(f"连接目标: {host}:{args.port}")
+    integrated_window(host=host, port=args.port)
 
 
 if __name__ == "__main__":

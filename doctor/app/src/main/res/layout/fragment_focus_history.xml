@@ -59,7 +59,8 @@
                 android:text="专注度: --"
                 android:textColor="@color/focus_line"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/tv_relax_info"
@@ -69,7 +70,8 @@
                 android:text="放松度: --"
                 android:textColor="@color/accent_info"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/tv_instant_info"
@@ -79,7 +81,8 @@
                 android:text="瞬时: --"
                 android:textSize="11sp"
                 android:textStyle="bold"
-                android:textColor="@color/text_primary" />
+                android:textColor="@color/text_primary"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/tv_trend_info"
@@ -89,7 +92,8 @@
                 android:text="趋势: --"
                 android:textSize="11sp"
                 android:textStyle="bold"
-                android:textColor="@color/text_primary" />
+                android:textColor="@color/text_primary"
+                android:visibility="gone" />
 
             <View
                 android:layout_width="0dp"

@@ -4,7 +4,6 @@ import com.nihilisttt.eegdoctor.R;
 
 import android.app.AlertDialog;
 import android.content.Context;
-import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -16,6 +15,7 @@ import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.AdapterView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -34,34 +34,59 @@ public class MonitorFragment extends Fragment implements DataListener {
     private static final String DEFAULT_STEP_UNIT = "uV";
     private static final int DEFAULT_LABEL_COUNT = 7;
     private static final float DEFAULT_X_MAX = 2.048f;
+    private static final String[] CHANNEL_NAMES = {"F3", "F4", "CP3", "CP4", "C3", "C4", "P3", "P4"};
 
     private final List<ChannelConfig> channels;
-    private final List<WaveformView> waveformViews = new ArrayList<>();
-    private final List<SpectrumView> spectrumViews = new ArrayList<>();
-    private final List<TextView> attnViews = new ArrayList<>();
-    private final List<TextView> relaxViews = new ArrayList<>();
-    private final List<View> signalQualityViews = new ArrayList<>();
+    private WaveformView waveformViewA;
+    private WaveformView waveformViewB;
+    private SpectrumView spectrumViewA;
+    private SpectrumView spectrumViewB;
+    private TextView labelChA;
+    private TextView labelChB;
+    private TextView specLabelA;
+    private TextView specLabelB;
 
     private View statusIndicator;
     private TextView tvStatus;
-    private TextView tvInstantState;
-    private TextView tvTrendState;
     private TextView tvWaveLabelCount;
     private TextView tvWaveRange;
     private TextView tvXRange;
     private TextView tvSpectrumRange;
+    private TextView tvSpectrumMode;
     private TextView btnPauseResume;
+    private Spinner spinnerChA;
+    private Spinner spinnerChB;
     private boolean isPaused = false;
     private int currentLabelCount = DEFAULT_LABEL_COUNT;
     private boolean deviceConnected = false;
     private boolean patientConnected = false;
 
+    private int selectedChA = 2;
+    private int selectedChB = 4;
+    private int spectrumMode = 0;
+
+    private static final int SPECTRUM_MODE_RAW = 0;
+    private static final int SPECTRUM_MODE_FILT = 1;
+
+    private static final int[] RAW_SPECTRUM_CMDS = {
+        0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37
+    };
+    private static final int[] FILT_SPECTRUM_CMDS = {
+        0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F
+    };
+
+    private static final int[] CHANNEL_COLORS = {
+        R.color.wave_ch0, R.color.wave_ch1, R.color.wave_filtered,
+        R.color.focus_line, R.color.spectrum_bar, R.color.accent_info,
+        R.color.accent_success, R.color.accent_warning
+    };
+
     public MonitorFragment() {
-        this.channels = ChannelConfig.getDefaultDualChannel();
+        this.channels = ChannelConfig.getDefault8Channel();
     }
 
     public MonitorFragment(List<ChannelConfig> channels) {
-        this.channels = channels != null ? channels : ChannelConfig.getDefaultDualChannel();
+        this.channels = channels != null ? channels : ChannelConfig.getDefault8Channel();
     }
 
     @Nullable
@@ -76,13 +101,52 @@ public class MonitorFragment extends Fragment implements DataListener {
 
         statusIndicator = root.findViewById(R.id.status_indicator);
         tvStatus = root.findViewById(R.id.tv_status);
-        tvInstantState = root.findViewById(R.id.tv_instant_state);
-        tvTrendState = root.findViewById(R.id.tv_trend_state);
         tvWaveLabelCount = root.findViewById(R.id.tv_wave_label_count);
         tvWaveRange = root.findViewById(R.id.tv_wave_range);
         tvXRange = root.findViewById(R.id.tv_x_range);
         tvSpectrumRange = root.findViewById(R.id.tv_spectrum_range);
+        tvSpectrumMode = root.findViewById(R.id.tv_spectrum_mode);
         btnPauseResume = root.findViewById(R.id.btn_pause_resume);
+
+        ArrayAdapter<String> chAdapter = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_item, CHANNEL_NAMES);
+        chAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
+        spinnerChA = root.findViewById(R.id.spinner_ch_a);
+        spinnerChB = root.findViewById(R.id.spinner_ch_b);
+        spinnerChA.setAdapter(chAdapter);
+        spinnerChB.setAdapter(chAdapter);
+        spinnerChA.setSelection(selectedChA);
+        spinnerChB.setSelection(selectedChB);
+
+        spinnerChA.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (position != selectedChA) {
+                    selectedChA = position;
+                    updateChannelLabels();
+                }
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        spinnerChB.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (position != selectedChB) {
+                    selectedChB = position;
+                    updateChannelLabels();
+                }
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        tvSpectrumMode.setOnClickListener(v -> {
+            spectrumMode = (spectrumMode + 1) % 2;
+            tvSpectrumMode.setText(spectrumMode == SPECTRUM_MODE_RAW ? "原始" : "时域滤波");
+        });
 
         btnPauseResume.setOnClickListener(v -> {
             isPaused = !isPaused;
@@ -114,21 +178,32 @@ public class MonitorFragment extends Fragment implements DataListener {
         return root;
     }
 
+    private void updateChannelLabels() {
+        if (labelChA != null) labelChA.setText(CHANNEL_NAMES[selectedChA]);
+        if (labelChB != null) labelChB.setText(CHANNEL_NAMES[selectedChB]);
+        if (specLabelA != null) specLabelA.setText("频谱 " + CHANNEL_NAMES[selectedChA]);
+        if (specLabelB != null) specLabelB.setText("频谱 " + CHANNEL_NAMES[selectedChB]);
+        if (waveformViewA != null) {
+            waveformViewA.setWaveColor(ContextCompat.getColor(requireContext(), CHANNEL_COLORS[selectedChA]));
+        }
+        if (waveformViewB != null) {
+            waveformViewB.setWaveColor(ContextCompat.getColor(requireContext(), CHANNEL_COLORS[selectedChB]));
+        }
+    }
+
     private void buildChannelViews(LinearLayout container) {
         Context ctx = requireContext();
-        int channelCount = channels.size();
-        boolean hasSpectrum = true;
 
-        for (int i = 0; i < channelCount; i++) {
-            ChannelConfig ch = channels.get(i);
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setWeightSum(4f);
 
-            LinearLayout row = new LinearLayout(ctx);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setWeightSum(hasSpectrum ? 4f : 1f);
+        for (int i = 0; i < 2; i++) {
+            int chIdx = (i == 0) ? selectedChA : selectedChB;
 
             MaterialCardView waveCard = new MaterialCardView(ctx);
             LinearLayout.LayoutParams waveCardParams = new LinearLayout.LayoutParams(
-                    0, LinearLayout.LayoutParams.MATCH_PARENT, hasSpectrum ? 3f : 1f);
+                    0, LinearLayout.LayoutParams.MATCH_PARENT, 3f);
             waveCardParams.setMargins(2, 2, 2, 2);
             waveCard.setLayoutParams(waveCardParams);
             waveCard.setCardElevation(1f);
@@ -151,38 +226,18 @@ public class MonitorFragment extends Fragment implements DataListener {
             LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(6, 6);
             dotParams.setMargins(0, 0, headerPad, 0);
             colorDot.setLayoutParams(dotParams);
-            colorDot.setBackgroundColor(ContextCompat.getColor(ctx, ch.getColorResId()));
+            colorDot.setBackgroundColor(ContextCompat.getColor(ctx, CHANNEL_COLORS[chIdx]));
             headerRow.addView(colorDot);
 
             TextView labelView = new TextView(ctx);
-            labelView.setText(ch.getElectrodeName());
+            labelView.setText(CHANNEL_NAMES[chIdx]);
             labelView.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary));
             labelView.setTextSize(10);
             LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
             labelView.setLayoutParams(labelParams);
             headerRow.addView(labelView);
 
-            TextView attnView = new TextView(ctx);
-            attnView.setText("专注度: --");
-            attnView.setTextColor(ContextCompat.getColor(ctx, R.color.focus_line));
-            attnView.setTextSize(10);
-            headerRow.addView(attnView);
-            attnViews.add(attnView);
-
-            TextView relaxView = new TextView(ctx);
-            relaxView.setText("放松度: --");
-            relaxView.setTextColor(ContextCompat.getColor(ctx, R.color.accent_info));
-            relaxView.setTextSize(10);
-            headerRow.addView(relaxView);
-            relaxViews.add(relaxView);
-
-            View sqView = new View(ctx);
-            LinearLayout.LayoutParams sqParams = new LinearLayout.LayoutParams(20, 4);
-            sqParams.setMargins(headerPad, 0, 0, 0);
-            sqView.setLayoutParams(sqParams);
-            sqView.setBackgroundColor(ContextCompat.getColor(ctx, R.color.accent_success));
-            headerRow.addView(sqView);
-            signalQualityViews.add(sqView);
+            if (i == 0) labelChA = labelView; else labelChB = labelView;
 
             waveInner.addView(headerRow);
 
@@ -191,55 +246,57 @@ public class MonitorFragment extends Fragment implements DataListener {
             LinearLayout.LayoutParams wvParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
             wv.setLayoutParams(wvParams);
-            wv.setWaveColor(ContextCompat.getColor(ctx, ch.getColorResId()));
-            wv.setYRange(ch.getYRange());
-            wv.setUnit(ch.getUnit());
+            wv.setWaveColor(ContextCompat.getColor(ctx, CHANNEL_COLORS[chIdx]));
+            wv.setYRange(0.5f);
+            wv.setUnit("uV");
             waveInner.addView(wv);
-            waveformViews.add(wv);
+
+            if (i == 0) waveformViewA = wv; else waveformViewB = wv;
 
             waveCard.addView(waveInner);
             row.addView(waveCard);
 
-            if (hasSpectrum) {
-                MaterialCardView specCard = new MaterialCardView(ctx);
-                LinearLayout.LayoutParams specCardParams = new LinearLayout.LayoutParams(
-                        0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
-                specCardParams.setMargins(2, 2, 2, 2);
-                specCard.setLayoutParams(specCardParams);
-                specCard.setCardElevation(1f);
-                specCard.setRadius(6f);
-                specCard.setCardBackgroundColor(ContextCompat.getColor(ctx, R.color.surface_low));
-                specCard.setStrokeColor(ContextCompat.getColor(ctx, R.color.surface_overlay));
-                specCard.setStrokeWidth(1);
+            MaterialCardView specCard = new MaterialCardView(ctx);
+            LinearLayout.LayoutParams specCardParams = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
+            specCardParams.setMargins(2, 2, 2, 2);
+            specCard.setLayoutParams(specCardParams);
+            specCard.setCardElevation(1f);
+            specCard.setRadius(6f);
+            specCard.setCardBackgroundColor(ContextCompat.getColor(ctx, R.color.surface_low));
+            specCard.setStrokeColor(ContextCompat.getColor(ctx, R.color.surface_overlay));
+            specCard.setStrokeWidth(1);
 
-                LinearLayout specInner = new LinearLayout(ctx);
-                specInner.setOrientation(LinearLayout.VERTICAL);
+            LinearLayout specInner = new LinearLayout(ctx);
+            specInner.setOrientation(LinearLayout.VERTICAL);
 
-                TextView specLabel = new TextView(ctx);
-                specLabel.setText("频谱 " + ch.getLabel());
-                specLabel.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary));
-                specLabel.setTextSize(10);
-                specLabel.setBackgroundColor(ContextCompat.getColor(ctx, R.color.surface_mid));
-                int slp = (int) (8 * getResources().getDisplayMetrics().density);
-                specLabel.setPadding(slp, 0, 0, 0);
-                specInner.addView(specLabel);
+            TextView specLabel = new TextView(ctx);
+            specLabel.setText("频谱 " + CHANNEL_NAMES[chIdx]);
+            specLabel.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary));
+            specLabel.setTextSize(10);
+            specLabel.setBackgroundColor(ContextCompat.getColor(ctx, R.color.surface_mid));
+            int slp = (int) (8 * getResources().getDisplayMetrics().density);
+            specLabel.setPadding(slp, 0, 0, 0);
+            specInner.addView(specLabel);
 
-                SpectrumView sv = new SpectrumView(ctx, null);
-                sv.setId(View.generateViewId());
-                LinearLayout.LayoutParams svParams = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-                sv.setLayoutParams(svParams);
-                specInner.addView(sv);
-                spectrumViews.add(sv);
+            if (i == 0) specLabelA = specLabel; else specLabelB = specLabel;
 
-                specCard.addView(specInner);
-                row.addView(specCard);
-            }
-
-            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+            SpectrumView sv = new SpectrumView(ctx, null);
+            sv.setId(View.generateViewId());
+            LinearLayout.LayoutParams svParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-            container.addView(row, rowParams);
+            sv.setLayoutParams(svParams);
+            specInner.addView(sv);
+
+            if (i == 0) spectrumViewA = sv; else spectrumViewB = sv;
+
+            specCard.addView(specInner);
+            row.addView(specCard);
         }
+
+        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT);
+        container.addView(row, rowParams);
     }
 
     private void setupRangeSelectors() {
@@ -263,9 +320,8 @@ public class MonitorFragment extends Fragment implements DataListener {
 
         applyWaveStep(step, stepUnit, labelCount);
         applyXRange(xMax);
-        for (SpectrumView sv : spectrumViews) {
-            sv.setRange(specRange, specUnit);
-        }
+        if (spectrumViewA != null) spectrumViewA.setRange(specRange, specUnit);
+        if (spectrumViewB != null) spectrumViewB.setRange(specRange, specUnit);
     }
 
     private void showLabelCountDialog() {
@@ -301,10 +357,8 @@ public class MonitorFragment extends Fragment implements DataListener {
             default:   stepVolt = step; break;
         }
         float halfRange = stepVolt * ((labelCount - 1) / 2.0f);
-        for (WaveformView wv : waveformViews) {
-            wv.setYRange(halfRange);
-            wv.setUnit(unit);
-        }
+        if (waveformViewA != null) { waveformViewA.setYRange(halfRange); waveformViewA.setUnit(unit); }
+        if (waveformViewB != null) { waveformViewB.setYRange(halfRange); waveformViewB.setUnit(unit); }
     }
 
     private void showWaveRangeDialog() {
@@ -347,7 +401,8 @@ public class MonitorFragment extends Fragment implements DataListener {
     }
 
     private void applyXRange(float xMax) {
-        for (WaveformView wv : waveformViews) { wv.setXMax(xMax); }
+        if (waveformViewA != null) waveformViewA.setXMax(xMax);
+        if (waveformViewB != null) waveformViewB.setXMax(xMax);
         tvXRange.setText(String.format("%.3f s", xMax));
     }
 
@@ -405,7 +460,8 @@ public class MonitorFragment extends Fragment implements DataListener {
                         float value = Float.parseFloat(str);
                         if (value <= 0) return;
                         String unit = (String) unitSpinner.getSelectedItem();
-                        for (SpectrumView sv : spectrumViews) { sv.setRange(value, unit); }
+                        if (spectrumViewA != null) spectrumViewA.setRange(value, unit);
+                        if (spectrumViewB != null) spectrumViewB.setRange(value, unit);
                         tvSpectrumRange.setText((Math.abs(value - Math.round(value)) < 0.001f ? String.format("%.0f", value) : String.format("%.3g", value)) + " " + unit);
                         SettingsStore.setSpecRange(requireContext(), value);
                         SettingsStore.setSpecUnit(requireContext(), unit);
@@ -451,7 +507,7 @@ public class MonitorFragment extends Fragment implements DataListener {
         super.onResume();
         DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
-        Log.d("MonitorFragment", "onResume: listener refreshed, waveViews=" + waveformViews.size());
+        Log.d("MonitorFragment", "onResume: listener refreshed");
     }
 
     @Override
@@ -462,53 +518,42 @@ public class MonitorFragment extends Fragment implements DataListener {
     }
 
     @Override
-    public void onWaveData(int cmd, float ch0, float ch1) {
-        if (cmd == 0x04 && !isPaused) {
-            if (waveformViews.size() > 0 && waveformViews.get(0) != null) waveformViews.get(0).addPoint(ch0);
-            if (waveformViews.size() > 1 && waveformViews.get(1) != null) waveformViews.get(1).addPoint(ch1);
-        }
+    public void onWaveData(int cmd, float ch0, float ch1) {}
+
+    @Override
+    public void onWaveData8ch(int cmd, float[] ch) {
+        if (isPaused) return;
+        if (cmd != 0x20 && cmd != 0x21) return;
+        if (selectedChA < ch.length && waveformViewA != null)
+            waveformViewA.addPoint(ch[selectedChA]);
+        if (selectedChB < ch.length && waveformViewB != null)
+            waveformViewB.addPoint(ch[selectedChB]);
     }
 
     @Override
     public void onEegFrame(EegFrame frame) {
         if (isPaused) return;
-        if (waveformViews.isEmpty()) return;
         float[] ch = frame.getChannels();
-        for (int i = 0; i < waveformViews.size() && i < ch.length; i++) {
-            if (waveformViews.get(i) != null) waveformViews.get(i).addPoint(ch[i]);
-        }
+        if (selectedChA < ch.length && waveformViewA != null)
+            waveformViewA.addPoint(ch[selectedChA]);
+        if (selectedChB < ch.length && waveformViewB != null)
+            waveformViewB.addPoint(ch[selectedChB]);
     }
 
     @Override
     public void onSpectrumData(int cmd, float[] mags) {
-        if (!isPaused) {
-            if (cmd == 0x07 && spectrumViews.size() > 0) spectrumViews.get(0).updateSpectrum(mags);
-            else if (cmd == 0x06 && spectrumViews.size() > 1) spectrumViews.get(1).updateSpectrum(mags);
+        if (isPaused) return;
+        int[] cmds = (spectrumMode == SPECTRUM_MODE_RAW) ? RAW_SPECTRUM_CMDS : FILT_SPECTRUM_CMDS;
+        if (cmd == cmds[selectedChA] && spectrumViewA != null) {
+            spectrumViewA.updateSpectrum(mags);
+        } else if (cmd == cmds[selectedChB] && spectrumViewB != null) {
+            spectrumViewB.updateSpectrum(mags);
         }
     }
 
     @Override
     public void onFocusData(float attn0, float attn1, float ema0, float ema1,
                             int trend, int instant) {
-        if (tvInstantState == null || tvTrendState == null) return;
-        String[] stateText = {"放松", "平静", "专注"};
-        int[] stateColors = {
-            ContextCompat.getColor(requireContext(), R.color.accent_error),
-            ContextCompat.getColor(requireContext(), R.color.accent_warning),
-            ContextCompat.getColor(requireContext(), R.color.accent_success)
-        };
-        float focus = ema0;
-        float relax = 1.0f - focus;
-        if (attnViews.size() > 0 && attnViews.get(0) != null)
-            attnViews.get(0).setText(String.format(Locale.getDefault(), "专注度: %.1f%%", focus * 100));
-        if (relaxViews.size() > 0 && relaxViews.get(0) != null)
-            relaxViews.get(0).setText(String.format(Locale.getDefault(), "放松度: %.1f%%", relax * 100));
-        String instantStr = (instant >= 0 && instant < stateText.length) ? stateText[instant] : "?";
-        String trendStr = (trend >= 0 && trend < stateText.length) ? stateText[trend] : "?";
-        tvInstantState.setText("瞬时: " + instantStr);
-        tvTrendState.setText("趋势: " + trendStr);
-        if (instant >= 0 && instant < stateColors.length) tvInstantState.setTextColor(stateColors[instant]);
-        if (trend >= 0 && trend < stateColors.length) tvTrendState.setTextColor(stateColors[trend]);
     }
 
     private void updateConnectionStatus() {
@@ -533,23 +578,5 @@ public class MonitorFragment extends Fragment implements DataListener {
             dotColor = ContextCompat.getColor(requireContext(), R.color.accent_error);
         }
         statusIndicator.setBackgroundColor(dotColor);
-    }
-
-    private String getWifiApIpAddress() {
-        try {
-            java.util.List<java.net.NetworkInterface> interfaces =
-                    java.util.Collections.list(java.net.NetworkInterface.getNetworkInterfaces());
-            for (java.net.NetworkInterface intf : interfaces) {
-                java.util.List<java.net.InetAddress> addrs =
-                        java.util.Collections.list(intf.getInetAddresses());
-                for (java.net.InetAddress addr : addrs) {
-                    if (!addr.isLoopbackAddress() && addr.getAddress().length == 4) {
-                        String ip = addr.getHostAddress();
-                        if (ip.startsWith("192.168.")) return ip;
-                    }
-                }
-            }
-        } catch (Exception ignored) {}
-        return "192.168.43.1";
     }
 }

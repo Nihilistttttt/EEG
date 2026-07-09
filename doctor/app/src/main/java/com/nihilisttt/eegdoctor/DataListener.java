@@ -2,6 +2,7 @@ package com.nihilisttt.eegdoctor;
 
 public interface DataListener {
     void onWaveData(int cmd, float ch0, float ch1);
+    default void onWaveData8ch(int cmd, float[] ch) {}
     void onSpectrumData(int cmd, float[] mags);
     void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant);
     default void onEegFrame(EegFrame frame) {}

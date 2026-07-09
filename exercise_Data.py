@@ -101,6 +101,8 @@ class MainWindow(QMainWindow):
         self.turn_count = 0
         self.fall_detected = False
 
+        self._last_seq = -1
+
         # ---------- UI ----------
         self.init_ui()
         self.apply_stylesheet()
@@ -563,8 +565,28 @@ class MainWindow(QMainWindow):
         self.raw_text.setTextCursor(cursor)
 
     # ======================= 串口解析 =======================
+    def _send_ack(self, line):
+        m = re.search(r'seq=(\d+)', line)
+        if m:
+            self.serial_thread.send_command(f"ACK,{m.group(1)}")
+
+    def _is_dup_seq(self, line):
+        m = re.search(r'seq=(\d+)', line)
+        if m:
+            seq = int(m.group(1))
+            if seq == self._last_seq:
+                return True
+            self._last_seq = seq
+        return False
+
     def parse_serial_line(self, line):
         self.append_raw(line)
+
+        # 关键消息：发ACK + 去重
+        if re.search(r'seq=\d+', line):
+            self._send_ack(line)
+            if self._is_dup_seq(line):
+                return
 
         # ---- 任务开始 ----
         match = re.match(r'TASK,(\w+),start', line)
@@ -583,13 +605,13 @@ class MainWindow(QMainWindow):
             return
 
         # ---- 任务完成 ----
-        if line == 'TASK,DONE':
+        if line.startswith('TASK,DONE'):
             self.append_log("--- 试次完成 ---", "green")
             self.on_trial_done()
             return
 
         # ---- 停止 ----
-        if line == 'TASK,STOPPED':
+        if line.startswith('TASK,STOPPED'):
             self.append_log("[系统] 已停止", "orange")
             self.stop_all(False)
             return
@@ -774,14 +796,16 @@ class MainWindow(QMainWindow):
             return
 
         # ---- POSTURE 数据（含重力向量） ----
-        match = re.match(r'POSTURE,(\w+),gx=(-?\d+),gy=(-?\d+),gz=(-?\d+),conf=(-?\d+),stable=(\d+)', line)
+        match = re.match(r'POSTURE_STATE,(?:seq=\d+,)?(\w+),turns=(\d+)(?:,gx=(-?\d+),gy=(-?\d+),gz=(-?\d+),conf=(-?\d+),stable=(\d+))?', line)
         if match:
             self.posture_name = match.group(1)
-            self.posture_gx = int(match.group(2))
-            self.posture_gy = int(match.group(3))
-            self.posture_gz = int(match.group(4))
-            self.posture_conf = int(match.group(5))
-            self.posture_stable_ms = int(match.group(6))
+            self.turn_count = int(match.group(2))
+            if match.group(3):
+                self.posture_gx = int(match.group(3))
+                self.posture_gy = int(match.group(4))
+                self.posture_gz = int(match.group(5))
+                self.posture_conf = int(match.group(6))
+                self.posture_stable_ms = int(match.group(7))
             self.update_posture_display()
             return
 
@@ -796,7 +820,7 @@ class MainWindow(QMainWindow):
             return
 
         # ---- 翻身事件 ----
-        match = re.match(r'TURN_EVENT,count=(\d+),from=(\w+),to=(\w+),tick=(\d+)', line)
+        match = re.match(r'TURN_EVENT,(?:seq=\d+,)?count=(\d+),from=(\w+),to=(\w+)(?:,tick=\d+)?', line)
         if match:
             self.turn_count = int(match.group(1))
             turn_from = match.group(2)
@@ -807,7 +831,7 @@ class MainWindow(QMainWindow):
             return
 
         # ---- 坠床事件 ----
-        match = re.match(r'FALL_EVENT,gyro=(-?\d+),acc=(-?\d+),posture=(\w+),tick=(\d+)', line)
+        match = re.match(r'FALL_EVENT,(?:seq=\d+,)?gyro=(-?\d+),acc=(-?\d+),posture=(\w+)(?:,tick=\d+)?', line)
         if match:
             gyro = int(match.group(1))
             acc = int(match.group(2))
@@ -820,7 +844,7 @@ class MainWindow(QMainWindow):
             return
 
         # ---- 未翻身报警 ----
-        match = re.match(r'NO_TURN_ALERT,duration_min=(\d+)', line)
+        match = re.match(r'NO_TURN_ALERT,(?:seq=\d+,)?duration_min=(\d+)', line)
         if match:
             dur = int(match.group(1))
             self.append_log(f"[未翻身报警] 已{dur}分钟未翻身!", "red")

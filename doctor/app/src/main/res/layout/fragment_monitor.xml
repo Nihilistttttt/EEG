@@ -6,6 +6,81 @@
     android:orientation="vertical">
 
     <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface_mid"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="2dp">
+
+        <TextView
+            android:text="通道A"
+            style="@style/ControlLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <Spinner
+            android:id="@+id/spinner_ch_a"
+            android:layout_width="wrap_content"
+            android:layout_height="28dp"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:text="通道B"
+            style="@style/ControlLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <Spinner
+            android:id="@+id/spinner_ch_b"
+            android:layout_width="wrap_content"
+            android:layout_height="28dp"
+            android:layout_marginEnd="8dp" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="16dp"
+            android:layout_marginEnd="6dp"
+            android:background="@color/surface_overlay" />
+
+        <TextView
+            android:text="频谱"
+            style="@style/ControlLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/tv_spectrum_mode"
+            style="@style/ParamChip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="原始" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <View
+            android:id="@+id/status_indicator"
+            android:layout_width="6dp"
+            android:layout_height="6dp"
+            android:layout_marginEnd="4dp"
+            android:background="@drawable/bg_status_indicator" />
+
+        <TextView
+            android:id="@+id/tv_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="@color/text_secondary"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <LinearLayout
         android:id="@+id/channel_container"
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -30,22 +105,6 @@
             android:paddingTop="4dp"
             android:paddingEnd="8dp"
             android:paddingBottom="4dp">
-
-            <View
-                android:id="@+id/status_indicator"
-                android:layout_width="6dp"
-                android:layout_height="6dp"
-                android:layout_marginEnd="4dp"
-                android:background="@drawable/bg_status_indicator" />
-
-            <TextView
-                android:id="@+id/tv_status"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="2"
-                android:text=""
-                android:textColor="@color/text_secondary"
-                android:textSize="10sp" />
 
             <TextView
                 android:text="X轴"
@@ -101,32 +160,6 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="500 uV" />
-
-            <View
-                android:layout_width="1dp"
-                android:layout_height="20dp"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="8dp"
-                android:background="@color/surface_overlay" />
-
-            <TextView
-                android:id="@+id/tv_instant_state"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="瞬时: -"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:textColor="@color/text_primary" />
-
-            <TextView
-                android:id="@+id/tv_trend_state"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="趋势: -"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:textColor="@color/text_primary" />
 
             <View
                 android:layout_width="0dp"

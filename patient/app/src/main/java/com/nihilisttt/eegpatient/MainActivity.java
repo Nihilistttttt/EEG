@@ -1,20 +1,19 @@
 package com.nihilisttt.eegpatient;
 
-import android.net.wifi.WifiManager;
 import android.os.Bundle;
-import android.text.format.Formatter;
+import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
 import androidx.viewpager2.widget.ViewPager2;
 
 public class MainActivity extends AppCompatActivity implements DoctorConnector.DataListener {
 
+    private static final String TAG = "PATIENT";
     private ViewPager2 viewPager;
     private View statusDot;
     private TextView tvConnection;
@@ -48,12 +47,15 @@ public class MainActivity extends AppCompatActivity implements DoctorConnector.D
             @Override
             public int getItemCount() { return 4; }
         });
+
+        DoctorConnector.getInstance().addListener(this);
+        DoctorConnector.getInstance().startAutoConnect();
+        Log.i(TAG, "MainActivity: startAutoConnect called");
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        DoctorConnector.getInstance().addListener(this);
         updateConnectionState(DoctorConnector.getInstance().isConnected());
     }
 
@@ -61,29 +63,30 @@ public class MainActivity extends AppCompatActivity implements DoctorConnector.D
     protected void onDestroy() {
         super.onDestroy();
         DoctorConnector.getInstance().removeListener(this);
-        DoctorConnector.getInstance().disconnect();
     }
 
-    private void updateConnectionState(boolean connected) {
+    private void updateConnectionState(boolean conn) {
         if (statusDot == null || tvConnection == null) return;
-        if (connected) {
-            statusDot.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_success));
+        if (conn) {
+            statusDot.setBackgroundColor(0xFF00C853);
             tvConnection.setText("已连接");
-            tvConnection.setTextColor(ContextCompat.getColor(this, R.color.accent_success));
+            tvConnection.setTextColor(0xFF00C853);
         } else {
-            statusDot.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_error));
+            statusDot.setBackgroundColor(0xFFFF5252);
             tvConnection.setText("未连接");
-            tvConnection.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+            tvConnection.setTextColor(0xFF607D8B);
         }
     }
 
     @Override
     public void onConnectionChanged(boolean connected) {
+        Log.i(TAG, "onConnectionChanged: " + connected);
         runOnUiThread(() -> updateConnectionState(connected));
     }
 
     public void switchToPage(int position) {
         if (viewPager != null && position >= 0 && position < 4) {
+            Log.i(TAG, "switchToPage: " + position + ", current=" + viewPager.getCurrentItem());
             viewPager.setCurrentItem(position, true);
         }
     }
@@ -101,6 +104,7 @@ public class MainActivity extends AppCompatActivity implements DoctorConnector.D
 
     @Override
     public void onPageSwitch(int page) {
+        Log.i(TAG, ">>> onPageSwitch: page=" + page);
         runOnUiThread(() -> switchToPage(page));
     }
 }

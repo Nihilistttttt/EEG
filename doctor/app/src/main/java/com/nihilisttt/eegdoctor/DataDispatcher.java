@@ -32,6 +32,15 @@ public class DataDispatcher {
         });
     }
 
+    public void postWaveData8ch(int cmd, float[] ch) {
+        mainHandler.post(() -> {
+            for (DataListener l : listeners) {
+                try { l.onWaveData8ch(cmd, ch); }
+                catch (Exception e) { Log.e(TAG, "onWaveData8ch error in " + l.getClass().getSimpleName(), e); }
+            }
+        });
+    }
+
     public void postSpectrumData(int cmd, float[] mags) {
         mainHandler.post(() -> {
             for (DataListener l : listeners) {

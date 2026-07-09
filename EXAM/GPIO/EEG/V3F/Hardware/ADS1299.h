@@ -60,11 +60,15 @@ extern "C" {
 /* ������ʵ������ǰ 4 ·�Ե磺CH1=CP3, CH2=CP4, CH3=C3, CH4=C4��
  * ADS1299 ��������ʱ��Ȼ��ȡ���� 8 ͨ��֡��δ���õ� CH5~CH8 �ڼĴ����йرա�
  */
-#define ADS1299_ACTIVE_EEG_CHANNEL_NUM      4U
-#define ADS1299_EEG_CH_CP3                  0U
-#define ADS1299_EEG_CH_CP4                  1U
-#define ADS1299_EEG_CH_C3                   2U
-#define ADS1299_EEG_CH_C4                   3U
+#define ADS1299_ACTIVE_EEG_CHANNEL_NUM      8U
+#define ADS1299_EEG_CH_OZ                   0U
+#define ADS1299_EEG_CH_O1                   1U
+#define ADS1299_EEG_CH_F3                   2U
+#define ADS1299_EEG_CH_F4                   3U
+#define ADS1299_EEG_CH_CP3                  4U
+#define ADS1299_EEG_CH_CP4                  5U
+#define ADS1299_EEG_CH_C3                   6U
+#define ADS1299_EEG_CH_C4                   7U
 
 
 /*============================ ADS1299 ��ʱ ============================*/

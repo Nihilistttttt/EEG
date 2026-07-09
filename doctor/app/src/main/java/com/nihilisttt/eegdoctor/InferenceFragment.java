@@ -7,7 +7,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ProgressBar;
+
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -15,14 +15,11 @@ import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
-import java.util.Locale;
 
 public class InferenceFragment extends Fragment implements DataListener {
 
     private TextView tvDirection;
-    private TextView tvConfidence;
-    private ProgressBar progressConfidence;
-    private TextView tvModelStatus;
+
     private View btnStartInfer;
     private View btnStopInfer;
 
@@ -36,9 +33,7 @@ public class InferenceFragment extends Fragment implements DataListener {
         View root = inflater.inflate(R.layout.fragment_inference, container, false);
 
         tvDirection = root.findViewById(R.id.tv_direction);
-        tvConfidence = root.findViewById(R.id.tv_confidence);
-        progressConfidence = root.findViewById(R.id.progress_confidence);
-        tvModelStatus = root.findViewById(R.id.tv_model_status);
+
         btnStartInfer = root.findViewById(R.id.btn_start_infer);
         btnStopInfer = root.findViewById(R.id.btn_stop_infer);
 
@@ -58,9 +53,6 @@ public class InferenceFragment extends Fragment implements DataListener {
         btnStopInfer.setEnabled(true);
         tvDirection.setText("← →");
         tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));
-        tvConfidence.setText("置信度: --");
-        tvConfidence.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));
-        progressConfidence.setProgress(0);
     }
 
     private void stopInference() {
@@ -71,9 +63,6 @@ public class InferenceFragment extends Fragment implements DataListener {
         btnStopInfer.setEnabled(false);
         tvDirection.setText("← →");
         tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));
-        tvConfidence.setText("置信度: --");
-        tvConfidence.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));
-        progressConfidence.setProgress(0);
     }
 
     @Override

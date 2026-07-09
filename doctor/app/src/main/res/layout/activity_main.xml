@@ -7,7 +7,7 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="28dp"
+        android:layout_height="36dp"
         android:background="@color/surface_mid"
         android:gravity="center_vertical"
         android:orientation="horizontal"
@@ -42,10 +42,56 @@
             android:textSize="13sp"
             android:fontFamily="sans-serif-medium" />
 
+        <TextView
+            android:id="@+id/tv_bar_focus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="专注:--"
+            android:textColor="@color/focus_line"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_bar_relax"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:text="放松:--"
+            android:textColor="@color/accent_info"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_bar_state"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:text="状态:--"
+            android:textColor="@color/accent_success"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="16dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="6dp"
+            android:background="@color/surface_overlay" />
+
+        <TextView
+            android:id="@+id/tv_bar_posture"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="姿态:--"
+            android:textColor="@color/accent_warning"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
         <View
             android:id="@+id/status_indicator"
             android:layout_width="6dp"
             android:layout_height="6dp"
+            android:layout_marginStart="8dp"
             android:layout_marginEnd="4dp"
             android:background="@drawable/bg_status_indicator" />
 

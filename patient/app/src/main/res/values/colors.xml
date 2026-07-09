@@ -12,6 +12,7 @@
     <color name="surface_base">#F0F2F5</color>
     <color name="surface_low">#FFFFFF</color>
     <color name="surface_mid">#F5F7FA</color>
+    <color name="ar_bg">#000000</color>
     <color name="surface_overlay">#C8CED4</color>
     <color name="direction_left">#1565C0</color>
     <color name="direction_right">#E65100</color>

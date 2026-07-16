@@ -40,7 +40,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener {
         DataDispatcher.getInstance().removeListener(this);
     }
 
-    @Override public void onWaveData(int cmd, float ch0, float ch1) {}
+    @Override public void onWaveData(int cmd, int ch, float val) {}
     @Override public void onSpectrumData(int cmd, float[] mags) {}
     @Override public void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {}
     @Override public void onEegFrame(EegFrame frame) {}

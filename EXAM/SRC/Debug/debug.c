@@ -122,13 +122,13 @@ void USART_Printf_Init(uint32_t baudrate)
     USART_InitTypeDef USART_InitStructure = {0};
 
 #if(DEBUG == DEBUG_UART1)  
-    RCC_HB2PeriphClockCmd(RCC_HB2Periph_AFIO | RCC_HB2Periph_USART1 | RCC_HB2Periph_GPIOA, ENABLE);
-    GPIO_PinAFConfig(GPIOA, GPIO_PinSource9, GPIO_AF7);
+    RCC_HB2PeriphClockCmd(RCC_HB2Periph_AFIO | RCC_HB2Periph_USART1 | RCC_HB2Periph_GPIOB, ENABLE);
+    GPIO_PinAFConfig(GPIOB, GPIO_PinSource6, GPIO_AF7);
 
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_Very_High;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
+    GPIO_Init(GPIOB, &GPIO_InitStructure);
 
 #elif(DEBUG == DEBUG_UART8)
     RCC_HB2PeriphClockCmd(RCC_HB2Periph_AFIO | RCC_HB2Periph_GPIOB, ENABLE);

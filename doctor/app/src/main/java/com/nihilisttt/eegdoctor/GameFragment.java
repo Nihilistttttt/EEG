@@ -69,7 +69,7 @@ public class GameFragment extends Fragment implements DataListener {
     }
 
     @Override
-    public void onWaveData(int cmd, float ch0, float ch1) {}
+    public void onWaveData(int cmd, int ch, float val) {}
     @Override
     public void onSpectrumData(int cmd, float[] mags) {}
     @Override

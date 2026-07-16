@@ -59,7 +59,7 @@ public class ChannelConfig {
 
     public static List<ChannelConfig> getDefault8Channel() {
         List<ChannelConfig> channels = new ArrayList<>();
-        String[] electrodes = {"F3", "F4", "CP3", "CP4", "C3", "C4", "P3", "P4"};
+        String[] electrodes = {"OZ", "O1", "F3", "F4", "CP3", "CP4", "C3", "C4"};
         int[] colors = {
             R.color.wave_ch0, R.color.wave_ch1, R.color.wave_filtered,
             R.color.focus_line, R.color.spectrum_bar, R.color.accent_info,
@@ -67,7 +67,7 @@ public class ChannelConfig {
         };
         for (int i = 0; i < electrodes.length; i++) {
             channels.add(new ChannelConfig("CH " + i, electrodes[i], ChannelType.EEG,
-                    colors[i % colors.length], 0.5f, "uV", 0x20));
+                    colors[i % colors.length], 0.5f, "uV", 0x04));
         }
         return channels;
     }

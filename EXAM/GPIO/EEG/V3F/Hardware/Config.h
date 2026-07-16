@@ -5,49 +5,49 @@
 #include "hal_gpio.h"
 
 #ifdef __ADS1299_H
-/*============================ ADS1299 “˝Ω≈≈‰÷√ ============================*/
+/*============================ ADS1299 ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ ============================*/
 /* CS ∆¨—° */
 #define ADS1299_CS_PORT          0       // GPIOB
 #define ADS1299_CS_PIN           8
 #define ADS1299_CS_PIN_ENC       HAL_GPIO_PIN(ADS1299_CS_PORT, ADS1299_CS_PIN)
 
-/* DRDY  ˝æ›æÕ–˜ */
+/* DRDY ÔøΩÔøΩÔøΩ›æÔøΩÔøΩÔøΩ */
 #define ADS1299_DRDY_PORT        2       // GPIOB
 #define ADS1299_DRDY_PIN         6
 #define ADS1299_DRDY_PIN_ENC     HAL_GPIO_PIN(ADS1299_DRDY_PORT, ADS1299_DRDY_PIN)
 
-/* RESET ∏¥Œª */
+/* RESET ÔøΩÔøΩŒª */
 #define ADS1299_RESET_PORT       2       // GPIOE
 #define ADS1299_RESET_PIN        7
 #define ADS1299_RESET_PIN_ENC    HAL_GPIO_PIN(ADS1299_RESET_PORT, ADS1299_RESET_PIN)
 
-/* START ∆Ù∂Ø◊™ªª */
+/* START ÔøΩÔøΩÔøΩÔøΩ◊™ÔøΩÔøΩ */
 #define ADS1299_START_PORT       0       // GPIOB
 #define ADS1299_START_PIN        9
 #define ADS1299_START_PIN_ENC    HAL_GPIO_PIN(ADS1299_START_PORT, ADS1299_START_PIN)
 
-/*============================ SPI Õ‚…Ë≈‰÷√ ============================*/
+/*============================ SPI ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ ============================*/
 #define ADS1299_SPI_INSTANCE     SPI3
-/*============================ SPI “˝Ω≈≈‰÷√ ============================*/
-/* SCK -  ±÷” */
+/*============================ SPI ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ ============================*/
+/* SCK -  ±ÔøΩÔøΩ */
 #define ADS1299_SCK_PORT     0       // GPIOB
 #define ADS1299_SCK_PIN      14
 #define ADS1299_SCK_AF       GPIO_AF1
 #define ADS1299_SCK_ENC      HAL_GPIO_PIN(ADS1299_SCK_PORT, ADS1299_SCK_PIN)
 
-/* MISO - ÷˜»Î¥”≥ˆ */
+/* MISO - ÔøΩÔøΩÔøΩÔøΩ”≥ÔøΩ */
 #define ADS1299_MISO_PORT    2      
 #define ADS1299_MISO_PIN     9
 #define ADS1299_MISO_AF      GPIO_AF5
 #define ADS1299_MISO_ENC     HAL_GPIO_PIN(ADS1299_MISO_PORT, ADS1299_MISO_PIN)
 
-/* MOSI - ÷˜≥ˆ¥”»Î */
+/* MOSI - ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ */
 #define ADS1299_MOSI_PORT    0       // GPIOB
 #define ADS1299_MOSI_PIN     13
 #define ADS1299_MOSI_AF      GPIO_AF1
 #define ADS1299_MOSI_ENC     HAL_GPIO_PIN(ADS1299_MOSI_PORT, ADS1299_MOSI_PIN)
 
-/*============================ DMA Õ®µ¿≈‰÷√ ============================*/
+/*============================ DMA Õ®ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ ============================*/
 #define ADS1299_DMA_INSTANCE     DMA1
 
 #define ADS1299_TX_DMA_REQUEST   67U
@@ -59,22 +59,22 @@
 #define ADS1299_RX_DMAMUX_CHANNEL DMA_MuxChannel1
 #define ADS1299_TX_DMAMUX_CHANNEL DMA_MuxChannel2
 
-/*============================ DMA ÷–∂œ±Í÷æ≈‰÷√ ============================*/
-#define ADS1299_RX_DMA_TC_FLAG    DMA1_IT_TC1   // Õ®µ¿1¥´ ‰ÕÍ≥…
-#define ADS1299_RX_DMA_TE_FLAG    DMA1_IT_TE1   // Õ®µ¿1¥´ ‰¥ÌŒÛ
-#define ADS1299_TX_DMA_TC_FLAG    DMA1_IT_TC2   // Õ®µ¿2¥´ ‰ÕÍ≥…
-#define ADS1299_TX_DMA_TE_FLAG    DMA1_IT_TE2   // Õ®µ¿2¥´ ‰¥ÌŒÛ
+/*============================ DMA ÔøΩ–∂œ±ÔøΩ÷æÔøΩÔøΩÔøΩÔøΩ ============================*/
+#define ADS1299_RX_DMA_TC_FLAG    DMA1_IT_TC1   // Õ®ÔøΩÔøΩ1ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ
+#define ADS1299_RX_DMA_TE_FLAG    DMA1_IT_TE1   // Õ®ÔøΩÔøΩ1ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ
+#define ADS1299_TX_DMA_TC_FLAG    DMA1_IT_TC2   // Õ®ÔøΩÔøΩ2ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ
+#define ADS1299_TX_DMA_TE_FLAG    DMA1_IT_TE2   // Õ®ÔøΩÔøΩ2ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ
 
-/*============================ DMA ÷–∂œ∫≈≈‰÷√ ============================*/
+/*============================ DMA ÔøΩ–∂œ∫ÔøΩÔøΩÔøΩÔøΩÔøΩ ============================*/
 #define ADS1299_RX_DMA_IRQn       DMA1_Channel1_IRQn
 #define ADS1299_TX_DMA_IRQn       DMA1_Channel2_IRQn
 #endif
 
 #ifdef __OLED_H
-/* ”≤º˛ SPI  µ¿˝ */
+/* ”≤ÔøΩÔøΩ SPI  µÔøΩÔøΩ */
 #define OLED_SPI_INSTANCE       SPI1
 
-/* SPI “˝Ω≈∂®“Â£®”≤º˛/»Ìº˛π≤”√£© */
+/* SPI ÔøΩÔøΩÔøΩ≈∂ÔøΩÔøΩÂ£®”≤ÔøΩÔøΩ/ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ√£ÔøΩ */
 #define OLED_CS_PORT            1   // GPIOA
 #define OLED_CS_PIN             0
 #define OLED_CS_PIN_ENC         HAL_GPIO_PIN(OLED_CS_PORT, OLED_CS_PIN)
@@ -90,14 +90,14 @@
 #define OLED_SCK_PORT           0   // GPIOA
 #define OLED_SCK_PIN            5
 #define OLED_SCK_PIN_ENC        HAL_GPIO_PIN(OLED_SCK_PORT, OLED_SCK_PIN)
-#define OLED_SCK_AF             GPIO_AF5   // ”≤º˛ SPI  ± π”√
+#define OLED_SCK_AF             GPIO_AF5   // ”≤ÔøΩÔøΩ SPI  ± πÔøΩÔøΩ
 
 #define OLED_MOSI_PORT          0   // GPIOA
 #define OLED_MOSI_PIN           7
 #define OLED_MOSI_PIN_ENC       HAL_GPIO_PIN(OLED_MOSI_PORT, OLED_MOSI_PIN)
 #define OLED_MOSI_AF            GPIO_AF5
 
-/* I2C “˝Ω≈∂®“Â */
+/* I2C ÔøΩÔøΩÔøΩ≈∂ÔøΩÔøΩÔøΩ */
 #define OLED_I2C_INSTANCE       I2C3
 #define OLED_I2C_ADDR           0x78
 
@@ -112,27 +112,27 @@
 #define OLED_SDA_AF             GPIO_AF4
 
 #endif /* __OLED_H */
-/*============================ SERIAL ≈‰÷√ ============================*/
+/*============================ SERIAL ÔøΩÔøΩÔøΩÔøΩ ============================*/
 #ifdef __SERIAL_H
-/* ---------- µ˜ ‘¥Æø⁄ (DEBUG) ®C ∂‘”¶ USART1 ---------- */
+/* ---------- ÔøΩÔøΩÔøΩ‘¥ÔøΩÔøΩÔøΩ (DEBUG) ÔøΩC ÔøΩÔøΩ”¶ USART1 ---------- */
 #define SERIAL_DEBUG_USART_INSTANCE    USART1
 #define SERIAL_DEBUG_BAUDRATE          921600
 
-/* DEBUG TX “˝Ω≈ (PA9) */
+/* DEBUG TX ÔøΩÔøΩÔøΩÔøΩ (PA9) */
 #define SERIAL_DEBUG_TX_PORT           1       // GPIOA
 #define SERIAL_DEBUG_TX_PIN            6
 #define SERIAL_DEBUG_TX_PIN_ENC        HAL_GPIO_PIN(SERIAL_DEBUG_TX_PORT, SERIAL_DEBUG_TX_PIN)
 #define SERIAL_DEBUG_TX_AF             GPIO_AF7
 
-/* DEBUG RX “˝Ω≈ (PA10) */
+/* DEBUG RX ÔøΩÔøΩÔøΩÔøΩ (PA10) */
 #define SERIAL_DEBUG_RX_PORT           1       // GPIOA
 #define SERIAL_DEBUG_RX_PIN            7
 #define SERIAL_DEBUG_RX_PIN_ENC        HAL_GPIO_PIN(SERIAL_DEBUG_RX_PORT, SERIAL_DEBUG_RX_PIN)
 #define SERIAL_DEBUG_RX_AF             GPIO_AF7
 
-/*============================ DMA Õ®µ¿≈‰÷√ ============================*/
+/*============================ DMA Õ®ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ ============================*/
 #define SERIAL_DEBUG_DMA_INSTANCE       DMA1
-/* DEBUG DMA ≈‰÷√ */
+/* DEBUG DMA ÔøΩÔøΩÔøΩÔøΩ */
 #define SERIAL_DEBUG_TX_DMA_CHANNEL     DMA1_Channel4
 #define SERIAL_DEBUG_TX_DMAMUX_CHANNEL  DMA_MuxChannel4
 #define SERIAL_DEBUG_TX_DMA_REQUEST     85U
@@ -140,38 +140,38 @@
 #define SERIAL_DEBUG_RX_DMAMUX_CHANNEL  DMA_MuxChannel6
 #define SERIAL_DEBUG_RX_DMA_REQUEST     86U
 
-/* DEBUG DMA ÷–∂œ±Í÷æ */
+/* DEBUG DMA ÔøΩ–∂œ±ÔøΩ÷æ */
 #define SERIAL_DEBUG_TX_DMA_TC_FLAG     DMA1_IT_TC4
 #define SERIAL_DEBUG_TX_DMA_TE_FLAG     DMA1_IT_TE4
 
-/* DEBUG ÷–∂œ∫≈ */
+/* DEBUG ÔøΩ–∂œ∫ÔøΩ */
 #define SERIAL_DEBUG_USART_IRQn         USART1_IRQn
 #define SERIAL_DEBUG_TX_DMA_IRQn        DMA1_Channel4_IRQn
 
-/* ª∫≥Â«¯¥Û–° */
+/* ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ–° */
 #define SERIAL_DEBUG_RX_BUF_SIZE        1024
 #define SERIAL_DEBUG_TX_RING_SIZE       2048
 
 
-/* ----------  ˝æ›◊™∑¢¥Æø⁄ (WIFI) ®C ∂‘”¶ USART2 ---------- */
+/* ---------- ÔøΩÔøΩÔøΩÔøΩ◊™ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ (WIFI) ÔøΩC ÔøΩÔøΩ”¶ USART2 ---------- */
 #define SERIAL_WIFI_USART_INSTANCE      USART2
 #define SERIAL_WIFI_BAUDRATE            921600
 
-/* WIFI TX “˝Ω≈ (PD5) */
+/* WIFI TX ÔøΩÔøΩÔøΩÔøΩ (PD5) */
 #define SERIAL_WIFI_TX_PORT             0       // GPIOD
 #define SERIAL_WIFI_TX_PIN              2
 #define SERIAL_WIFI_TX_PIN_ENC          HAL_GPIO_PIN(SERIAL_WIFI_TX_PORT, SERIAL_WIFI_TX_PIN)
 #define SERIAL_WIFI_TX_AF               GPIO_AF7
 
-/* WIFI RX “˝Ω≈ (PD6) */
+/* WIFI RX ÔøΩÔøΩÔøΩÔøΩ (PD6) */
 #define SERIAL_WIFI_RX_PORT             0       // GPIOD
 #define SERIAL_WIFI_RX_PIN              3
 #define SERIAL_WIFI_RX_PIN_ENC          HAL_GPIO_PIN(SERIAL_WIFI_RX_PORT, SERIAL_WIFI_RX_PIN)
 #define SERIAL_WIFI_RX_AF               GPIO_AF7
 
-/*============================ DMA Õ®µ¿≈‰÷√ ============================*/
+/*============================ DMA Õ®ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ ============================*/
 #define SERIAL_WIFI_DMA_INSTANCE       DMA1
-/* WIFI DMA ≈‰÷√ */
+/* WIFI DMA ÔøΩÔøΩÔøΩÔøΩ */
 #define SERIAL_WIFI_TX_DMA_CHANNEL      DMA1_Channel5
 #define SERIAL_WIFI_TX_DMAMUX_CHANNEL   DMA_MuxChannel5
 #define SERIAL_WIFI_TX_DMA_REQUEST      87U
@@ -179,19 +179,70 @@
 #define SERIAL_WIFI_RX_DMAMUX_CHANNEL   DMA_MuxChannel7
 #define SERIAL_WIFI_RX_DMA_REQUEST      88U
 
-/* WIFI DMA ÷–∂œ±Í÷æ */
+/* WIFI DMA ÔøΩ–∂œ±ÔøΩ÷æ */
 #define SERIAL_WIFI_TX_DMA_TC_FLAG      DMA1_IT_TC5
 #define SERIAL_WIFI_TX_DMA_TE_FLAG      DMA1_IT_TE5
 
-/* WIFI ÷–∂œ∫≈ */
+/* WIFI ÔøΩ–∂œ∫ÔøΩ */
 #define SERIAL_WIFI_USART_IRQn          USART2_IRQn
 #define SERIAL_WIFI_TX_DMA_IRQn         DMA1_Channel5_IRQn
 
-/* ª∫≥Â«¯¥Û–° */
+/* ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ–° */
 #define SERIAL_WIFI_RX_BUF_SIZE         2048
 #define SERIAL_WIFI_TX_RING_SIZE        8192
 
 #endif /* __SERIAL_H */
+#ifdef __ICM42605_H
+/*============================ ICM42605 SPI Â§ñËÆæÈÖçÁΩÆ ============================*/
+#define ICM42605_SPI_INSTANCE          SPI4
+
+/*============================ ICM42605 SPI ÂºïËÑöÈÖçÁΩÆ ============================*/
+/* CS ÁâáÈÄâ - ÊôÆÈÄöGPIO */
+#define ICM42605_CS_PORT               4       // GPIOE
+#define ICM42605_CS_PIN                3
+#define ICM42605_CS_PIN_ENC            HAL_GPIO_PIN(ICM42605_CS_PORT, ICM42605_CS_PIN)
+
+/* SCK - SPI4Êó∂Èíü */
+#define ICM42605_SCK_PORT              4       // GPIOE
+#define ICM42605_SCK_PIN               2
+#define ICM42605_SCK_PIN_ENC           HAL_GPIO_PIN(ICM42605_SCK_PORT, ICM42605_SCK_PIN)
+#define ICM42605_SCK_AF                GPIO_AF5
+
+/* MISO - ‰∏ªÂÖ•‰ªéÂá∫ */
+#define ICM42605_MISO_PORT             4       // GPIOE
+#define ICM42605_MISO_PIN              5
+#define ICM42605_MISO_PIN_ENC          HAL_GPIO_PIN(ICM42605_MISO_PORT, ICM42605_MISO_PIN)
+#define ICM42605_MISO_AF               GPIO_AF5
+
+/* MOSI - ‰∏ªÂá∫‰ªéÂÖ• */
+#define ICM42605_MOSI_PORT             4       // GPIOE
+#define ICM42605_MOSI_PIN              6
+#define ICM42605_MOSI_PIN_ENC          HAL_GPIO_PIN(ICM42605_MOSI_PORT, ICM42605_MOSI_PIN)
+#define ICM42605_MOSI_AF               GPIO_AF5
+
+/*============================ ICM42605 DMA ÈÖçÁΩÆ ============================*/
+#define ICM42605_DMA_INSTANCE           DMA2
+
+#define ICM42605_RX_DMA_CHANNEL         DMA2_Channel1
+#define ICM42605_TX_DMA_CHANNEL         DMA2_Channel2
+
+#define ICM42605_RX_DMAMUX_CHANNEL      DMA_MuxChannel9
+#define ICM42605_TX_DMAMUX_CHANNEL      DMA_MuxChannel10
+
+#define ICM42605_TX_DMA_REQUEST         69U
+#define ICM42605_RX_DMA_REQUEST         70U
+
+#define ICM42605_RX_DMA_TC_FLAG         DMA2_IT_TC1
+#define ICM42605_RX_DMA_TE_FLAG         DMA2_IT_TE1
+#define ICM42605_TX_DMA_TC_FLAG         DMA2_IT_TC2
+#define ICM42605_TX_DMA_TE_FLAG         DMA2_IT_TE2
+
+#define ICM42605_RX_DMA_IRQn            DMA2_Channel1_IRQn
+#define ICM42605_TX_DMA_IRQn            DMA2_Channel2_IRQn
+
+#define ICM42605_DMA_FRAME_SIZE         13U
+#define ICM42605_RAW_DATA_SIZE          12U
+#endif /* __ICM42605_H */
 
 void SPI_ClockEnable(SPI_TypeDef *SPIx);
 void I2C_ClockEnable (I2C_TypeDef *I2Cx);

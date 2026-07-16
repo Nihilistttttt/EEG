@@ -31,10 +31,17 @@ EEG_DriftRemove_t AB_Drift_CH0 = {0.0f, 0};
 EEG_DriftRemove_t AB_Drift_CH1 = {0.0f, 0};
 EEG_DriftRemove_t AB_Drift_CH2 = {0.0f, 0};
 EEG_DriftRemove_t AB_Drift_CH3 = {0.0f, 0};
+EEG_DriftRemove_t AB_Drift_CH4 = {0.0f, 0};
+EEG_DriftRemove_t AB_Drift_CH5 = {0.0f, 0};
+EEG_DriftRemove_t AB_Drift_CH6 = {0.0f, 0};
+EEG_DriftRemove_t AB_Drift_CH7 = {0.0f, 0};
 
 static float wave_display_base_ch0 = 0.0f;
 static float wave_display_base_ch1 = 0.0f;
 static uint8_t wave_display_base_ready = 0;
+
+static float wave_display_base_8ch[NUM_CHANNELS] = {0};
+static uint8_t wave_display_base_8ch_ready = 0;
 
 float IIR_Step(float input, const IIR_Coeff_t *coeff, IIR_State_t *state)
 {
@@ -134,5 +141,27 @@ void Waveform_RemoveDisplayBaseline(float in_ch0, float in_ch1, float *out_ch0, 
 #else
     *out_ch0 = in_ch0;
     *out_ch1 = in_ch1;
+#endif
+}
+
+void Waveform_RemoveDisplayBaseline_8CH(const float *in_arr, float *out_arr)
+{
+#if WAVE_DISPLAY_REMOVE_BASELINE
+    int i;
+    if (!wave_display_base_8ch_ready) {
+        for (i = 0; i < NUM_CHANNELS; i++) {
+            wave_display_base_8ch[i] = in_arr[i];
+        }
+        wave_display_base_8ch_ready = 1;
+    }
+    for (i = 0; i < NUM_CHANNELS; i++) {
+        wave_display_base_8ch[i] += WAVE_DISPLAY_BASELINE_ALPHA * (in_arr[i] - wave_display_base_8ch[i]);
+        out_arr[i] = in_arr[i] - wave_display_base_8ch[i];
+    }
+#else
+    int i;
+    for (i = 0; i < NUM_CHANNELS; i++) {
+        out_arr[i] = in_arr[i];
+    }
 #endif
 }

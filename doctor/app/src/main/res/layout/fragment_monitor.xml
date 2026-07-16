@@ -6,81 +6,7 @@
     android:orientation="vertical">
 
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/surface_mid"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="8dp"
-        android:paddingTop="4dp"
-        android:paddingEnd="8dp"
-        android:paddingBottom="2dp">
 
-        <TextView
-            android:text="通道A"
-            style="@style/ControlLabel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-
-        <Spinner
-            android:id="@+id/spinner_ch_a"
-            android:layout_width="wrap_content"
-            android:layout_height="28dp"
-            android:layout_marginEnd="8dp" />
-
-        <TextView
-            android:text="通道B"
-            style="@style/ControlLabel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-
-        <Spinner
-            android:id="@+id/spinner_ch_b"
-            android:layout_width="wrap_content"
-            android:layout_height="28dp"
-            android:layout_marginEnd="8dp" />
-
-        <View
-            android:layout_width="1dp"
-            android:layout_height="16dp"
-            android:layout_marginEnd="6dp"
-            android:background="@color/surface_overlay" />
-
-        <TextView
-            android:text="频谱"
-            style="@style/ControlLabel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-
-        <TextView
-            android:id="@+id/tv_spectrum_mode"
-            style="@style/ParamChip"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="原始" />
-
-        <View
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-
-        <View
-            android:id="@+id/status_indicator"
-            android:layout_width="6dp"
-            android:layout_height="6dp"
-            android:layout_marginEnd="4dp"
-            android:background="@drawable/bg_status_indicator" />
-
-        <TextView
-            android:id="@+id/tv_status"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text=""
-            android:textColor="@color/text_secondary"
-            android:textSize="10sp" />
-    </LinearLayout>
-
-    <LinearLayout
         android:id="@+id/channel_container"
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -165,6 +91,16 @@
                 android:layout_width="0dp"
                 android:layout_height="0dp"
                 android:layout_weight="1" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_display_cfg"
+                style="@style/ControlButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:minWidth="52dp"
+                android:layout_marginStart="4dp"
+                android:text="通道"
+                android:textSize="12sp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_pause_resume"

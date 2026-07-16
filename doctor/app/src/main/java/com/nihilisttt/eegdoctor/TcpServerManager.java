@@ -841,22 +841,33 @@ public class TcpServerManager {
             int cmd = payload[0] & 0xFF;
             int loadLen = payloadLen - 1;
             boolean valid = false;
-            if (cmd == 0x04 || cmd == 0x10) {
-                if (loadLen == 8) {
+
+            if (cmd == 0x04 || cmd == 0x10 || cmd == 0x11) {
+                if (loadLen == 5) {
+                    valid = true;
+                    int ch = payload[1] & 0xFF;
+                    ByteBuffer buf = ByteBuffer.wrap(payload, 2, 4).order(ByteOrder.LITTLE_ENDIAN);
+                    float val = buf.getFloat();
+                    dispatcher.postWaveData(cmd, ch, val);
+                    udpSender.sendWaveData(val, val);
+                } else if (loadLen == 10) {
+                    valid = true;
+                    int chA = payload[1] & 0xFF;
+                    int chB = payload[2] & 0xFF;
+                    ByteBuffer buf = ByteBuffer.wrap(payload, 3, 8).order(ByteOrder.LITTLE_ENDIAN);
+                    float valA = buf.getFloat();
+                    float valB = buf.getFloat();
+                    dispatcher.postWaveData(cmd, chA, valA);
+                    dispatcher.postWaveData(cmd, chB, valB);
+                    udpSender.sendWaveData(valA, valB);
+                } else if (loadLen == 8) {
                     valid = true;
                     ByteBuffer buf = ByteBuffer.wrap(payload, 1, 8).order(ByteOrder.LITTLE_ENDIAN);
-                    float ch0 = buf.getFloat();
-                    float ch1 = buf.getFloat();
-                    dispatcher.postWaveData(cmd, ch0, ch1);
-                    udpSender.sendWaveData(ch0, ch1);
-                }
-            } else if (cmd == 0x20 || cmd == 0x21) {
-                if (loadLen == 32) {
-                    valid = true;
-                    ByteBuffer buf = ByteBuffer.wrap(payload, 1, 32).order(ByteOrder.LITTLE_ENDIAN);
-                    float[] ch = new float[8];
-                    for (int i = 0; i < 8; i++) ch[i] = buf.getFloat();
-                    dispatcher.postWaveData8ch(cmd, ch);
+                    float valA = buf.getFloat();
+                    float valB = buf.getFloat();
+                    dispatcher.postWaveData(cmd, 0, valA);
+                    dispatcher.postWaveData(cmd, 1, valB);
+                    udpSender.sendWaveData(valA, valB);
                 }
             } else if (cmd == 0x05) {
                 if (loadLen == 18) {
@@ -894,10 +905,12 @@ public class TcpServerManager {
         }
 
         private boolean isSpectrumCmd(int cmd) {
-            return (cmd >= 0x02 && cmd <= 0x03)
-                || (cmd >= 0x06 && cmd <= 0x09)
-                || (cmd >= 0x30 && cmd <= 0x37)
-                || (cmd >= 0x38 && cmd <= 0x3F);
+            if (cmd >= 0x20 && cmd <= 0x27) return true;
+            if (cmd >= 0x30 && cmd <= 0x37) return true;
+            if (cmd >= 0x40 && cmd <= 0x47) return true;
+            if (cmd == 0x02 || cmd == 0x03 || cmd == 0x06 ||
+                cmd == 0x07 || cmd == 0x08 || cmd == 0x09) return true;
+            return false;
         }
 
         private int textLineLogCounter = 0;

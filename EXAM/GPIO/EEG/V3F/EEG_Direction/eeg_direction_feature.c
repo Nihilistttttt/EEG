@@ -89,32 +89,32 @@ void Direction_BuildRawFeature(float feature[DIR_FEAT_DIM_LOCAL],
         total[i] = Direction_SafePower(theta[i] + mu[i] + beta[i]);
     }
 
-    feature[0] = Direction_LogRatio(mu[0],    mu[1])    * DIR_FEATURE_SCALE;
-    feature[1] = Direction_LogRatio(beta[0],  beta[1])  * DIR_FEATURE_SCALE;
-    feature[2] = Direction_LogRatio(mu[2],    mu[3])    * DIR_FEATURE_SCALE;
-    feature[3] = Direction_LogRatio(beta[2],  beta[3])  * DIR_FEATURE_SCALE;
-    feature[4] = Direction_LogRatio(theta[0], theta[1]) * DIR_FEATURE_SCALE;
-    feature[5] = Direction_LogRatio(theta[2], theta[3]) * DIR_FEATURE_SCALE;
-    feature[6] = Direction_LogRatio(total[0], total[1]) * DIR_FEATURE_SCALE;
-    feature[7] = Direction_LogRatio(total[2], total[3]) * DIR_FEATURE_SCALE;
+    feature[0] = Direction_LogRatio(mu[4],    mu[5])    * DIR_FEATURE_SCALE;
+    feature[1] = Direction_LogRatio(beta[4],  beta[5])  * DIR_FEATURE_SCALE;
+    feature[2] = Direction_LogRatio(mu[6],    mu[7])    * DIR_FEATURE_SCALE;
+    feature[3] = Direction_LogRatio(beta[6],  beta[7])  * DIR_FEATURE_SCALE;
+    feature[4] = Direction_LogRatio(theta[4], theta[5]) * DIR_FEATURE_SCALE;
+    feature[5] = Direction_LogRatio(theta[6], theta[7]) * DIR_FEATURE_SCALE;
+    feature[6] = Direction_LogRatio(total[4], total[5]) * DIR_FEATURE_SCALE;
+    feature[7] = Direction_LogRatio(total[6], total[7]) * DIR_FEATURE_SCALE;
 
-    feature[8]  = Direction_LogRatio(mu[0],   total[0]) * DIR_FEATURE_SCALE;
-    feature[9]  = Direction_LogRatio(mu[1],   total[1]) * DIR_FEATURE_SCALE;
-    feature[10] = Direction_LogRatio(mu[2],   total[2]) * DIR_FEATURE_SCALE;
-    feature[11] = Direction_LogRatio(mu[3],   total[3]) * DIR_FEATURE_SCALE;
-    feature[12] = Direction_LogRatio(beta[0], total[0]) * DIR_FEATURE_SCALE;
-    feature[13] = Direction_LogRatio(beta[1], total[1]) * DIR_FEATURE_SCALE;
-    feature[14] = Direction_LogRatio(beta[2], total[2]) * DIR_FEATURE_SCALE;
-    feature[15] = Direction_LogRatio(beta[3], total[3]) * DIR_FEATURE_SCALE;
-    feature[16] = Direction_LogRatio(beta[0], mu[0])    * DIR_FEATURE_SCALE;
-    feature[17] = Direction_LogRatio(beta[1], mu[1])    * DIR_FEATURE_SCALE;
-    feature[18] = Direction_LogRatio(beta[2], mu[2])    * DIR_FEATURE_SCALE;
-    feature[19] = Direction_LogRatio(beta[3], mu[3])    * DIR_FEATURE_SCALE;
+    feature[8]  = Direction_LogRatio(mu[4],   total[4]) * DIR_FEATURE_SCALE;
+    feature[9]  = Direction_LogRatio(mu[5],   total[5]) * DIR_FEATURE_SCALE;
+    feature[10] = Direction_LogRatio(mu[6],   total[6]) * DIR_FEATURE_SCALE;
+    feature[11] = Direction_LogRatio(mu[7],   total[7]) * DIR_FEATURE_SCALE;
+    feature[12] = Direction_LogRatio(beta[4], total[4]) * DIR_FEATURE_SCALE;
+    feature[13] = Direction_LogRatio(beta[5], total[5]) * DIR_FEATURE_SCALE;
+    feature[14] = Direction_LogRatio(beta[6], total[6]) * DIR_FEATURE_SCALE;
+    feature[15] = Direction_LogRatio(beta[7], total[7]) * DIR_FEATURE_SCALE;
+    feature[16] = Direction_LogRatio(beta[4], mu[4])    * DIR_FEATURE_SCALE;
+    feature[17] = Direction_LogRatio(beta[5], mu[5])    * DIR_FEATURE_SCALE;
+    feature[18] = Direction_LogRatio(beta[6], mu[6])    * DIR_FEATURE_SCALE;
+    feature[19] = Direction_LogRatio(beta[7], mu[7])    * DIR_FEATURE_SCALE;
 
-    feature[20] = Direction_LogRatio(mu[0],   mu[2])    * DIR_FEATURE_SCALE;
-    feature[21] = Direction_LogRatio(mu[1],   mu[3])    * DIR_FEATURE_SCALE;
-    feature[22] = Direction_LogRatio(beta[0], beta[2])  * DIR_FEATURE_SCALE;
-    feature[23] = Direction_LogRatio(beta[1], beta[3])  * DIR_FEATURE_SCALE;
+    feature[20] = Direction_LogRatio(mu[4],   mu[6])    * DIR_FEATURE_SCALE;
+    feature[21] = Direction_LogRatio(mu[5],   mu[7])    * DIR_FEATURE_SCALE;
+    feature[22] = Direction_LogRatio(beta[4], beta[6])  * DIR_FEATURE_SCALE;
+    feature[23] = Direction_LogRatio(beta[5], beta[7])  * DIR_FEATURE_SCALE;
 }
 
 

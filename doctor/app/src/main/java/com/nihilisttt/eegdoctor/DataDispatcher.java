@@ -23,20 +23,11 @@ public class DataDispatcher {
         Log.d(TAG, "removeListener: " + listener.getClass().getSimpleName() + ", total=" + listeners.size());
     }
 
-    public void postWaveData(int cmd, float ch0, float ch1) {
+    public void postWaveData(int cmd, int ch, float val) {
         mainHandler.post(() -> {
             for (DataListener l : listeners) {
-                try { l.onWaveData(cmd, ch0, ch1); }
+                try { l.onWaveData(cmd, ch, val); }
                 catch (Exception e) { Log.e(TAG, "onWaveData error in " + l.getClass().getSimpleName(), e); }
-            }
-        });
-    }
-
-    public void postWaveData8ch(int cmd, float[] ch) {
-        mainHandler.post(() -> {
-            for (DataListener l : listeners) {
-                try { l.onWaveData8ch(cmd, ch); }
-                catch (Exception e) { Log.e(TAG, "onWaveData8ch error in " + l.getClass().getSimpleName(), e); }
             }
         });
     }

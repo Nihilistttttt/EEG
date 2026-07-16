@@ -110,6 +110,14 @@ public class WaveformView extends View {
         textPaint.setAntiAlias(true);
     }
 
+    public int getMode() { return currentMode; }
+
+    public void setMode(int mode) {
+        if (mode >= MODE_FIX && mode <= MODE_SLOW_TRACK) {
+            switchMode(mode);
+        }
+    }
+
     private void switchMode(int newMode) {
         if (newMode == MODE_FIX) {
             float currentCenter = getCurrentWindowCenter();
@@ -205,6 +213,17 @@ public class WaveformView extends View {
             mUnit = unit;
             invalidate();
         }
+    }
+
+    public void clear() {
+        lock.lock();
+        writeIdx = 0;
+        pointCount = 0;
+        lock.unlock();
+        fixCenterOffset = 0f;
+        slowTargetCenter = 0f;
+        slowOffsetCount = 0;
+        invalidate();
     }
 
     public void addPoint(float value) {
@@ -316,12 +335,19 @@ public class WaveformView extends View {
 
         float yTickSpacing = niceNum(mYRange / 3.0f, true);
         float yTick = (float) Math.floor(yMin / yTickSpacing) * yTickSpacing;
+        float scaledTickSpacing = yTickSpacing * unitScale;
+        int labelDecimals;
+        if (scaledTickSpacing >= 10f) labelDecimals = 0;
+        else if (scaledTickSpacing >= 1f) labelDecimals = 1;
+        else if (scaledTickSpacing >= 0.1f) labelDecimals = 2;
+        else labelDecimals = 3;
+        String labelFmt = "%." + labelDecimals + "f";
         while (yTick <= yMax + yTickSpacing * 0.5f) {
             float y = bottom - (yTick - yMin) * yScale;
             canvas.drawLine(left, y, right, y, gridPaint);
             canvas.drawLine(left - 5, y, left, y, axisPaint);
             float scaled = yTick * unitScale;
-            String label = String.format("%.0f", scaled) + mUnit;
+            String label = String.format(labelFmt, scaled) + mUnit;
             float tw = textPaint.measureText(label);
             canvas.drawText(label, left - 15 - tw, y + 5, textPaint);
             yTick += yTickSpacing;
@@ -374,10 +400,15 @@ public class WaveformView extends View {
 
         textPaint.setColor(waveColor);
         textPaint.setTextSize(12f);
-        double minLabelVal = Math.floor(yMin * 1000) / 1000.0;
-        double maxLabelVal = Math.ceil(yMax * 1000) / 1000.0;
-        String maxLabel = String.format("%.3f V", maxLabelVal);
-        String minLabel = String.format("%.3f V", minLabelVal);
+        float scaledRange = mYRange * unitScale;
+        int rangeDecimals;
+        if (scaledRange >= 100f) rangeDecimals = 0;
+        else if (scaledRange >= 1f) rangeDecimals = 1;
+        else if (scaledRange >= 0.01f) rangeDecimals = 2;
+        else rangeDecimals = 3;
+        String rangeFmt = "%." + rangeDecimals + "f";
+        String maxLabel = String.format(rangeFmt, yMax * unitScale) + " " + mUnit;
+        String minLabel = String.format(rangeFmt, yMin * unitScale) + " " + mUnit;
         canvas.drawText(maxLabel, left + 5, top + 15, textPaint);
         canvas.drawText(minLabel, left + 5, bottom - 10, textPaint);
 

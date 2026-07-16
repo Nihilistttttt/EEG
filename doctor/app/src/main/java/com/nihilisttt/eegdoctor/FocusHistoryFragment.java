@@ -23,10 +23,7 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
 
     private FocusChartView focusChart;
     private TextView tvFocusXRange;
-    private TextView tvFocusInfo;
-    private TextView tvRelaxInfo;
-    private TextView tvInstantInfo;
-    private TextView tvTrendInfo;
+
     private TextView btnToggleFocus;
     private TextView btnToggleRelax;
 
@@ -40,10 +37,7 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
         View root = inflater.inflate(R.layout.fragment_focus_history, container, false);
         focusChart = root.findViewById(R.id.focus_chart);
         tvFocusXRange = root.findViewById(R.id.tv_focus_x_range);
-        tvFocusInfo = root.findViewById(R.id.tv_focus_info);
-        tvRelaxInfo = root.findViewById(R.id.tv_relax_info);
-        tvInstantInfo = root.findViewById(R.id.tv_instant_info);
-        tvTrendInfo = root.findViewById(R.id.tv_trend_info);
+
         btnToggleFocus = root.findViewById(R.id.btn_toggle_focus);
         btnToggleRelax = root.findViewById(R.id.btn_toggle_relax);
 
@@ -133,33 +127,11 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
     @Override
     public void onFocusData(float attn0, float attn1, float ema0, float ema1,
                             int trend, int instant) {
-        float focus = ema0;
-        float relax = 1.0f - focus;
-        if (focusChart != null) focusChart.addPoint(focus, relax);
-        String[] stateText = {"放松", "平静", "专注"};
-        int[] stateColors = {
-            ContextCompat.getColor(requireContext(), R.color.accent_error),
-            ContextCompat.getColor(requireContext(), R.color.accent_warning),
-            ContextCompat.getColor(requireContext(), R.color.accent_success)
-        };
-        if (tvFocusInfo != null)
-            tvFocusInfo.setText(String.format(Locale.getDefault(), "专注度: %.1f%%", focus * 100));
-        if (tvRelaxInfo != null)
-            tvRelaxInfo.setText(String.format(Locale.getDefault(), "放松度: %.1f%%", relax * 100));
-        if (tvInstantInfo != null) {
-            String instantStr = (instant >= 0 && instant < stateText.length) ? stateText[instant] : "?";
-            tvInstantInfo.setText("瞬时: " + instantStr);
-            if (instant >= 0 && instant < stateColors.length) tvInstantInfo.setTextColor(stateColors[instant]);
-        }
-        if (tvTrendInfo != null) {
-            String trendStr = (trend >= 0 && trend < stateText.length) ? stateText[trend] : "?";
-            tvTrendInfo.setText("趋势: " + trendStr);
-            if (trend >= 0 && trend < stateColors.length) tvTrendInfo.setTextColor(stateColors[trend]);
-        }
+        if (focusChart != null) focusChart.addPoint(ema0, ema1);
     }
 
     @Override
-    public void onWaveData(int cmd, float ch0, float ch1) {}
+    public void onWaveData(int cmd, int ch, float val) {}
 
     @Override
     public void onSpectrumData(int cmd, float[] mags) {}

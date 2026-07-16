@@ -1,4 +1,5 @@
 #include "ICM42605.h"
+#include "Config.h"
 #include "debug.h"
 #include "OLED.h"
 #include "posture_detect.h"
@@ -6,89 +7,14 @@
 #include <math.h>
 
 
-/*
- * SPI4端口定义
- * SCK  : PE2  AF5
- * MISO : PE13 AF5
- * MOSI : PE14 AF5
- * CS   : PE3  普通GPIO
- */
-
-#define ICM42605_SPI                 SPI4
-
-#define ICM42605_GPIO_PORT           GPIOE
-#define ICM42605_GPIO_CLOCK          RCC_HB2Periph_GPIOE
-
-#define ICM42605_SCK_PIN             GPIO_Pin_2
-#define ICM42605_SCK_SOURCE          GPIO_PinSource2
-
-// #define ICM42605_MISO_PIN            GPIO_Pin_13
-// #define ICM42605_MISO_SOURCE         GPIO_PinSource13
-
-#define ICM42605_MISO_PIN            GPIO_Pin_5
-#define ICM42605_MISO_SOURCE         GPIO_PinSource5
-
-// #define ICM42605_MOSI_PIN            GPIO_Pin_14
-// #define ICM42605_MOSI_SOURCE         GPIO_PinSource14
-
-
-#define ICM42605_MOSI_PIN            GPIO_Pin_6
-#define ICM42605_MOSI_SOURCE         GPIO_PinSource6
-
-#define ICM42605_CS_PIN              GPIO_Pin_3
-
-
-#define ICM42605_CS_LOW()            GPIO_ResetBits(ICM42605_GPIO_PORT, ICM42605_CS_PIN)
-#define ICM42605_CS_HIGH()           GPIO_SetBits(ICM42605_GPIO_PORT, ICM42605_CS_PIN)
+#define ICM42605_CS_LOW()            Hal_GPIO_Reset(ICM42605_CS_PIN_ENC)
+#define ICM42605_CS_HIGH()           Hal_GPIO_Set(ICM42605_CS_PIN_ENC)
 
 /* 防止硬件异常时永久卡死在SPI状态等待中 */
-#define ICM42605_SPI_TIMEOUT         100000UL
+#define ICM42605_SPI_INSTANCE_TIMEOUT         100000UL
 
 /*
- * ===================== SPI4 DMA 配置 =====================
- *
- * ADS1299 已使用 DMA1_Channel1 / DMA1_Channel2。
- * 串口当前工程已使用 DMA1_Channel4/5/6/7。
- *
- * 这里给 ICM42605 使用 DMA2_Channel1 / DMA2_Channel2，
- * 避免与 ADS1299 脑电采集 DMA 冲突。
- *
- * SPI4 DMA 请求号按 CH32H417 DMAMUX 连续映射：
- * SPI3_TX = 67, SPI3_RX = 68，因此 SPI4_TX = 69, SPI4_RX = 70。
- * 如果你的芯片库版本映射不同，只需要改下面两个 request 宏。
- */
-#define ICM42605_DMA_INSTANCE          DMA2
-
-#define ICM42605_RX_DMA_CHANNEL        DMA2_Channel1
-#define ICM42605_TX_DMA_CHANNEL        DMA2_Channel2
-
-#define ICM42605_RX_DMAMUX_CHANNEL     DMA_MuxChannel9
-#define ICM42605_TX_DMAMUX_CHANNEL     DMA_MuxChannel10
-
-#define ICM42605_TX_DMA_REQUEST        69U
-#define ICM42605_RX_DMA_REQUEST        70U
-
-#define ICM42605_RX_DMA_TC_FLAG        DMA2_IT_TC1
-#define ICM42605_RX_DMA_TE_FLAG        DMA2_IT_TE1
-#define ICM42605_TX_DMA_TC_FLAG        DMA2_IT_TC2
-#define ICM42605_TX_DMA_TE_FLAG        DMA2_IT_TE2
-
-#define ICM42605_RX_DMA_IRQn           DMA2_Channel1_IRQn
-#define ICM42605_TX_DMA_IRQn           DMA2_Channel2_IRQn
-
-/* 读 0x0C~0x17 共12字节，SPI还需要先发送1个读命令字节 */
-#define ICM42605_DMA_FRAME_SIZE        13U
-#define ICM42605_RAW_DATA_SIZE         12U
-
-/*
- * 角度积分参数：
- * 这里恢复为最初测试效果较好的固定100Hz积分内核。
- *
- * 前提：
- * Timer_1ms.c 必须保证每1ms进一次中断，
- * ICM42605_1msTickISR() 每10次置一次采样请求，
- * 即 ICM42605 实际采样周期约为10ms。
- *
+ * 角度积分参数
  * angle_deg10 = sum(raw * 61) / 40000
  */
 #define ICM42605_ANGLE_NUM_PER_LSB     61
@@ -106,9 +32,9 @@
 #define ICM42605_ACC_SCALE_G         0.000122f  /* ±4g: 0.122 mg/LSB */
 #define ICM42605_GYR_SCALE_DPS       0.01525f   /* ±500dps: 15.25 mdps/LSB */
 
-static ICM42605_Status ICM42605_SPI_TransferByte(uint8_t tx_data, uint8_t *rx_data);
-static ICM42605_Status ICM42605_SPI_WaitNotBusy(void);
-static void ICM42605_SPI_ClearRxNE(void);
+static ICM42605_Status ICM42605_SPI_INSTANCE_TransferByte(uint8_t tx_data, uint8_t *rx_data);
+static ICM42605_Status ICM42605_SPI_INSTANCE_WaitNotBusy(void);
+static void ICM42605_SPI_INSTANCE_ClearRxNE(void);
 
 static void ICM42605_DMA_Init(void);
 static ICM42605_Status ICM42605_DMA_StartReadRaw(void);
@@ -181,43 +107,22 @@ static int32_t icm42605_angle_z_deg10 = 0;
  */
 void ICM42605_SPI4_Init(void)
 {
-    GPIO_InitTypeDef GPIO_InitStructure = {0};
     SPI_InitTypeDef SPI_InitStructure = {0};
 
-    RCC_HB2PeriphClockCmd(
-        RCC_HB2Periph_AFIO | ICM42605_GPIO_CLOCK,
-        ENABLE
-    );
+    GPIO_ClockEnable(ICM42605_CS_PORT);
+    GPIO_ClockEnable(ICM42605_SCK_PORT);
+    GPIO_ClockEnable(ICM42605_MISO_PORT);
+    GPIO_ClockEnable(ICM42605_MOSI_PORT);
     RCC_HB1PeriphClockCmd(RCC_HB1Periph_SPI4, ENABLE);
 
-    /* CS先配置为普通推挽输出，并保持高电平 */
-    GPIO_InitStructure.GPIO_Pin = ICM42605_CS_PIN;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_Very_High;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
-    GPIO_Init(ICM42605_GPIO_PORT, &GPIO_InitStructure);
+    Hal_GPIO_Init(ICM42605_CS_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP, HAL_GPIO_SPEED_VERY_HIGH, 0);
     ICM42605_CS_HIGH();
 
-    /* SCK：PE2，AF5 */
-    GPIO_PinAFConfig(ICM42605_GPIO_PORT, ICM42605_SCK_SOURCE, GPIO_AF5);
-    GPIO_InitStructure.GPIO_Pin = ICM42605_SCK_PIN;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_Very_High;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
-    GPIO_Init(ICM42605_GPIO_PORT, &GPIO_InitStructure);
+    Hal_GPIO_Init(ICM42605_SCK_PIN_ENC, HAL_GPIO_MODE_AF_PP, HAL_GPIO_SPEED_VERY_HIGH, ICM42605_SCK_AF);
+    Hal_GPIO_Init(ICM42605_MOSI_PIN_ENC, HAL_GPIO_MODE_AF_PP, HAL_GPIO_SPEED_VERY_HIGH, ICM42605_MOSI_AF);
+    Hal_GPIO_Init(ICM42605_MISO_PIN_ENC, HAL_GPIO_MODE_AF_INPUT, HAL_GPIO_SPEED_VERY_HIGH, ICM42605_MISO_AF);
 
-    /* MOSI：PE14，AF5 */
-    GPIO_PinAFConfig(ICM42605_GPIO_PORT, ICM42605_MOSI_SOURCE, GPIO_AF5);
-    GPIO_InitStructure.GPIO_Pin = ICM42605_MOSI_PIN;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_Very_High;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
-    GPIO_Init(ICM42605_GPIO_PORT, &GPIO_InitStructure);
-
-    /* MISO：PE13，AF5 */
-    GPIO_PinAFConfig(ICM42605_GPIO_PORT, ICM42605_MISO_SOURCE, GPIO_AF5);
-    GPIO_InitStructure.GPIO_Pin = ICM42605_MISO_PIN;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
-    GPIO_Init(ICM42605_GPIO_PORT, &GPIO_InitStructure);
-
-    SPI_I2S_DeInit(ICM42605_SPI);
+    SPI_I2S_DeInit(ICM42605_SPI_INSTANCE);
 
     SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
     SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
@@ -241,9 +146,9 @@ void ICM42605_SPI4_Init(void)
     SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
     SPI_InitStructure.SPI_CRCPolynomial = 7;
 
-    SPI_Init(ICM42605_SPI, &SPI_InitStructure);
-    SPI_NSSInternalSoftwareConfig(ICM42605_SPI, SPI_NSSInternalSoft_Set);
-    SPI_Cmd(ICM42605_SPI, ENABLE);
+    SPI_Init(ICM42605_SPI_INSTANCE, &SPI_InitStructure);
+    SPI_NSSInternalSoftwareConfig(ICM42605_SPI_INSTANCE, SPI_NSSInternalSoft_Set);
+    SPI_Cmd(ICM42605_SPI_INSTANCE, ENABLE);
 }
 
 /**
@@ -493,15 +398,15 @@ ICM42605_Status ICM42605_WriteRegister(uint8_t reg, uint8_t value)
     ICM42605_CS_LOW();
 
     /* 写命令：最高位为0，低7位为寄存器地址 */
-    status = ICM42605_SPI_TransferByte((uint8_t)(reg & 0x7FU), &dummy);
+    status = ICM42605_SPI_INSTANCE_TransferByte((uint8_t)(reg & 0x7FU), &dummy);
     if(status == ICM42605_OK)
     {
-        status = ICM42605_SPI_TransferByte(value, &dummy);
+        status = ICM42605_SPI_INSTANCE_TransferByte(value, &dummy);
     }
 
     if(status == ICM42605_OK)
     {
-        status = ICM42605_SPI_WaitNotBusy();
+        status = ICM42605_SPI_INSTANCE_WaitNotBusy();
     }
 
     ICM42605_CS_HIGH();
@@ -539,16 +444,16 @@ ICM42605_Status ICM42605_ReadRegisters(
     ICM42605_CS_LOW();
 
     /* 读命令：最高位置1 */
-    status = ICM42605_SPI_TransferByte((uint8_t)(reg | 0x80U), &dummy);
+    status = ICM42605_SPI_INSTANCE_TransferByte((uint8_t)(reg | 0x80U), &dummy);
 
     for(i = 0; (i < length) && (status == ICM42605_OK); i++)
     {
-        status = ICM42605_SPI_TransferByte(0xFFU, &data[i]);
+        status = ICM42605_SPI_INSTANCE_TransferByte(0xFFU, &data[i]);
     }
 
     if(status == ICM42605_OK)
     {
-        status = ICM42605_SPI_WaitNotBusy();
+        status = ICM42605_SPI_INSTANCE_WaitNotBusy();
     }
 
     ICM42605_CS_HIGH();
@@ -1131,15 +1036,15 @@ static void ICM42605_DMA_Init(void)
 
     RCC_HBPeriphClockCmd(RCC_HBPeriph_DMA2, ENABLE);
 
-    SPI_I2S_DMACmd(ICM42605_SPI, SPI_I2S_DMAReq_Rx, DISABLE);
-    SPI_I2S_DMACmd(ICM42605_SPI, SPI_I2S_DMAReq_Tx, DISABLE);
+    SPI_I2S_DMACmd(ICM42605_SPI_INSTANCE, SPI_I2S_DMAReq_Rx, DISABLE);
+    SPI_I2S_DMACmd(ICM42605_SPI_INSTANCE, SPI_I2S_DMAReq_Tx, DISABLE);
 
     DMA_Cmd(ICM42605_RX_DMA_CHANNEL, DISABLE);
     DMA_Cmd(ICM42605_TX_DMA_CHANNEL, DISABLE);
 
     /* RX DMA：SPI DATAR -> rx buffer */
     DMA_InitStructure.DMA_PeripheralBaseAddr =
-        (uint32_t)&(ICM42605_SPI->DATAR);
+        (uint32_t)&(ICM42605_SPI_INSTANCE->DATAR);
     DMA_InitStructure.DMA_Memory0BaseAddr =
         (uint32_t)icm42605_dma_rx_buf;
     DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralSRC;
@@ -1162,7 +1067,7 @@ static void ICM42605_DMA_Init(void)
 
     /* TX DMA：tx buffer -> SPI DATAR */
     DMA_InitStructure.DMA_PeripheralBaseAddr =
-        (uint32_t)&(ICM42605_SPI->DATAR);
+        (uint32_t)&(ICM42605_SPI_INSTANCE->DATAR);
     DMA_InitStructure.DMA_Memory0BaseAddr =
         (uint32_t)icm42605_dma_tx_buf;
     DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
@@ -1227,8 +1132,8 @@ static ICM42605_Status ICM42605_DMA_StartReadRaw(void)
         icm42605_dma_tx_buf[i] = 0xFFU;
     }
 
-    SPI_I2S_DMACmd(ICM42605_SPI, SPI_I2S_DMAReq_Rx, DISABLE);
-    SPI_I2S_DMACmd(ICM42605_SPI, SPI_I2S_DMAReq_Tx, DISABLE);
+    SPI_I2S_DMACmd(ICM42605_SPI_INSTANCE, SPI_I2S_DMAReq_Rx, DISABLE);
+    SPI_I2S_DMACmd(ICM42605_SPI_INSTANCE, SPI_I2S_DMAReq_Tx, DISABLE);
 
     DMA_Cmd(ICM42605_RX_DMA_CHANNEL, DISABLE);
     DMA_Cmd(ICM42605_TX_DMA_CHANNEL, DISABLE);
@@ -1238,7 +1143,7 @@ static ICM42605_Status ICM42605_DMA_StartReadRaw(void)
     DMA_ClearITPendingBit(ICM42605_DMA_INSTANCE, ICM42605_TX_DMA_TC_FLAG);
     DMA_ClearITPendingBit(ICM42605_DMA_INSTANCE, ICM42605_TX_DMA_TE_FLAG);
 
-    ICM42605_SPI_ClearRxNE();
+    ICM42605_SPI_INSTANCE_ClearRxNE();
 
     ICM42605_RX_DMA_CHANNEL->MADDR =
         (uint32_t)icm42605_dma_rx_buf;
@@ -1260,8 +1165,8 @@ static ICM42605_Status ICM42605_DMA_StartReadRaw(void)
     DMA_Cmd(ICM42605_RX_DMA_CHANNEL, ENABLE);
     DMA_Cmd(ICM42605_TX_DMA_CHANNEL, ENABLE);
 
-    SPI_I2S_DMACmd(ICM42605_SPI, SPI_I2S_DMAReq_Rx, ENABLE);
-    SPI_I2S_DMACmd(ICM42605_SPI, SPI_I2S_DMAReq_Tx, ENABLE);
+    SPI_I2S_DMACmd(ICM42605_SPI_INSTANCE, SPI_I2S_DMAReq_Rx, ENABLE);
+    SPI_I2S_DMACmd(ICM42605_SPI_INSTANCE, SPI_I2S_DMAReq_Tx, ENABLE);
 
     return ICM42605_OK;
 }
@@ -1271,13 +1176,13 @@ static ICM42605_Status ICM42605_DMA_StartReadRaw(void)
  */
 static void ICM42605_DMA_StopAndReleaseCS(void)
 {
-    SPI_I2S_DMACmd(ICM42605_SPI, SPI_I2S_DMAReq_Rx, DISABLE);
-    SPI_I2S_DMACmd(ICM42605_SPI, SPI_I2S_DMAReq_Tx, DISABLE);
+    SPI_I2S_DMACmd(ICM42605_SPI_INSTANCE, SPI_I2S_DMAReq_Rx, DISABLE);
+    SPI_I2S_DMACmd(ICM42605_SPI_INSTANCE, SPI_I2S_DMAReq_Tx, DISABLE);
 
     DMA_Cmd(ICM42605_RX_DMA_CHANNEL, DISABLE);
     DMA_Cmd(ICM42605_TX_DMA_CHANNEL, DISABLE);
 
-    (void)ICM42605_SPI_WaitNotBusy();
+    (void)ICM42605_SPI_INSTANCE_WaitNotBusy();
 
     Delay_Us(2);
     ICM42605_CS_HIGH();
@@ -1315,13 +1220,13 @@ static void ICM42605_DMA_ParseRaw(ICM42605_RawData *raw)
 /**
  * @brief  SPI接收FIFO清空。
  */
-static void ICM42605_SPI_ClearRxNE(void)
+static void ICM42605_SPI_INSTANCE_ClearRxNE(void)
 {
     volatile uint16_t dummy;
 
-    while(SPI_I2S_GetFlagStatus(ICM42605_SPI, SPI_I2S_FLAG_RXNE) != RESET)
+    while(SPI_I2S_GetFlagStatus(ICM42605_SPI_INSTANCE, SPI_I2S_FLAG_RXNE) != RESET)
     {
-        dummy = SPI_I2S_ReceiveData(ICM42605_SPI);
+        dummy = SPI_I2S_ReceiveData(ICM42605_SPI_INSTANCE);
         (void)dummy;
     }
 }
@@ -1374,19 +1279,19 @@ void DMA2_Channel2_IRQHandler(void)
 /**
  * @brief  SPI全双工收发一个字节。
  */
-static ICM42605_Status ICM42605_SPI_TransferByte(
+static ICM42605_Status ICM42605_SPI_INSTANCE_TransferByte(
     uint8_t tx_data,
     uint8_t *rx_data
 )
 {
-    uint32_t timeout = ICM42605_SPI_TIMEOUT;
+    uint32_t timeout = ICM42605_SPI_INSTANCE_TIMEOUT;
 
     if(rx_data == 0)
     {
         return ICM42605_ERROR_PARAM;
     }
 
-    while(SPI_I2S_GetFlagStatus(ICM42605_SPI, SPI_I2S_FLAG_TXE) == RESET)
+    while(SPI_I2S_GetFlagStatus(ICM42605_SPI_INSTANCE, SPI_I2S_FLAG_TXE) == RESET)
     {
         if(timeout == 0U)
         {
@@ -1395,11 +1300,11 @@ static ICM42605_Status ICM42605_SPI_TransferByte(
         timeout--;
     }
 
-    SPI_I2S_SendData(ICM42605_SPI, tx_data);
+    SPI_I2S_SendData(ICM42605_SPI_INSTANCE, tx_data);
 
-    timeout = ICM42605_SPI_TIMEOUT;
+    timeout = ICM42605_SPI_INSTANCE_TIMEOUT;
 
-    while(SPI_I2S_GetFlagStatus(ICM42605_SPI, SPI_I2S_FLAG_RXNE) == RESET)
+    while(SPI_I2S_GetFlagStatus(ICM42605_SPI_INSTANCE, SPI_I2S_FLAG_RXNE) == RESET)
     {
         if(timeout == 0U)
         {
@@ -1408,7 +1313,7 @@ static ICM42605_Status ICM42605_SPI_TransferByte(
         timeout--;
     }
 
-    *rx_data = (uint8_t)SPI_I2S_ReceiveData(ICM42605_SPI);
+    *rx_data = (uint8_t)SPI_I2S_ReceiveData(ICM42605_SPI_INSTANCE);
 
     return ICM42605_OK;
 }
@@ -1416,11 +1321,11 @@ static ICM42605_Status ICM42605_SPI_TransferByte(
 /**
  * @brief  等待SPI总线空闲后再释放CS。
  */
-static ICM42605_Status ICM42605_SPI_WaitNotBusy(void)
+static ICM42605_Status ICM42605_SPI_INSTANCE_WaitNotBusy(void)
 {
-    uint32_t timeout = ICM42605_SPI_TIMEOUT;
+    uint32_t timeout = ICM42605_SPI_INSTANCE_TIMEOUT;
 
-    while(SPI_I2S_GetFlagStatus(ICM42605_SPI, SPI_I2S_FLAG_BSY) != RESET)
+    while(SPI_I2S_GetFlagStatus(ICM42605_SPI_INSTANCE, SPI_I2S_FLAG_BSY) != RESET)
     {
         if(timeout == 0U)
         {

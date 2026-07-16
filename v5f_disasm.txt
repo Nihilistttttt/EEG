@@ -1,0 +1,40 @@
+
+D:\\Libraries\\Projects\\EEG\\EXAM\\GPIO\\EEG\\V5F\\obj\\GPIO_Toggle_V5F.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .highcode:
+
+200a0706 <DualCore_V5F_MainLoopProcess>:
+200a0706:	9c81c703          	lbu	a4,-1592(gp) # 200c0568 <g_ipc_v5f_pending_flag>
+200a070a:	16070be3          	beqz	a4,200a1080 <DualCore_V5F_MainLoopProcess+0x97a>
+200a070e:	b47ff2ef          	jal	t0,200a0254 <__riscv_save_12>
+200a0712:	9c018423          	sb	zero,-1592(gp) # 200c0568 <g_ipc_v5f_pending_flag>
+200a0716:	9c41a403          	lw	s0,-1596(gp) # 200c0564 <g_ipc_v5f_pending_share_addr>
+200a071a:	9c91c783          	lbu	a5,-1591(gp) # 200c0569 <g_ipc_v5f_ready>
+200a071e:	7121                	addi	sp,sp,-448
+200a0720:	1a812e27          	fsw	fs0,444(sp)
+200a0724:	1a912c27          	fsw	fs1,440(sp)
+200a0728:	1b212a27          	fsw	fs2,436(sp)
+200a072c:	1b312827          	fsw	fs3,432(sp)
+200a0730:	1b412627          	fsw	fs4,428(sp)
+200a0734:	1b512427          	fsw	fs5,424(sp)
+200a0738:	1b612227          	fsw	fs6,420(sp)
+200a073c:	1b712027          	fsw	fs7,416(sp)
+200a0740:	19812e27          	fsw	fs8,412(sp)
+200a0744:	19912c27          	fsw	fs9,408(sp)
+200a0748:	19a12a27          	fsw	fs10,404(sp)
+200a074c:	19b12827          	fsw	fs11,400(sp)
+200a0750:	10078fe3          	beqz	a5,200a106e <DualCore_V5F_MainLoopProcess+0x968>
+200a0754:	10040ee3          	beqz	s0,200a1070 <DualCore_V5F_MainLoopProcess+0x96a>
+200a0758:	cc22                	sw	s0,24(sp)
+200a075a:	0ff0000f          	fence
+200a075e:	4000                	lw	s0,0(s0)
+200a0760:	9d41a483          	lw	s1,-1580(gp) # 200c0574 <g_ipc_v5f_last_seq>
+200a0764:	03f47793          	andi	a5,s0,63
+200a0768:	ce3e                	sw	a5,28(sp)
+200a076a:	03f00793          	li	a5,63
+200a076e:	0485                	addi	s1,s1,1
+200a0770:	0087f663          	bgeu	a5,s0,200a077c <DualCore_V5F_MainLoopProcess+0x76>
+200a0774:	fc140793          	addi	a5,s0,-63
+200a0778:	0af4f4b3          	0xaf4f4b3
+200a077c:	8441ab07          	flw	fs6,-1980(gp) # 200c03e4 <_impure_ptr+0x34>

@@ -48,7 +48,8 @@ static void DualCore_V5F_ProcessPreprocess(volatile DualCore_IPC_FrameSlot_t *sl
     slot->v5f_window_count = g_ipc_v5f_window_count;
 
     for (c = 0; c < DUALCORE_ADS1299_ACTIVE_CH_NUM; c++) {
-        int32_t uv_x1000 = DualCore_ADS1299_CodeToMicroVoltX1000(ch_data[c]);
+        uint8_t src_ch = c + 4u;
+        int32_t uv_x1000 = DualCore_ADS1299_CodeToMicroVoltX1000(ch_data[src_ch]);
         float volt = (float)uv_x1000 / 1000000000.0f;
         float drift = DualCore_RemoveRealtimeDrift(volt, &g_v5f_drift[c]);
         float pre = DualCore_IIR_SOS_Step(drift, &g_v5f_notch_coeff, &g_v5f_notch_state[c]);

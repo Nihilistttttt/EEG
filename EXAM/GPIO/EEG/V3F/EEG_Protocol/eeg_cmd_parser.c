@@ -4,6 +4,7 @@
 #include "eeg_direction_infer.h"
 #include "eeg_direction_feature.h"
 #include "eeg_fft.h"
+#include "Message_Parser.h"
 #include "Serial.h"
 #include <string.h>
 #include <stdlib.h>
@@ -190,6 +191,35 @@ void Parse_CommandEx(const char *cmd, const char *source)
     if (strcmp(clean_cmd, "POSTURE,OFF") == 0) {
         g_posture_diag_enable = 0;
         RESP("POSTURE,OFF\r\n");
+        return;
+    }
+    if (strncmp(clean_cmd, "DISPLAY_CFG,", 12) == 0) {
+        const char *p = clean_cmd + 12;
+        int wca = -1, wta = -1, wcb = -1, wtb = -1, sta = -1, stb = -1;
+        while (*p) {
+            if (strncmp(p, "WAVE_CH_A=", 10) == 0) { wca = atoi(p + 10); }
+            else if (strncmp(p, "WAVE_TYPE_A=", 12) == 0) { wta = atoi(p + 12); }
+            else if (strncmp(p, "WAVE_CH_B=", 10) == 0) { wcb = atoi(p + 10); }
+            else if (strncmp(p, "WAVE_TYPE_B=", 12) == 0) { wtb = atoi(p + 12); }
+            else if (strncmp(p, "SPEC_TYPE_A=", 12) == 0) { sta = atoi(p + 12); }
+            else if (strncmp(p, "SPEC_TYPE_B=", 12) == 0) { stb = atoi(p + 12); }
+            const char *next = strchr(p, ',');
+            if (next == NULL) break;
+            p = next + 1;
+        }
+        if (wca >= 0 && wca < DISPLAY_MAX_CH) g_display_config.wave_ch[0] = (uint8_t)wca;
+        if (wta >= 0 && wta <= 2) g_display_config.wave_type[0] = (uint8_t)wta;
+        if (wcb >= 0 && wcb < DISPLAY_MAX_CH) g_display_config.wave_ch[1] = (uint8_t)wcb;
+        if (wtb >= 0 && wtb <= 2) g_display_config.wave_type[1] = (uint8_t)wtb;
+        if (sta >= 0 && sta <= 2) g_display_config.spec_type[0] = (uint8_t)sta;
+        if (stb >= 0 && stb <= 2) g_display_config.spec_type[1] = (uint8_t)stb;
+        RESP("DISPLAY_CFG_OK,WCA=%u,WTA=%u,WCB=%u,WTB=%u,STA=%u,STB=%u\r\n",
+             (unsigned)g_display_config.wave_ch[0],
+             (unsigned)g_display_config.wave_type[0],
+             (unsigned)g_display_config.wave_ch[1],
+             (unsigned)g_display_config.wave_type[1],
+             (unsigned)g_display_config.spec_type[0],
+             (unsigned)g_display_config.spec_type[1]);
         return;
     }
     RESP("ERROR,UNKNOWN_CMD\r\n");

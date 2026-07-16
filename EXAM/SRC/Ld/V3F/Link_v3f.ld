@@ -53,11 +53,9 @@ SECTIONS
         PROVIDE(_highcode_vma_start = .);
         *(.vector);
 		KEEP(*(SORT_NONE(.vector_handler)))
-		*(.text)
-		*(.text.*)
-		*(.rodata)
-		*(.rodata*)
-        *(.sdata2.*)
+    		*(.text)
+    		*(.text.*)
+        	*(.sdata2.*)
 		*(.glue_7)
 		*(.glue_7t)
 		*(.gnu.linkonce.t.*)
@@ -159,9 +157,11 @@ SECTIONS
 
 	.data :
 	{
-		. = ALIGN(4);
-    	*(.gnu.linkonce.r.*)
-    	*(.data .data.*)
+    		. = ALIGN(4);
+    		*(.rodata)
+    		*(.rodata*)
+    		*(.gnu.linkonce.r.*)
+    		*(.data .data.*)
     	*(.gnu.linkonce.d.*)
 		. = ALIGN(8);
     	PROVIDE( __global_pointer$ = . + 0x800 );

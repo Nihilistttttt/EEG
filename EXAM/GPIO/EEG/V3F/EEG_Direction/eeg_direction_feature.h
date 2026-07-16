@@ -9,7 +9,7 @@
 #define DIR_FEATURE_SCALE           10000.0f
 
 #ifndef NUM_CHANNELS
-#define NUM_CHANNELS                4
+#define NUM_CHANNELS                8
 #endif
 
 float Direction_ClampFloat(float x, float min_v, float max_v);

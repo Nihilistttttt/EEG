@@ -51,49 +51,6 @@
                 android:clickable="true"
                 android:focusable="true" />
 
-            <TextView
-                android:id="@+id/tv_focus_info"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="专注度: --"
-                android:textColor="@color/focus_line"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:visibility="gone" />
-
-            <TextView
-                android:id="@+id/tv_relax_info"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="放松度: --"
-                android:textColor="@color/accent_info"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:visibility="gone" />
-
-            <TextView
-                android:id="@+id/tv_instant_info"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="瞬时: --"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:textColor="@color/text_primary"
-                android:visibility="gone" />
-
-            <TextView
-                android:id="@+id/tv_trend_info"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="趋势: --"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:textColor="@color/text_primary"
-                android:visibility="gone" />
 
             <View
                 android:layout_width="0dp"

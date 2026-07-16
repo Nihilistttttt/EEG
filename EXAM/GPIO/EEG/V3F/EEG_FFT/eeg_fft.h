@@ -10,7 +10,7 @@
 #define SAMPLE_RATE 250.0f
 #define STEP_SIZE 125
 #ifndef NUM_CHANNELS
-#define NUM_CHANNELS 4
+#define NUM_CHANNELS 8
 #endif
 
 #define SPECTRUM_TOTAL_FRAGS 32
@@ -30,6 +30,10 @@ typedef struct {
     float CH1[FFT_SIZE];
     float CH2[FFT_SIZE];
     float CH3[FFT_SIZE];
+    float CH4[FFT_SIZE];  // 新增 CP3
+    float CH5[FFT_SIZE];  // 新增 CP4
+    float CH6[FFT_SIZE];  // 新增 C3
+    float CH7[FFT_SIZE];  // 新增 C4
     int WriteIdx;
 } RingBuffer_t;
 
@@ -50,6 +54,10 @@ typedef struct {
     float CH1Mags[FFT_SIZE / 2 + 1];
     float CH2Mags[FFT_SIZE / 2 + 1];
     float CH3Mags[FFT_SIZE / 2 + 1];
+    float CH4Mags[FFT_SIZE / 2 + 1];  // 新增
+    float CH5Mags[FFT_SIZE / 2 + 1];  // 新增
+    float CH6Mags[FFT_SIZE / 2 + 1];  // 新增
+    float CH7Mags[FFT_SIZE / 2 + 1];  // 新增
     uint8_t SpectrumHeights[FFT_SIZE / 2 + 1];
 } FFT_Data_t;
 
@@ -63,6 +71,7 @@ typedef struct {
 typedef enum {
     FFT_STEP_START = 0,
     FFT_STEP_EXTRACT_RAW_FRAME,
+    FFT_STEP_SEND_RAW_SPECTRUM,
     FFT_STEP_SPECTRUM_RAW,
     FFT_STEP_FREQ_FILTER,
     FFT_STEP_SEND_FREQ_SPECTRUM,
@@ -101,6 +110,10 @@ extern float delta_pow_ch0, theta_pow_ch0, alpha_pow_ch0, beta_pow_ch0;
 extern float delta_pow_ch1, theta_pow_ch1, alpha_pow_ch1, beta_pow_ch1;
 extern float delta_pow_ch2, theta_pow_ch2, alpha_pow_ch2, beta_pow_ch2;
 extern float delta_pow_ch3, theta_pow_ch3, alpha_pow_ch3, beta_pow_ch3;
+extern float delta_pow_ch4, theta_pow_ch4, alpha_pow_ch4, beta_pow_ch4;
+extern float delta_pow_ch5, theta_pow_ch5, alpha_pow_ch5, beta_pow_ch5;
+extern float delta_pow_ch6, theta_pow_ch6, alpha_pow_ch6, beta_pow_ch6;
+extern float delta_pow_ch7, theta_pow_ch7, alpha_pow_ch7, beta_pow_ch7;
 extern float norm_factor;
 extern AttnEma_t attn_ema[2];
 extern AttnEma_t relax_ema[2];

@@ -330,10 +330,10 @@ public class MainFragment extends Fragment implements DataListener {
 
     // ==================== DataListener 回调 ====================
     @Override
-    public void onWaveData(int cmd, float ch0, float ch1) {
-        if (cmd == 0x04 && !isPaused && waveCh0 != null && waveCh1 != null) {
-            waveCh0.addPoint(ch0);
-            waveCh1.addPoint(ch1);
+    public void onWaveData(int cmd, int ch, float val) {
+        if (cmd == 0x04 && !isPaused) {
+            if (waveCh0 != null) waveCh0.addPoint(val);
+            if (waveCh1 != null) waveCh1.addPoint(val);
         }
     }
 

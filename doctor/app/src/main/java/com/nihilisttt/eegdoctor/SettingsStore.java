@@ -12,6 +12,15 @@ public class SettingsStore {
     private static final String KEY_WAVE_X_MAX = "wave_x_max";
     private static final String KEY_SPEC_RANGE = "spec_range";
     private static final String KEY_SPEC_UNIT = "spec_unit";
+    private static final String KEY_WAVE_CH_A = "wave_ch_a";
+    private static final String KEY_WAVE_CH_B = "wave_ch_b";
+    private static final String KEY_WAVE_TYPE_A = "wave_type_a";
+    private static final String KEY_WAVE_TYPE_B = "wave_type_b";
+    private static final String KEY_SPEC_TYPE_A = "spec_type_a";
+    private static final String KEY_SPEC_TYPE_B = "spec_type_b";
+    private static final String KEY_WAVE_MODE_A = "wave_mode_a";
+    private static final String KEY_WAVE_MODE_B = "wave_mode_b";
+
     private static final String KEY_FOCUS_LABEL_COUNT = "focus_label_count";
     private static final String KEY_FOCUS_Y_RANGE = "focus_y_range";
     private static final String KEY_FOCUS_X_POINTS = "focus_x_points";
@@ -81,5 +90,61 @@ public class SettingsStore {
     }
     public static void setFocusXPoints(Context ctx, int val) {
         getPrefs(ctx).edit().putInt(KEY_FOCUS_X_POINTS, val).apply();
+    }
+
+    public static int getWaveChA(Context ctx, int def) {
+        return getPrefs(ctx).getInt(KEY_WAVE_CH_A, def);
+    }
+    public static void setWaveChA(Context ctx, int val) {
+        getPrefs(ctx).edit().putInt(KEY_WAVE_CH_A, val).apply();
+    }
+
+    public static int getWaveChB(Context ctx, int def) {
+        return getPrefs(ctx).getInt(KEY_WAVE_CH_B, def);
+    }
+    public static void setWaveChB(Context ctx, int val) {
+        getPrefs(ctx).edit().putInt(KEY_WAVE_CH_B, val).apply();
+    }
+
+    public static int getWaveTypeA(Context ctx, int def) {
+        return getPrefs(ctx).getInt(KEY_WAVE_TYPE_A, def);
+    }
+    public static void setWaveTypeA(Context ctx, int val) {
+        getPrefs(ctx).edit().putInt(KEY_WAVE_TYPE_A, val).apply();
+    }
+
+    public static int getWaveTypeB(Context ctx, int def) {
+        return getPrefs(ctx).getInt(KEY_WAVE_TYPE_B, def);
+    }
+    public static void setWaveTypeB(Context ctx, int val) {
+        getPrefs(ctx).edit().putInt(KEY_WAVE_TYPE_B, val).apply();
+    }
+
+    public static int getSpecTypeA(Context ctx, int def) {
+        return getPrefs(ctx).getInt(KEY_SPEC_TYPE_A, def);
+    }
+    public static void setSpecTypeA(Context ctx, int val) {
+        getPrefs(ctx).edit().putInt(KEY_SPEC_TYPE_A, val).apply();
+    }
+
+    public static int getSpecTypeB(Context ctx, int def) {
+        return getPrefs(ctx).getInt(KEY_SPEC_TYPE_B, def);
+    }
+    public static void setSpecTypeB(Context ctx, int val) {
+        getPrefs(ctx).edit().putInt(KEY_SPEC_TYPE_B, val).apply();
+    }
+
+    public static int getWaveModeA(Context ctx, int def) {
+        return getPrefs(ctx).getInt(KEY_WAVE_MODE_A, def);
+    }
+    public static void setWaveModeA(Context ctx, int val) {
+        getPrefs(ctx).edit().putInt(KEY_WAVE_MODE_A, val).apply();
+    }
+
+    public static int getWaveModeB(Context ctx, int def) {
+        return getPrefs(ctx).getInt(KEY_WAVE_MODE_B, def);
+    }
+    public static void setWaveModeB(Context ctx, int val) {
+        getPrefs(ctx).edit().putInt(KEY_WAVE_MODE_B, val).apply();
     }
 }

@@ -45,11 +45,12 @@ void Signal_Analysis_Start (void) {
     Timer_1ms_Init();
     Serial_Printf (SERIAL_PORT_DEBUG, "ICM42605_INIT=%d\r\n", (int)icm_status);
 
-    Serial_Printf (SERIAL_PORT_DEBUG, "ADS1299_Init start\r\n");
+    // Serial_Printf (SERIAL_PORT_DEBUG, "ADS1299_Init start\r\n");
     uint8_t id = ADS1299_Init();
     Serial_Printf (SERIAL_PORT_DEBUG, "ADS1299_Init done, id=%d\r\n", id);
 
     EEG_FFT_Init();
+    DisplayConfig_SetDefaults(&g_display_config);
 
 #if AB_EXTRACT_PRINT_ENABLE
     Serial_Printf (DIR_TEXT_PORT, "ABCFG,fs=%d,fft=%d,step=%d,alpha=8-13Hz,beta=13-30Hz,drift_k=9960/10000,notch=%d,detrend=%d,power_scale=1e15,pct_scale=10000,db_scale=100\r\n",
@@ -171,64 +172,111 @@ void Signal_Analysis_Start (void) {
 
             ADS1299_ParseRawFrame (frame_buf, NULL, ch_data);
 
-            float val_ch0 = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_OZ], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
-            float val_ch1 = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_O1], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
-            float val_ch2 = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_F3], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
-            float val_ch3 = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_F4], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
-            float val_ch4 = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_CP3], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
-            float val_ch5 = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_CP4], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
-            float val_ch6 = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_C3], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
-            float val_ch7 = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_C4], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
-            float show_ch0 = 0.0f;
-            float show_ch1 = 0.0f;
+            float raw_vals[NUM_CHANNELS];
+            raw_vals[0] = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_OZ], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
+            raw_vals[1] = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_O1], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
+            raw_vals[2] = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_F3], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
+            raw_vals[3] = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_F4], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
+            raw_vals[4] = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_CP3], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
+            raw_vals[5] = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_CP4], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
+            raw_vals[6] = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_C3], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
+            raw_vals[7] = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_C4], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
 
-            Waveform_RemoveDisplayBaseline (val_ch0, val_ch1, &show_ch0, &show_ch1);
-#if !DIR_1S_TEST_TEXT_ONLY
-            Send_Waveform (CMD_RAW_WAVE, show_ch0, show_ch1);
-#endif
+            float baseline_vals[NUM_CHANNELS];
+            Waveform_RemoveDisplayBaseline_8CH (raw_vals, baseline_vals);
 
-            float drift_ch0 = EEG_RemoveRealtimeDrift (val_ch0, &AB_Drift_CH0);
-            float drift_ch1 = EEG_RemoveRealtimeDrift (val_ch1, &AB_Drift_CH1);
-            float drift_ch2 = EEG_RemoveRealtimeDrift (val_ch2, &AB_Drift_CH2);
-            float drift_ch3 = EEG_RemoveRealtimeDrift (val_ch3, &AB_Drift_CH3);
+            float drift_vals[NUM_CHANNELS];
+            drift_vals[0] = EEG_RemoveRealtimeDrift (raw_vals[0], &AB_Drift_CH0);
+            drift_vals[1] = EEG_RemoveRealtimeDrift (raw_vals[1], &AB_Drift_CH1);
+            drift_vals[2] = EEG_RemoveRealtimeDrift (raw_vals[2], &AB_Drift_CH2);
+            drift_vals[3] = EEG_RemoveRealtimeDrift (raw_vals[3], &AB_Drift_CH3);
+            drift_vals[4] = EEG_RemoveRealtimeDrift (raw_vals[4], &AB_Drift_CH4);
+            drift_vals[5] = EEG_RemoveRealtimeDrift (raw_vals[5], &AB_Drift_CH5);
+            drift_vals[6] = EEG_RemoveRealtimeDrift (raw_vals[6], &AB_Drift_CH6);
+            drift_vals[7] = EEG_RemoveRealtimeDrift (raw_vals[7], &AB_Drift_CH7);
 
 #if AB_REALTIME_NOTCH_ENABLE
-            float ab_pre_ch0 = IIR_SOS_Step (drift_ch0, &g_notch_coeff, &g_notch_state[0]);
-            float ab_pre_ch1 = IIR_SOS_Step (drift_ch1, &g_notch_coeff, &g_notch_state[1]);
-            float ab_pre_ch2 = IIR_SOS_Step (drift_ch2, &g_notch_coeff, &g_notch_state[2]);
-            float ab_pre_ch3 = IIR_SOS_Step (drift_ch3, &g_notch_coeff, &g_notch_state[3]);
+            float ab_pre_vals[NUM_CHANNELS];
+            ab_pre_vals[0] = IIR_SOS_Step (drift_vals[0], &g_notch_coeff, &g_notch_state[0]);
+            ab_pre_vals[1] = IIR_SOS_Step (drift_vals[1], &g_notch_coeff, &g_notch_state[1]);
+            ab_pre_vals[2] = IIR_SOS_Step (drift_vals[2], &g_notch_coeff, &g_notch_state[2]);
+            ab_pre_vals[3] = IIR_SOS_Step (drift_vals[3], &g_notch_coeff, &g_notch_state[3]);
+            ab_pre_vals[4] = IIR_SOS_Step (drift_vals[4], &g_notch_coeff, &g_notch_state[4]);
+            ab_pre_vals[5] = IIR_SOS_Step (drift_vals[5], &g_notch_coeff, &g_notch_state[5]);
+            ab_pre_vals[6] = IIR_SOS_Step (drift_vals[6], &g_notch_coeff, &g_notch_state[6]);
+            ab_pre_vals[7] = IIR_SOS_Step (drift_vals[7], &g_notch_coeff, &g_notch_state[7]);
 #else
-            float ab_pre_ch0 = drift_ch0;
-            float ab_pre_ch1 = drift_ch1;
-            float ab_pre_ch2 = drift_ch2;
-            float ab_pre_ch3 = drift_ch3;
+            float ab_pre_vals[NUM_CHANNELS];
+            ab_pre_vals[0] = drift_vals[0];
+            ab_pre_vals[1] = drift_vals[1];
+            ab_pre_vals[2] = drift_vals[2];
+            ab_pre_vals[3] = drift_vals[3];
+            ab_pre_vals[4] = drift_vals[4];
+            ab_pre_vals[5] = drift_vals[5];
+            ab_pre_vals[6] = drift_vals[6];
+            ab_pre_vals[7] = drift_vals[7];
 #endif
 
-            float filtered_ch0 = IIR_SOS_Step (ab_pre_ch0, &g_bandpass_coeff, &g_bandpass_state[0]);
-            float filtered_ch1 = IIR_SOS_Step (ab_pre_ch1, &g_bandpass_coeff, &g_bandpass_state[1]);
-            float filtered_ch2 = IIR_SOS_Step (ab_pre_ch2, &g_bandpass_coeff, &g_bandpass_state[2]);
-            float filtered_ch3 = IIR_SOS_Step (ab_pre_ch3, &g_bandpass_coeff, &g_bandpass_state[3]);
+            float filt_vals[NUM_CHANNELS];
+            filt_vals[0] = IIR_SOS_Step (ab_pre_vals[0], &g_bandpass_coeff, &g_bandpass_state[0]);
+            filt_vals[1] = IIR_SOS_Step (ab_pre_vals[1], &g_bandpass_coeff, &g_bandpass_state[1]);
+            filt_vals[2] = IIR_SOS_Step (ab_pre_vals[2], &g_bandpass_coeff, &g_bandpass_state[2]);
+            filt_vals[3] = IIR_SOS_Step (ab_pre_vals[3], &g_bandpass_coeff, &g_bandpass_state[3]);
+            filt_vals[4] = IIR_SOS_Step (ab_pre_vals[4], &g_bandpass_coeff, &g_bandpass_state[4]);
+            filt_vals[5] = IIR_SOS_Step (ab_pre_vals[5], &g_bandpass_coeff, &g_bandpass_state[5]);
+            filt_vals[6] = IIR_SOS_Step (ab_pre_vals[6], &g_bandpass_coeff, &g_bandpass_state[6]);
+            filt_vals[7] = IIR_SOS_Step (ab_pre_vals[7], &g_bandpass_coeff, &g_bandpass_state[7]);
 
-            RingBufFiltered.CH0[RingBufFiltered.WriteIdx] = filtered_ch0;
-            RingBufFiltered.CH1[RingBufFiltered.WriteIdx] = filtered_ch1;
-            RingBufFiltered.CH2[RingBufFiltered.WriteIdx] = filtered_ch2;
-            RingBufFiltered.CH3[RingBufFiltered.WriteIdx] = filtered_ch3;
+#if !DIR_1S_TEST_TEXT_ONLY
+            {
+                for (int wi = 0; wi < DISPLAY_NUM_CH; wi++) {
+                    uint8_t ch = g_display_config.wave_ch[wi];
+                    float val;
+                    switch (g_display_config.wave_type[wi]) {
+                    case WAVE_TYPE_FILT:     val = filt_vals[ch]; break;
+                    case WAVE_TYPE_BASELINE: val = baseline_vals[ch]; break;
+                    default:                 val = raw_vals[ch]; break;
+                    }
+                    CmdType wave_cmd = DisplayConfig_GetWaveCmd(g_display_config.wave_type[wi]);
+                    int dup = 0;
+                    for (int pj = 0; pj < wi; pj++) {
+                        if (g_display_config.wave_ch[pj] == ch &&
+                            g_display_config.wave_type[pj] == g_display_config.wave_type[wi]) {
+                            dup = 1;
+                            break;
+                        }
+                    }
+                    if (!dup) {
+                        Send_WaveformSingle(wave_cmd, ch, val);
+                    }
+                }
+            }
+#endif
+
+            RingBufFiltered.CH0[RingBufFiltered.WriteIdx] = filt_vals[0];
+            RingBufFiltered.CH1[RingBufFiltered.WriteIdx] = filt_vals[1];
+            RingBufFiltered.CH2[RingBufFiltered.WriteIdx] = filt_vals[2];
+            RingBufFiltered.CH3[RingBufFiltered.WriteIdx] = filt_vals[3];
+            RingBufFiltered.CH4[RingBufFiltered.WriteIdx] = filt_vals[4];
+            RingBufFiltered.CH5[RingBufFiltered.WriteIdx] = filt_vals[5];
+            RingBufFiltered.CH6[RingBufFiltered.WriteIdx] = filt_vals[6];
+            RingBufFiltered.CH7[RingBufFiltered.WriteIdx] = filt_vals[7];
             RingBufFiltered.WriteIdx = (RingBufFiltered.WriteIdx + 1) % FFT_SIZE;
             if (csp_filtered_sample_count < 0xFFFFFFFFUL) {
                 csp_filtered_sample_count++;
             }
 
-#if !DIR_1S_TEST_TEXT_ONLY
-            Send_Waveform (CMD_FILT_WAVE, filtered_ch2, filtered_ch3);
-#endif
-
-            RingBuf.CH0[RingBuf.WriteIdx] = ab_pre_ch0;
-            RingBuf.CH1[RingBuf.WriteIdx] = ab_pre_ch1;
-            RingBuf.CH2[RingBuf.WriteIdx] = ab_pre_ch2;
-            RingBuf.CH3[RingBuf.WriteIdx] = ab_pre_ch3;
+            RingBuf.CH0[RingBuf.WriteIdx] = ab_pre_vals[0];
+            RingBuf.CH1[RingBuf.WriteIdx] = ab_pre_vals[1];
+            RingBuf.CH2[RingBuf.WriteIdx] = ab_pre_vals[2];
+            RingBuf.CH3[RingBuf.WriteIdx] = ab_pre_vals[3];
+            RingBuf.CH4[RingBuf.WriteIdx] = ab_pre_vals[4];
+            RingBuf.CH5[RingBuf.WriteIdx] = ab_pre_vals[5];
+            RingBuf.CH6[RingBuf.WriteIdx] = ab_pre_vals[6];
+            RingBuf.CH7[RingBuf.WriteIdx] = ab_pre_vals[7];
             RingBuf.WriteIdx = (RingBuf.WriteIdx + 1) % FFT_SIZE;
 
-            Update_Waveform (show_ch0);
+            Update_Waveform (baseline_vals[g_display_config.wave_ch[0]]);
 
             New_Samples_Count++;
             if (New_Samples_Count >= STEP_SIZE && !fft_active) {

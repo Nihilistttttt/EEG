@@ -59,19 +59,19 @@ static void CSP_PrintWindowCSV(uint8_t label, RingBuffer_t *filt_buf)
 
     for (j = 0; j < CSP_WIN_SIZE; j++) {
         uint16_t idx = (uint16_t)((start + j) & (CSP_WIN_SIZE - 1u));
-        int32_t ch0 = CSP_VoltToUVX1000(filt_buf->CH0[idx]);
-        int32_t ch1 = CSP_VoltToUVX1000(filt_buf->CH1[idx]);
-        int32_t ch2 = CSP_VoltToUVX1000(filt_buf->CH2[idx]);
-        int32_t ch3 = CSP_VoltToUVX1000(filt_buf->CH3[idx]);
+        int32_t ch4 = CSP_VoltToUVX1000(filt_buf->CH4[idx]);
+        int32_t ch5 = CSP_VoltToUVX1000(filt_buf->CH5[idx]);
+        int32_t ch6 = CSP_VoltToUVX1000(filt_buf->CH6[idx]);
+        int32_t ch7 = CSP_VoltToUVX1000(filt_buf->CH7[idx]);
 
         snprintf(line, sizeof(line),
                  "CSP,%lu,%u,%ld,%ld,%ld,%ld\r\n",
                  (unsigned long)win_id,
                  (unsigned int)j,
-                 (long)ch0,
-                 (long)ch1,
-                 (long)ch2,
-                 (long)ch3);
+                 (long)ch4,
+                 (long)ch5,
+                 (long)ch6,
+                 (long)ch7);
         Serial_Printf(SERIAL_PORT_WIFI, "%s", line);
     }
 

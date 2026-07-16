@@ -82,8 +82,8 @@ void Signal_Analysis_Start (void) {
         if (Serial_IsDataReady (SERIAL_PORT_DEBUG)) {
             uint8_t *cmd_buf;
             uint16_t len = Serial_GetDataPacket (SERIAL_PORT_DEBUG, &cmd_buf);
-            if (len > 0 && len < 128) {
-                char cmd_str[128];
+            if (len > 0 && len < 256) {
+                char cmd_str[256];
                 memcpy (cmd_str, cmd_buf, len);
                 cmd_str[len] = '\0';
                 char *line = cmd_str;
@@ -105,8 +105,8 @@ void Signal_Analysis_Start (void) {
         if (Serial_IsDataReady (SERIAL_PORT_WIFI)) {
             uint8_t *cmd_buf;
             uint16_t len = Serial_GetDataPacket (SERIAL_PORT_WIFI, &cmd_buf);
-            if (len > 0 && len < 128) {
-                char cmd_str[128];
+            if (len > 0 && len < 256) {
+                char cmd_str[256];
                 memcpy (cmd_str, cmd_buf, len);
                 cmd_str[len] = '\0';
                 char *line = cmd_str;

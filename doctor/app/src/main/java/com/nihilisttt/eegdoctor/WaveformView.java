@@ -23,6 +23,8 @@ public class WaveformView extends View {
     private static final String TAG = "WaveformView";
     private static final int MAX_POINTS = 5000;
     private static final float SAMPLE_RATE = 250.0f;
+    private static final int INVALIDATE_INTERVAL_MS = 33;
+    private long lastInvalidateTime = 0;
     private float mYRange = 0.5f;
     private float mXMax = MAX_POINTS / SAMPLE_RATE;
 
@@ -236,7 +238,11 @@ public class WaveformView extends View {
         if (logCounter % 500 == 0) {
             Log.d(TAG, "addPoint: count=" + pointCount + " val=" + value + " range=" + mYRange);
         }
-        postInvalidate();
+        long now = System.currentTimeMillis();
+        if (now - lastInvalidateTime >= INVALIDATE_INTERVAL_MS) {
+            lastInvalidateTime = now;
+            postInvalidate();
+        }
     }
 
     private float computeWindowAverage() {

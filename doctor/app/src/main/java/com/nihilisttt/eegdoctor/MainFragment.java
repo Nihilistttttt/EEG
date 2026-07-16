@@ -322,6 +322,13 @@ public class MainFragment extends Fragment implements DataListener {
     }
 
     @Override
+    public void onPause() {
+        super.onPause();
+        DataDispatcher.getInstance().removeListener(this);
+        Log.d("MainFragment", "onPause: listener removed");
+    }
+
+    @Override
     public void onDestroyView() {
         super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);

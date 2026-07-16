@@ -195,31 +195,43 @@ void Parse_CommandEx(const char *cmd, const char *source)
     }
     if (strncmp(clean_cmd, "DISPLAY_CFG,", 12) == 0) {
         const char *p = clean_cmd + 12;
-        int wca = -1, wta = -1, wcb = -1, wtb = -1, sta = -1, stb = -1;
-        while (*p) {
-            if (strncmp(p, "WAVE_CH_A=", 10) == 0) { wca = atoi(p + 10); }
-            else if (strncmp(p, "WAVE_TYPE_A=", 12) == 0) { wta = atoi(p + 12); }
-            else if (strncmp(p, "WAVE_CH_B=", 10) == 0) { wcb = atoi(p + 10); }
-            else if (strncmp(p, "WAVE_TYPE_B=", 12) == 0) { wtb = atoi(p + 12); }
-            else if (strncmp(p, "SPEC_TYPE_A=", 12) == 0) { sta = atoi(p + 12); }
-            else if (strncmp(p, "SPEC_TYPE_B=", 12) == 0) { stb = atoi(p + 12); }
+        int vals[12] = {-1};
+        int vi = 0;
+        while (*p && vi < 12) {
+            vals[vi++] = atoi(p);
             const char *next = strchr(p, ',');
             if (next == NULL) break;
             p = next + 1;
         }
-        if (wca >= 0 && wca < DISPLAY_MAX_CH) g_display_config.wave_ch[0] = (uint8_t)wca;
-        if (wta >= 0 && wta <= 2) g_display_config.wave_type[0] = (uint8_t)wta;
-        if (wcb >= 0 && wcb < DISPLAY_MAX_CH) g_display_config.wave_ch[1] = (uint8_t)wcb;
-        if (wtb >= 0 && wtb <= 2) g_display_config.wave_type[1] = (uint8_t)wtb;
-        if (sta >= 0 && sta <= 2) g_display_config.spec_type[0] = (uint8_t)sta;
-        if (stb >= 0 && stb <= 2) g_display_config.spec_type[1] = (uint8_t)stb;
-        RESP("DISPLAY_CFG_OK,WCA=%u,WTA=%u,WCB=%u,WTB=%u,STA=%u,STB=%u\r\n",
+        if (vi >= 6) {
+            if (vals[0] >= 0 && vals[0] < DISPLAY_MAX_CH) g_display_config.wave_ch[0] = (uint8_t)vals[0];
+            if (vals[1] >= 0 && vals[1] <= 2) g_display_config.wave_type[0] = (uint8_t)vals[1];
+            if (vals[2] >= 0 && vals[2] < DISPLAY_MAX_CH) g_display_config.wave_ch[1] = (uint8_t)vals[2];
+            if (vals[3] >= 0 && vals[3] <= 2) g_display_config.wave_type[1] = (uint8_t)vals[3];
+            if (vals[4] >= 0 && vals[4] <= 2) g_display_config.spec_type[0] = (uint8_t)vals[4];
+            if (vals[5] >= 0 && vals[5] <= 2) g_display_config.spec_type[1] = (uint8_t)vals[5];
+        }
+        if (vi >= 12) {
+            if (vals[6] >= 0 && vals[6] < DISPLAY_MAX_CH) g_display_config.wave_ch[2] = (uint8_t)vals[6];
+            if (vals[7] >= 0 && vals[7] <= 2) g_display_config.wave_type[2] = (uint8_t)vals[7];
+            if (vals[8] >= 0 && vals[8] < DISPLAY_MAX_CH) g_display_config.wave_ch[3] = (uint8_t)vals[8];
+            if (vals[9] >= 0 && vals[9] <= 2) g_display_config.wave_type[3] = (uint8_t)vals[9];
+            if (vals[10] >= 0 && vals[10] <= 2) g_display_config.spec_type[2] = (uint8_t)vals[10];
+            if (vals[11] >= 0 && vals[11] <= 2) g_display_config.spec_type[3] = (uint8_t)vals[11];
+        }
+        RESP("DISPLAY_CFG_OK,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\r\n",
              (unsigned)g_display_config.wave_ch[0],
              (unsigned)g_display_config.wave_type[0],
              (unsigned)g_display_config.wave_ch[1],
              (unsigned)g_display_config.wave_type[1],
              (unsigned)g_display_config.spec_type[0],
-             (unsigned)g_display_config.spec_type[1]);
+             (unsigned)g_display_config.spec_type[1],
+             (unsigned)g_display_config.wave_ch[2],
+             (unsigned)g_display_config.wave_type[2],
+             (unsigned)g_display_config.wave_ch[3],
+             (unsigned)g_display_config.wave_type[3],
+             (unsigned)g_display_config.spec_type[2],
+             (unsigned)g_display_config.spec_type[3]);
         return;
     }
     RESP("ERROR,UNKNOWN_CMD\r\n");

@@ -46,6 +46,7 @@ public class GameFragment extends Fragment implements DataListener {
     public void onResume() {
         super.onResume();
         requireActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
         gameRunnable = new Runnable() {
             @Override
@@ -56,6 +57,12 @@ public class GameFragment extends Fragment implements DataListener {
             }
         };
         handler.post(gameRunnable);
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        DataDispatcher.getInstance().removeListener(this);
     }
 
     @Override

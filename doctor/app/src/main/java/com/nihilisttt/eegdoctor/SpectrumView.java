@@ -79,7 +79,7 @@ public class SpectrumView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        float left = 95, top = 10, right = w - 5, bottom = h - 30;
+        float left = 95, top = 10, right = w - 30, bottom = h - 30;
         barGradient = new LinearGradient(0, bottom, 0, top,
                 new int[]{spectrumColorStart, spectrumColorEnd},
                 null, Shader.TileMode.CLAMP);
@@ -171,7 +171,7 @@ public class SpectrumView extends View {
         int height = getHeight();
         if (width <= 0 || height <= 0) return;
 
-        float left = 95, top = 10, right = width - 5, bottom = height - 30;
+        float left = 95, top = 10, right = width - 30, bottom = height - 30;
         canvas.drawRect(0, 0, width, height, canvasBgPaint);
 
         float yMin = 0;
@@ -205,6 +205,7 @@ public class SpectrumView extends View {
 
         List<Float> xTicks = generateTicks(xMax, 6);
         for (float xTick : xTicks) {
+            if (xTick >= xMax - 0.5f) continue;
             float x = left + (xTick - xMin) * xScale;
             canvas.drawLine(x, top, x, bottom, gridPaint);
             canvas.drawLine(x, bottom, x, bottom + 5, axisPaint);

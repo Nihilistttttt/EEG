@@ -729,15 +729,14 @@ public class TcpServerManager {
     // ---------- 频谱重组器 ----------
     private static class SpectrumReassembler {
         private final java.util.Map<Integer, ReassemblyState> states = new java.util.HashMap<>();
+        private static final long FRAG_TIMEOUT_MS = 5000;
 
         public float[] addFragment(int cmd, int fragIdx, int totalFrags,
                                    byte[] data, int offset, int len) {
             ReassemblyState state = states.get(cmd);
-            if (state == null) {
-                state = new ReassemblyState(totalFrags);
-                states.put(cmd, state);
-            }
-            if (state.totalFrags != totalFrags) {
+            long now = System.currentTimeMillis();
+            if (state == null || state.totalFrags != totalFrags
+                || (now - state.createTime > FRAG_TIMEOUT_MS)) {
                 state = new ReassemblyState(totalFrags);
                 states.put(cmd, state);
             }
@@ -763,10 +762,12 @@ public class TcpServerManager {
             float[] mags = new float[128];
             long receivedMask;
             int receivedCount;
+            long createTime;
             ReassemblyState(int totalFrags) {
                 this.totalFrags = totalFrags;
                 this.receivedMask = 0;
                 this.receivedCount = 0;
+                this.createTime = System.currentTimeMillis();
             }
         }
     }

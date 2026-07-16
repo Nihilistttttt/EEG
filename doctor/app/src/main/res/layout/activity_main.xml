@@ -42,11 +42,9 @@
             android:fontFamily="sans-serif-medium" />
 
         <View
-            android:layout_width="1dp"
-            android:layout_height="14dp"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp"
-            android:background="@color/surface_overlay" />
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
 
         <TextView
             android:id="@+id/tv_bar_focus"
@@ -87,24 +85,26 @@
             android:textSize="11sp"
             android:textStyle="bold" />
 
+        <View
+            android:layout_width="1dp"
+            android:layout_height="14dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="6dp"
+            android:background="@color/surface_overlay" />
+
         <TextView
             android:id="@+id/tv_bar_posture"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
-            android:text=""
+            android:text="姿态:-"
             android:textColor="@color/text_secondary"
             android:textSize="10sp" />
-
-        <View
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
 
         <View
             android:id="@+id/status_indicator"
             android:layout_width="6dp"
             android:layout_height="6dp"
+            android:layout_marginStart="8dp"
             android:layout_marginEnd="4dp"
             android:background="@drawable/bg_status_indicator" />
 

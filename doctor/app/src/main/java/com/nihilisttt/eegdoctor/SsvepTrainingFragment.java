@@ -35,6 +35,12 @@ public class SsvepTrainingFragment extends Fragment implements DataListener {
     }
 
     @Override
+    public void onPause() {
+        super.onPause();
+        DataDispatcher.getInstance().removeListener(this);
+    }
+
+    @Override
     public void onDestroyView() {
         super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);

@@ -245,7 +245,7 @@ public class MonitorFragment extends Fragment implements DataListener {
                 specInner.setOrientation(LinearLayout.VERTICAL);
 
                 TextView specLabel = new TextView(ctx);
-                specLabel.setText("频谱 " + ch.getLabel());
+                specLabel.setText("频谱 " + ch.getElectrodeName());
                 specLabel.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary));
                 specLabel.setTextSize(10);
                 specLabel.setBackgroundColor(ContextCompat.getColor(ctx, R.color.surface_mid));
@@ -457,6 +457,7 @@ public class MonitorFragment extends Fragment implements DataListener {
         LinearLayout rootLayout = new LinearLayout(ctx);
         rootLayout.setOrientation(LinearLayout.VERTICAL);
         rootLayout.setPadding(dp12, dp8, dp12, dp8);
+        rootLayout.setMinimumWidth((int) (480 * getResources().getDisplayMetrics().density));
 
         ArrayAdapter<String> chAdapter = new ArrayAdapter<>(ctx,
                 android.R.layout.simple_spinner_item, CHANNEL_NAMES);
@@ -475,40 +476,53 @@ public class MonitorFragment extends Fragment implements DataListener {
         Spinner[] spWaveType = new Spinner[2];
         Spinner[] spSpecType = new Spinner[2];
 
+        LinearLayout colRow = new LinearLayout(ctx);
+        colRow.setOrientation(LinearLayout.HORIZONTAL);
+        colRow.setWeightSum(2f);
+
         for (int i = 0; i < 2; i++) {
+            LinearLayout col = new LinearLayout(ctx);
+            col.setOrientation(LinearLayout.VERTICAL);
+            LinearLayout.LayoutParams colP = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            col.setLayoutParams(colP);
+
             TextView chTitle = new TextView(ctx);
             chTitle.setText("通道 " + labels[i]);
             chTitle.setTextSize(13);
             chTitle.setTypeface(null, android.graphics.Typeface.BOLD);
             chTitle.setPadding(0, dp4, 0, dp4);
-            rootLayout.addView(chTitle);
+            col.addView(chTitle);
 
             spWaveCh[i] = new Spinner(ctx);
             spWaveCh[i].setAdapter(chAdapter);
             spWaveCh[i].setSelection(waveCh[i]);
-            addRow(rootLayout, "电极", spWaveCh[i]);
+            addRow(col, "电极", spWaveCh[i]);
 
             spWaveType[i] = new Spinner(ctx);
             spWaveType[i].setAdapter(waveTypeAdapter);
             spWaveType[i].setSelection(waveType[i]);
-            addRow(rootLayout, "波形", spWaveType[i]);
+            addRow(col, "波形", spWaveType[i]);
 
             spSpecType[i] = new Spinner(ctx);
             spSpecType[i].setAdapter(specTypeAdapter);
             spSpecType[i].setSelection(specType[i]);
-            addRow(rootLayout, "频谱", spSpecType[i]);
+            addRow(col, "频谱", spSpecType[i]);
+
+            colRow.addView(col);
 
             if (i == 0) {
-                View divider = new View(ctx);
-                divider.setBackgroundColor(ContextCompat.getColor(ctx, R.color.surface_overlay));
-                LinearLayout.LayoutParams divParams = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT, 1);
-                divParams.setMargins(0, dp8, 0, dp8);
-                divider.setLayoutParams(divParams);
-                rootLayout.addView(divider);
+                View vDiv = new View(ctx);
+                LinearLayout.LayoutParams vdp = new LinearLayout.LayoutParams(
+                        1, LinearLayout.LayoutParams.MATCH_PARENT);
+                vdp.setMargins(dp8, 0, dp8, 0);
+                vDiv.setLayoutParams(vdp);
+                vDiv.setBackgroundColor(ContextCompat.getColor(ctx, R.color.surface_overlay));
+                colRow.addView(vDiv);
             }
         }
 
+        rootLayout.addView(colRow);
         scrollView.addView(rootLayout);
 
         new AlertDialog.Builder(ctx)
@@ -578,7 +592,8 @@ public class MonitorFragment extends Fragment implements DataListener {
 
     private void sendDisplayConfig() {
         String cmd = String.format(Locale.US,
-                "DISPLAY_CFG,WAVE_CH_A=%d,WAVE_TYPE_A=%d,WAVE_CH_B=%d,WAVE_TYPE_B=%d,SPEC_TYPE_A=%d,SPEC_TYPE_B=%d",
+                "DISPLAY_CFG,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+                waveCh[0], waveType[0], waveCh[1], waveType[1], specType[0], specType[1],
                 waveCh[0], waveType[0], waveCh[1], waveType[1], specType[0], specType[1]);
         TcpServerManager.getInstance().sendToDevice(cmd);
         Log.i("DisplayConfig", "Sent: " + cmd);
@@ -706,7 +721,15 @@ public class MonitorFragment extends Fragment implements DataListener {
         super.onResume();
         DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
+        sendDisplayConfig();
         Log.d("MonitorFragment", "onResume: listener refreshed, waveViews=" + waveformViews.size());
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        DataDispatcher.getInstance().removeListener(this);
+        Log.d("MonitorFragment", "onPause: listener removed");
     }
 
     @Override

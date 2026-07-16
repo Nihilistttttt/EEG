@@ -29,10 +29,16 @@ void DisplayConfig_SetDefaults(DisplayConfig_t *cfg)
 {
     cfg->wave_ch[0] = 2;
     cfg->wave_ch[1] = 2;
+    cfg->wave_ch[2] = 5;
+    cfg->wave_ch[3] = 5;
     cfg->wave_type[0] = WAVE_TYPE_RAW;
     cfg->wave_type[1] = WAVE_TYPE_FILT;
+    cfg->wave_type[2] = WAVE_TYPE_RAW;
+    cfg->wave_type[3] = WAVE_TYPE_FILT;
     cfg->spec_type[0] = SPEC_TYPE_RAW;
     cfg->spec_type[1] = SPEC_TYPE_TIME_FILTER;
+    cfg->spec_type[2] = SPEC_TYPE_RAW;
+    cfg->spec_type[3] = SPEC_TYPE_TIME_FILTER;
 }
 
 CmdType DisplayConfig_GetWaveCmd(uint8_t wave_type)

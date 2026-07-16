@@ -8,151 +8,70 @@
     android:background="@color/surface_base">
 
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="ChA"
-            android:textSize="13sp"
-            android:textColor="@color/text_secondary"
-            android:layout_marginEnd="4dp" />
-
-        <Spinner
-            android:id="@+id/spinner_ch_a"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="16dp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="ChB"
-            android:textSize="13sp"
-            android:textColor="@color/text_secondary"
-            android:layout_marginEnd="4dp" />
-
-        <Spinner
-            android:id="@+id/spinner_ch_b"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1" />
-
-    </LinearLayout>
-
-    <LinearLayout
+        android:id="@+id/grid_container"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:orientation="horizontal">
+        android:orientation="vertical" />
 
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:layout_marginEnd="2dp"
-            app:cardCornerRadius="8dp"
-            app:cardElevation="2dp"
-            app:cardBackgroundColor="@color/surface_low"
-            app:strokeColor="@color/surface_overlay"
-            app:strokeWidth="0.5dp">
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="6dp"
+        app:cardElevation="3dp"
+        app:cardBackgroundColor="@color/surface_mid"
+        app:strokeColor="@color/surface_overlay"
+        app:strokeWidth="1dp">
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:padding="4dp">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp">
 
-                <TextView
-                    android:id="@+id/label_raw_a"
-                    style="@style/ChannelLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="ChA 原始频谱" />
+            <TextView
+                android:text="频谱"
+                style="@style/ControlLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
 
-                <com.nihilisttt.eegdoctor.SpectrumView
-                    android:id="@+id/raw_spec_ch0"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    app:spectrumColor="@color/spectrum_bar"
-                    app:spectrumColorEnd="@color/spectrum_bar_end" />
+            <TextView
+                android:id="@+id/tv_spec_range"
+                style="@style/ParamChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="500 uV" />
 
-                <TextView
-                    android:id="@+id/label_filt_a"
-                    style="@style/ChannelLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="ChA 时域滤波频谱" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
 
-                <com.nihilisttt.eegdoctor.SpectrumView
-                    android:id="@+id/filt_spec_ch0"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    app:spectrumColor="@color/spectrum_bar"
-                    app:spectrumColorEnd="@color/spectrum_bar_end" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_channel_cfg"
+                style="@style/ControlButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:minWidth="52dp"
+                android:layout_marginStart="4dp"
+                android:text="通道"
+                android:textSize="12sp" />
 
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_pause_resume"
+                style="@style/ControlButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:minWidth="52dp"
+                android:layout_marginStart="4dp"
+                android:text="暂停"
+                android:textSize="12sp" />
 
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            app:cardCornerRadius="8dp"
-            app:cardElevation="2dp"
-            app:cardBackgroundColor="@color/surface_low"
-            app:strokeColor="@color/surface_overlay"
-            app:strokeWidth="0.5dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:padding="4dp">
-
-                <TextView
-                    android:id="@+id/label_raw_b"
-                    style="@style/ChannelLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="ChB 原始频谱" />
-
-                <com.nihilisttt.eegdoctor.SpectrumView
-                    android:id="@+id/raw_spec_ch1"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    app:spectrumColor="@color/spectrum_bar"
-                    app:spectrumColorEnd="@color/spectrum_bar_end" />
-
-                <TextView
-                    android:id="@+id/label_filt_b"
-                    style="@style/ChannelLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="ChB 时域滤波频谱" />
-
-                <com.nihilisttt.eegdoctor.SpectrumView
-                    android:id="@+id/filt_spec_ch1"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    app:spectrumColor="@color/spectrum_bar"
-                    app:spectrumColorEnd="@color/spectrum_bar_end" />
-
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-    </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
 </LinearLayout>

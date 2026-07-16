@@ -1,21 +1,28 @@
 package com.nihilisttt.eegdoctor;
 
+import com.google.android.material.button.MaterialButton;
 import com.nihilisttt.eegdoctor.R;
 
 import android.app.AlertDialog;
+import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+
+import com.google.android.material.card.MaterialCardView;
 
 public class WaveCompareFragment extends Fragment implements DataListener {
 
@@ -23,25 +30,30 @@ public class WaveCompareFragment extends Fragment implements DataListener {
     private static final int DEFAULT_STEP = 500;
     private static final String DEFAULT_STEP_UNIT = "uV";
     private static final float DEFAULT_X_MAX = 2.048f;
+    private static final int NUM_VIEWS = 4;
 
     private static final String[] CHANNEL_NAMES = {"OZ", "O1", "F3", "F4", "CP3", "CP4", "C3", "C4"};
+    private static final String[] WAVE_TYPE_NAMES = {"原始波形", "滤波波形", "基线修复"};
+    private static final int[] COLORS = {
+        R.color.wave_ch0, R.color.wave_filtered,
+        R.color.wave_ch1, R.color.accent_info
+    };
 
-    private WaveformView rawCh0, rawCh1;
-    private WaveformView filtCh0, filtCh1;
+    private final WaveformView[] waveViews = new WaveformView[NUM_VIEWS];
+    private final TextView[] labelViews = new TextView[NUM_VIEWS];
 
     private TextView tvXRange;
     private TextView tvWaveLabelCount;
     private TextView tvWaveRange;
-    private TextView labelRawA, labelFiltA, labelRawB, labelFiltB;
-    private Spinner spinnerChA, spinnerChB;
 
     private int currentLabelCount = DEFAULT_LABEL_COUNT;
     private int currentStep = DEFAULT_STEP;
     private String currentStepUnit = DEFAULT_STEP_UNIT;
     private float currentXMax = DEFAULT_X_MAX;
 
-    private int chA = 2;
-    private int chB = 2;
+    private int[] ch = {4, 4, 5, 5};
+    private int[] waveType = {0, 1, 0, 1};
+    private boolean isPaused = false;
 
     @Nullable
     @Override
@@ -50,55 +62,24 @@ public class WaveCompareFragment extends Fragment implements DataListener {
                              @Nullable Bundle savedInstanceState) {
         View root = inflater.inflate(R.layout.fragment_wave_compare, container, false);
 
-        chA = SettingsStore.getWcChA(requireContext(), 2);
-        chB = SettingsStore.getWcChB(requireContext(), 2);
+        ch[0] = SettingsStore.getWcChA(requireContext(), 4);
+        ch[1] = SettingsStore.getWcChA(requireContext(), 4);
+        ch[2] = SettingsStore.getWcChB(requireContext(), 5);
+        ch[3] = SettingsStore.getWcChB(requireContext(), 5);
 
-        rawCh0 = root.findViewById(R.id.raw_wave_ch0);
-        rawCh1 = root.findViewById(R.id.raw_wave_ch1);
-        filtCh0 = root.findViewById(R.id.filt_wave_ch0);
-        filtCh1 = root.findViewById(R.id.filt_wave_ch1);
-
-        labelRawA = root.findViewById(R.id.label_raw_a);
-        labelFiltA = root.findViewById(R.id.label_filt_a);
-        labelRawB = root.findViewById(R.id.label_raw_b);
-        labelFiltB = root.findViewById(R.id.label_filt_b);
+        LinearLayout grid = root.findViewById(R.id.grid_container);
+        buildGrid(grid);
 
         tvXRange = root.findViewById(R.id.tv_x_range);
         tvWaveLabelCount = root.findViewById(R.id.tv_wave_label_count);
         tvWaveRange = root.findViewById(R.id.tv_wave_range);
 
-        spinnerChA = root.findViewById(R.id.spinner_ch_a);
-        spinnerChB = root.findViewById(R.id.spinner_ch_b);
+        root.findViewById(R.id.btn_channel_cfg).setOnClickListener(v -> showChannelConfigDialog());
 
-        ArrayAdapter<String> chAdapter = new ArrayAdapter<>(requireContext(),
-                android.R.layout.simple_spinner_item, CHANNEL_NAMES);
-        chAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinnerChA.setAdapter(chAdapter);
-        spinnerChB.setAdapter(chAdapter);
-        spinnerChA.setSelection(chA);
-        spinnerChB.setSelection(chB);
-
-        spinnerChA.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                chA = position;
-                updateLabels();
-                clearWaveforms();
-                SettingsStore.setWcChA(requireContext(), chA);
-            }
-            @Override
-            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
-        });
-        spinnerChB.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                chB = position;
-                updateLabels();
-                clearWaveforms();
-                SettingsStore.setWcChB(requireContext(), chB);
-            }
-            @Override
-            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        MaterialButton btnPause = root.findViewById(R.id.btn_pause_resume);
+        btnPause.setOnClickListener(v -> {
+            isPaused = !isPaused;
+            btnPause.setText(isPaused ? "继续" : "暂停");
         });
 
         tvXRange.setOnClickListener(v -> showXRangeDialog());
@@ -122,20 +103,222 @@ public class WaveCompareFragment extends Fragment implements DataListener {
         return root;
     }
 
-    private void updateLabels() {
-        String nameA = (chA >= 0 && chA < CHANNEL_NAMES.length) ? CHANNEL_NAMES[chA] : "CH" + chA;
-        String nameB = (chB >= 0 && chB < CHANNEL_NAMES.length) ? CHANNEL_NAMES[chB] : "CH" + chB;
-        labelRawA.setText(nameA + " 原始波形");
-        labelFiltA.setText(nameA + " 时域滤波波形");
-        labelRawB.setText(nameB + " 原始波形");
-        labelFiltB.setText(nameB + " 时域滤波波形");
+    private void buildGrid(LinearLayout grid) {
+        Context ctx = requireContext();
+        grid.removeAllViews();
+
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setWeightSum(2f);
+        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        row.setLayoutParams(rowParams);
+
+        for (int i = 0; i < NUM_VIEWS; i++) {
+            if (i == 2) {
+                grid.addView(row);
+                row = new LinearLayout(ctx);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setWeightSum(2f);
+                LinearLayout.LayoutParams rp2 = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+                row.setLayoutParams(rp2);
+            }
+
+            MaterialCardView card = new MaterialCardView(ctx);
+            LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
+            cardParams.setMargins(2, 2, 2, 2);
+            card.setLayoutParams(cardParams);
+            card.setCardElevation(1f);
+            card.setRadius(6f);
+            card.setCardBackgroundColor(ContextCompat.getColor(ctx, R.color.surface_low));
+            card.setStrokeColor(ContextCompat.getColor(ctx, R.color.surface_overlay));
+            card.setStrokeWidth(1);
+
+            LinearLayout inner = new LinearLayout(ctx);
+            inner.setOrientation(LinearLayout.VERTICAL);
+
+            LinearLayout headerRow = new LinearLayout(ctx);
+            headerRow.setOrientation(LinearLayout.HORIZONTAL);
+            headerRow.setBackgroundColor(ContextCompat.getColor(ctx, R.color.surface_mid));
+            headerRow.setGravity(Gravity.CENTER_VERTICAL);
+            int hp = (int) (4 * getResources().getDisplayMetrics().density);
+            headerRow.setPadding(hp * 2, 0, hp, 0);
+
+            View dot = new View(ctx);
+            LinearLayout.LayoutParams dotP = new LinearLayout.LayoutParams(6, 6);
+            dotP.setMargins(0, 0, hp, 0);
+            dot.setLayoutParams(dotP);
+            dot.setBackgroundColor(ContextCompat.getColor(ctx, COLORS[i]));
+            headerRow.addView(dot);
+
+            TextView label = new TextView(ctx);
+            label.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary));
+            label.setTextSize(10);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            label.setLayoutParams(lp);
+            headerRow.addView(label);
+            labelViews[i] = label;
+
+            inner.addView(headerRow);
+
+            WaveformView wv = new WaveformView(ctx, null);
+            wv.setId(View.generateViewId());
+            LinearLayout.LayoutParams wvp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+            wv.setLayoutParams(wvp);
+            wv.setWaveColor(ContextCompat.getColor(ctx, COLORS[i]));
+            inner.addView(wv);
+            waveViews[i] = wv;
+
+            card.addView(inner);
+            row.addView(card);
+        }
+        grid.addView(row);
     }
 
-    private void clearWaveforms() {
-        if (rawCh0 != null) rawCh0.clear();
-        if (rawCh1 != null) rawCh1.clear();
-        if (filtCh0 != null) filtCh0.clear();
-        if (filtCh1 != null) filtCh1.clear();
+    private void updateLabels() {
+        for (int i = 0; i < NUM_VIEWS; i++) {
+            String chName = (ch[i] >= 0 && ch[i] < CHANNEL_NAMES.length) ? CHANNEL_NAMES[ch[i]] : "CH" + ch[i];
+            String typeName = (waveType[i] >= 0 && waveType[i] < WAVE_TYPE_NAMES.length) ? WAVE_TYPE_NAMES[waveType[i]] : "";
+            if (labelViews[i] != null) labelViews[i].setText(chName + " " + typeName);
+        }
+    }
+
+    private void showChannelConfigDialog() {
+        Context ctx = requireContext();
+        int dp4 = (int) (4 * getResources().getDisplayMetrics().density);
+        int dp8 = (int) (8 * getResources().getDisplayMetrics().density);
+
+        android.widget.ScrollView scrollView = new android.widget.ScrollView(ctx);
+        LinearLayout rootLayout = new LinearLayout(ctx);
+        rootLayout.setOrientation(LinearLayout.VERTICAL);
+        rootLayout.setPadding(dp4 * 3, dp4 * 2, dp4 * 3, 0);
+        rootLayout.setMinimumWidth((int) (480 * getResources().getDisplayMetrics().density));
+
+        ArrayAdapter<String> chAdapter = new ArrayAdapter<>(ctx,
+                android.R.layout.simple_spinner_item, CHANNEL_NAMES);
+        chAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
+        ArrayAdapter<String> waveTypeAdapter = new ArrayAdapter<>(ctx,
+                android.R.layout.simple_spinner_item, WAVE_TYPE_NAMES);
+        waveTypeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
+        String[] slotNames = {"左上", "左下", "右上", "右下"};
+        Spinner[] spCh = new Spinner[NUM_VIEWS];
+        Spinner[] spWaveType = new Spinner[NUM_VIEWS];
+
+        for (int row = 0; row < 2; row++) {
+            LinearLayout colRow = new LinearLayout(ctx);
+            colRow.setOrientation(LinearLayout.HORIZONTAL);
+            colRow.setWeightSum(2f);
+
+            for (int col = 0; col < 2; col++) {
+                int i = row * 2 + col;
+
+                LinearLayout colLayout = new LinearLayout(ctx);
+                colLayout.setOrientation(LinearLayout.VERTICAL);
+                LinearLayout.LayoutParams colP = new LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+                colLayout.setLayoutParams(colP);
+
+                TextView title = new TextView(ctx);
+                title.setText(slotNames[i]);
+                title.setTextSize(13);
+                title.setTypeface(null, android.graphics.Typeface.BOLD);
+                title.setPadding(0, dp4, 0, dp4);
+                colLayout.addView(title);
+
+                spCh[i] = new Spinner(ctx);
+                spCh[i].setAdapter(chAdapter);
+                spCh[i].setSelection(ch[i]);
+                addDialogRow(colLayout, "电极", spCh[i]);
+
+                spWaveType[i] = new Spinner(ctx);
+                spWaveType[i].setAdapter(waveTypeAdapter);
+                spWaveType[i].setSelection(waveType[i]);
+                addDialogRow(colLayout, "波形", spWaveType[i]);
+
+                colRow.addView(colLayout);
+
+                if (col == 0) {
+                    View vDiv = new View(ctx);
+                    LinearLayout.LayoutParams vdp = new LinearLayout.LayoutParams(
+                            1, LinearLayout.LayoutParams.MATCH_PARENT);
+                    vdp.setMargins(dp8, 0, dp8, 0);
+                    vDiv.setLayoutParams(vdp);
+                    vDiv.setBackgroundColor(ContextCompat.getColor(ctx, R.color.surface_overlay));
+                    colRow.addView(vDiv);
+                }
+            }
+
+            rootLayout.addView(colRow);
+
+            if (row == 0) {
+                View hDiv = new View(ctx);
+                hDiv.setBackgroundColor(ContextCompat.getColor(ctx, R.color.surface_overlay));
+                LinearLayout.LayoutParams hdp = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, 1);
+                hdp.setMargins(0, dp8, 0, dp8);
+                hDiv.setLayoutParams(hdp);
+                rootLayout.addView(hDiv);
+            }
+        }
+
+        scrollView.addView(rootLayout);
+
+        new AlertDialog.Builder(ctx)
+                .setTitle("通道配置")
+                .setView(scrollView)
+                .setPositiveButton("确定", (d, id) -> {
+                    for (int i = 0; i < NUM_VIEWS; i++) {
+                        ch[i] = spCh[i].getSelectedItemPosition();
+                        waveType[i] = spWaveType[i].getSelectedItemPosition();
+                    }
+                    updateLabels();
+                    clearAll();
+                    SettingsStore.setWcChA(requireContext(), ch[0]);
+                    SettingsStore.setWcChB(requireContext(), ch[2]);
+                    sendDisplayConfig();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void addDialogRow(LinearLayout parent, String label, Spinner spinner) {
+        LinearLayout row = new LinearLayout(requireContext());
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView tv = new TextView(requireContext());
+        tv.setText(label);
+        tv.setTextSize(13);
+        int dp8 = (int) (8 * getResources().getDisplayMetrics().density);
+        tv.setPadding(0, 0, dp8, 0);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        tv.setLayoutParams(lp);
+        row.addView(tv);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        spinner.setLayoutParams(sp);
+        row.addView(spinner);
+        parent.addView(row);
+    }
+
+    private void sendDisplayConfig() {
+        String cmd = String.format(java.util.Locale.US,
+                "DISPLAY_CFG,%d,%d,%d,%d,0,0,%d,%d,%d,%d,0,0",
+                ch[0], waveType[0], ch[1], waveType[1], ch[2], waveType[2], ch[3], waveType[3]);
+        TcpServerManager.getInstance().sendToDevice(cmd);
+        Log.d("WaveCompare", "Sent: " + cmd);
+    }
+
+    private void clearAll() {
+        for (WaveformView wv : waveViews) {
+            if (wv != null) wv.clear();
+        }
     }
 
     @Override
@@ -143,7 +326,15 @@ public class WaveCompareFragment extends Fragment implements DataListener {
         super.onResume();
         DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
+        sendDisplayConfig();
         Log.d("WaveCompare", "onResume: listener refreshed");
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        DataDispatcher.getInstance().removeListener(this);
+        Log.d("WaveCompare", "onPause: listener removed");
     }
 
     @Override
@@ -154,10 +345,7 @@ public class WaveCompareFragment extends Fragment implements DataListener {
     }
 
     private void applyXRange(float xMax) {
-        rawCh0.setXMax(xMax);
-        rawCh1.setXMax(xMax);
-        filtCh0.setXMax(xMax);
-        filtCh1.setXMax(xMax);
+        for (WaveformView wv : waveViews) if (wv != null) wv.setXMax(xMax);
         tvXRange.setText(String.format("%.1f s", xMax));
         currentXMax = xMax;
         SettingsStore.setWaveXMax(requireContext(), xMax);
@@ -171,15 +359,12 @@ public class WaveCompareFragment extends Fragment implements DataListener {
             default:   stepVolt = step; break;
         }
         float halfRange = stepVolt * ((labelCount - 1) / 2.0f);
-        rawCh0.setYRange(halfRange);
-        rawCh1.setYRange(halfRange);
-        filtCh0.setYRange(halfRange);
-        filtCh1.setYRange(halfRange);
-        rawCh0.setUnit(unit);
-        rawCh1.setUnit(unit);
-        filtCh0.setUnit(unit);
-        filtCh1.setUnit(unit);
-
+        for (WaveformView wv : waveViews) {
+            if (wv != null) {
+                wv.setYRange(halfRange);
+                wv.setUnit(unit);
+            }
+        }
         tvWaveRange.setText(step + unit);
         tvWaveLabelCount.setText(String.valueOf(labelCount));
         currentStep = step;
@@ -196,23 +381,18 @@ public class WaveCompareFragment extends Fragment implements DataListener {
         EditText etValue = dialogView.findViewById(R.id.et_value);
         Spinner unitSpinner = dialogView.findViewById(R.id.unit_spinner);
         unitSpinner.setVisibility(View.GONE);
-
         etValue.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
                 | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
         etValue.setHint("例如 2.048");
         etValue.setText(String.valueOf(currentXMax));
-
         new AlertDialog.Builder(requireContext())
                 .setTitle("设置 X 轴时间范围 (秒)")
                 .setView(dialogView)
                 .setPositiveButton("确定", (d, which) -> {
                     String str = etValue.getText().toString().trim();
                     if (str.isEmpty()) return;
-                    try {
-                        float xMax = Float.parseFloat(str);
-                        if (xMax <= 0) return;
-                        applyXRange(xMax);
-                    } catch (NumberFormatException ignored) {}
+                    try { float xMax = Float.parseFloat(str); if (xMax <= 0) return; applyXRange(xMax); }
+                    catch (NumberFormatException ignored) {}
                 })
                 .setNegativeButton("取消", null)
                 .show();
@@ -220,18 +400,12 @@ public class WaveCompareFragment extends Fragment implements DataListener {
 
     private void showLabelCountDialog() {
         final String[] labels = {"3", "5", "7", "9"};
-        int currentIndex = 0;
-        for (int i = 0; i < labels.length; i++) {
-            if (labels[i].equals(String.valueOf(currentLabelCount))) {
-                currentIndex = i;
-                break;
-            }
-        }
+        int ci = 0;
+        for (int i = 0; i < labels.length; i++) if (labels[i].equals(String.valueOf(currentLabelCount))) { ci = i; break; }
         new AlertDialog.Builder(requireContext())
                 .setTitle("选择 Y 轴标签数量")
-                .setSingleChoiceItems(labels, currentIndex, (dialog, which) -> {
-                    int newCount = Integer.parseInt(labels[which]);
-                    applyWaveStep(currentStep, currentStepUnit, newCount);
+                .setSingleChoiceItems(labels, ci, (dialog, which) -> {
+                    applyWaveStep(currentStep, currentStepUnit, Integer.parseInt(labels[which]));
                     dialog.dismiss();
                 })
                 .setNegativeButton("取消", null)
@@ -243,55 +417,43 @@ public class WaveCompareFragment extends Fragment implements DataListener {
                 .inflate(R.layout.dialog_range_input, null);
         EditText etValue = dialogView.findViewById(R.id.et_value);
         Spinner unitSpinner = dialogView.findViewById(R.id.unit_spinner);
-
         etValue.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        ArrayAdapter<String> unitAdapter = new ArrayAdapter<>(requireContext(),
+        ArrayAdapter<String> ua = new ArrayAdapter<>(requireContext(),
                 android.R.layout.simple_spinner_item, new String[]{"uV", "mV", "V"});
-        unitAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        unitSpinner.setAdapter(unitAdapter);
-
+        ua.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        unitSpinner.setAdapter(ua);
         etValue.setText(String.valueOf(currentStep));
-        int pos = unitAdapter.getPosition(currentStepUnit);
+        int pos = ua.getPosition(currentStepUnit);
         if (pos >= 0) unitSpinner.setSelection(pos);
-
         new AlertDialog.Builder(requireContext())
-                .setTitle("设置波形步长（每格刻度值）")
-                .setMessage("输入正整数步长，例如：10、5、20")
+                .setTitle("设置波形步长")
                 .setView(dialogView)
                 .setPositiveButton("确定", (d, which) -> {
                     String str = etValue.getText().toString().trim();
                     if (str.isEmpty()) return;
-                    try {
-                        int stepInt = Integer.parseInt(str);
-                        if (stepInt <= 0) return;
-                        String unit = (String) unitSpinner.getSelectedItem();
-                        applyWaveStep(stepInt, unit, currentLabelCount);
-                    } catch (NumberFormatException ignored) {}
+                    try { int si = Integer.parseInt(str); if (si <= 0) return; applyWaveStep(si, (String) unitSpinner.getSelectedItem(), currentLabelCount); }
+                    catch (NumberFormatException ignored) {}
                 })
                 .setNegativeButton("取消", null)
                 .show();
     }
 
+    private static int waveTypeToCmd(int wt) {
+        switch (wt) { case 1: return 0x10; case 2: return 0x11; default: return 0x04; }
+    }
+
     @Override
-    public void onWaveData(int cmd, int ch, float val) {
-        if (cmd == 0x04) {
-            if (ch == chA && rawCh0 != null) rawCh0.addPoint(val);
-            if (ch == chB && rawCh1 != null) rawCh1.addPoint(val);
-        } else if (cmd == 0x10) {
-            if (ch == chA && filtCh0 != null) filtCh0.addPoint(val);
-            if (ch == chB && filtCh1 != null) filtCh1.addPoint(val);
-        } else if (cmd == 0x11) {
-            if (ch == chA && filtCh0 != null) filtCh0.addPoint(val);
-            if (ch == chB && filtCh1 != null) filtCh1.addPoint(val);
+    public void onWaveData(int cmd, int chNum, float val) {
+        if (isPaused) return;
+        for (int i = 0; i < NUM_VIEWS; i++) {
+            if (cmd == waveTypeToCmd(waveType[i]) && chNum == ch[i] && waveViews[i] != null)
+                waveViews[i].addPoint(val);
         }
     }
 
     @Override
-    public void onSpectrumData(int cmd, float[] mags) {
-    }
+    public void onSpectrumData(int cmd, float[] mags) {}
 
     @Override
-    public void onFocusData(float attn0, float attn1, float ema0, float ema1,
-                            int trend, int instant) {
-    }
+    public void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {}
 }

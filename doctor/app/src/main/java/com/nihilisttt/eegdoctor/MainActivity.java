@@ -175,6 +175,19 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         com.nihilisttt.eegdoctor.R.color.accent_success
     };
 
+    private static String postureToChinese(String posture) {
+        if (posture == null) return "-";
+        switch (posture) {
+            case "SUPINE": return "仰卧";
+            case "PRONE": return "俯卧";
+            case "LEFT": return "左侧卧";
+            case "RIGHT": return "右侧卧";
+            case "SITTING": return "坐姿";
+            case "UNKNOWN": return "未知";
+            default: return posture;
+        }
+    }
+
     @Override
     public void onWaveData(int cmd, int ch, float val) {}
 
@@ -185,7 +198,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
     public void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {
         runOnUiThread(() -> {
             float focus = ema0;
-            float relax = 1.0f - focus;
+            float relax = ema1;
             if (tvBarFocus != null) tvBarFocus.setText(String.format(java.util.Locale.getDefault(), "专注:%.0f%%", focus * 100));
             if (tvBarRelax != null) tvBarRelax.setText(String.format(java.util.Locale.getDefault(), "放松:%.0f%%", relax * 100));
             String instantStr = (instant >= 0 && instant < STATE_TEXT.length) ? STATE_TEXT[instant] : "-";
@@ -207,7 +220,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
     public void onPostureState(String posture, int turnCount) {
         runOnUiThread(() -> {
             if (tvBarPosture != null)
-                tvBarPosture.setText(posture + " 翻身:" + turnCount);
+                tvBarPosture.setText("姿态:" + postureToChinese(posture) + " 翻身:" + turnCount);
         });
     }
 
@@ -215,7 +228,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
     public void onTurnEvent(String from, String to) {
         runOnUiThread(() -> {
             if (tvBarPosture != null)
-                tvBarPosture.setText(from + "→" + to);
+                tvBarPosture.setText(postureToChinese(from) + "→" + postureToChinese(to));
         });
     }
 

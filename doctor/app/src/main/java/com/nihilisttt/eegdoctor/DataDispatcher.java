@@ -12,6 +12,13 @@ public class DataDispatcher {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final List<DataListener> listeners = new CopyOnWriteArrayList<>();
 
+    private static final int WAVE_BATCH_SIZE = 8;
+    private final int[] waveBatchCmd = new int[WAVE_BATCH_SIZE];
+    private final int[] waveBatchCh = new int[WAVE_BATCH_SIZE];
+    private final float[] waveBatchVal = new float[WAVE_BATCH_SIZE];
+    private int waveBatchCount = 0;
+    private boolean waveBatchScheduled = false;
+
     public static DataDispatcher getInstance() { return INSTANCE; }
 
     public void addListener(DataListener listener) {
@@ -24,12 +31,44 @@ public class DataDispatcher {
     }
 
     public void postWaveData(int cmd, int ch, float val) {
-        mainHandler.post(() -> {
-            for (DataListener l : listeners) {
-                try { l.onWaveData(cmd, ch, val); }
+        synchronized (this) {
+            waveBatchCmd[waveBatchCount] = cmd;
+            waveBatchCh[waveBatchCount] = ch;
+            waveBatchVal[waveBatchCount] = val;
+            waveBatchCount++;
+            if (waveBatchCount >= WAVE_BATCH_SIZE) {
+                flushWaveBatch();
+                return;
+            }
+            if (!waveBatchScheduled) {
+                waveBatchScheduled = true;
+                mainHandler.post(this::flushWaveBatch);
+            }
+        }
+    }
+
+    private void flushWaveBatch() {
+        int count;
+        int[] cmds;
+        int[] chs;
+        float[] vals;
+        synchronized (this) {
+            count = waveBatchCount;
+            cmds = new int[count];
+            chs = new int[count];
+            vals = new float[count];
+            System.arraycopy(waveBatchCmd, 0, cmds, 0, count);
+            System.arraycopy(waveBatchCh, 0, chs, 0, count);
+            System.arraycopy(waveBatchVal, 0, vals, 0, count);
+            waveBatchCount = 0;
+            waveBatchScheduled = false;
+        }
+        for (DataListener l : listeners) {
+            for (int i = 0; i < count; i++) {
+                try { l.onWaveData(cmds[i], chs[i], vals[i]); }
                 catch (Exception e) { Log.e(TAG, "onWaveData error in " + l.getClass().getSimpleName(), e); }
             }
-        });
+        }
     }
 
     public void postSpectrumData(int cmd, float[] mags) {

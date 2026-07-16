@@ -34,6 +34,9 @@ public class WaveformView extends View {
     private int logCounter = 0;
     private Paint paint, glowPaint;
     private Lock lock = new ReentrantLock();
+    private final Path wavePath = new Path();
+    private float cachedAvg = 0f;
+    private boolean avgDirty = true;
 
     private Paint axisPaint, gridPaint, textPaint;
     private Paint canvasBgPaint;
@@ -234,6 +237,7 @@ public class WaveformView extends View {
         writeIdx = (writeIdx + 1) % MAX_POINTS;
         if (pointCount < MAX_POINTS) pointCount++;
         lock.unlock();
+        avgDirty = true;
         logCounter++;
         if (logCounter % 500 == 0) {
             Log.d(TAG, "addPoint: count=" + pointCount + " val=" + value + " range=" + mYRange);
@@ -246,9 +250,12 @@ public class WaveformView extends View {
     }
 
     private float computeWindowAverage() {
+        if (!avgDirty) return cachedAvg;
         lock.lock();
         if (pointCount == 0) {
             lock.unlock();
+            cachedAvg = 0f;
+            avgDirty = false;
             return 0f;
         }
         float latestTime = (pointCount - 1) / SAMPLE_RATE;
@@ -258,17 +265,19 @@ public class WaveformView extends View {
 
         float sum = 0f;
         int count = 0;
-        for (int i = 0; i < pointCount; i++) {
+        int startIdx = (int)(windowStart * SAMPLE_RATE);
+        int endIdx = (int)(windowEnd * SAMPLE_RATE);
+        if (startIdx < 0) startIdx = 0;
+        if (endIdx >= pointCount) endIdx = pointCount - 1;
+        for (int i = startIdx; i <= endIdx; i++) {
             int idx = (writeIdx - pointCount + i + MAX_POINTS) % MAX_POINTS;
-            float t = i / SAMPLE_RATE;
-            if (t >= windowStart && t <= windowEnd) {
-                sum += buffer[idx];
-                count++;
-            }
+            sum += buffer[idx];
+            count++;
         }
-        float avg = (count > 0) ? sum / count : 0f;
         lock.unlock();
-        return avg;
+        cachedAvg = (count > 0) ? sum / count : 0f;
+        avgDirty = false;
+        return cachedAvg;
     }
 
     private float niceNum(float range, boolean round) {
@@ -287,6 +296,27 @@ public class WaveformView extends View {
             else niceFraction = 10;
         }
         return niceFraction * (float) Math.pow(10, exponent);
+    }
+
+    private static String formatFloat(float value, float scale) {
+        long rounded = Math.round(value * scale);
+        if (scale == 1f) return String.valueOf(rounded);
+        long integerPart = rounded / (long) scale;
+        long fracPart = Math.abs(rounded % (long) scale);
+        if (fracPart == 0) return String.valueOf(integerPart);
+        StringBuilder sb = new StringBuilder();
+        sb.append(integerPart).append('.');
+        String fracStr = String.valueOf(fracPart);
+        int digits = (int) Math.log10(scale);
+        while (fracStr.length() < digits) {
+            sb.append('0');
+            fracStr = "0" + fracStr;
+        }
+        while (fracStr.endsWith("0")) {
+            fracStr = fracStr.substring(0, fracStr.length() - 1);
+        }
+        sb.append(fracStr);
+        return sb.toString();
     }
 
     @Override
@@ -347,13 +377,13 @@ public class WaveformView extends View {
         else if (scaledTickSpacing >= 1f) labelDecimals = 1;
         else if (scaledTickSpacing >= 0.1f) labelDecimals = 2;
         else labelDecimals = 3;
-        String labelFmt = "%." + labelDecimals + "f";
+        float tickScale = (float) Math.pow(10, labelDecimals);
         while (yTick <= yMax + yTickSpacing * 0.5f) {
             float y = bottom - (yTick - yMin) * yScale;
             canvas.drawLine(left, y, right, y, gridPaint);
             canvas.drawLine(left - 5, y, left, y, axisPaint);
             float scaled = yTick * unitScale;
-            String label = String.format(labelFmt, scaled) + mUnit;
+            String label = formatFloat(scaled, tickScale) + mUnit;
             float tw = textPaint.measureText(label);
             canvas.drawText(label, left - 15 - tw, y + 5, textPaint);
             yTick += yTickSpacing;
@@ -365,7 +395,7 @@ public class WaveformView extends View {
             float x = left + (xTick - xMin) * xScale;
             canvas.drawLine(x, top, x, bottom, gridPaint);
             canvas.drawLine(x, bottom, x, bottom + 5, axisPaint);
-            String label = String.format("%.1f", xTick) + "s";
+            String label = formatFloat(xTick, 10f) + "s";
             canvas.drawText(label, x - 15, bottom + 25, textPaint);
             xTick += xTickSpacing;
         }
@@ -375,32 +405,30 @@ public class WaveformView extends View {
 
         lock.lock();
         if (pointCount > 1) {
-            Path path = new Path();
+            wavePath.reset();
             float latestTime = (pointCount - 1) / SAMPLE_RATE;
             float windowStart = latestTime - mXMax;
             float windowEnd = latestTime;
             float windowLen = mXMax;
 
+            int startIdx = Math.max(0, (int)(windowStart * SAMPLE_RATE));
+            int endIdx = Math.min(pointCount - 1, (int)(windowEnd * SAMPLE_RATE));
             boolean first = true;
-            for (int i = 0; i < pointCount; i++) {
+            for (int i = startIdx; i <= endIdx; i++) {
                 int idx = (writeIdx - pointCount + i + MAX_POINTS) % MAX_POINTS;
                 float val = buffer[idx];
                 float t = i / SAMPLE_RATE;
-                if (t >= windowStart && t <= windowEnd) {
-                    float x = left + ((t - windowStart) / windowLen) * (right - left);
-                    float y = bottom - (val - yMin) * yScale;
-                    if (first) {
-                        path.moveTo(x, y);
-                        first = false;
-                    } else {
-                        path.lineTo(x, y);
-                    }
+                float x = left + ((t - windowStart) / windowLen) * (right - left);
+                float y = bottom - (val - yMin) * yScale;
+                if (first) {
+                    wavePath.moveTo(x, y);
+                    first = false;
                 } else {
-                    first = true;
+                    wavePath.lineTo(x, y);
                 }
             }
-            canvas.drawPath(path, glowPaint);
-            canvas.drawPath(path, paint);
+            canvas.drawPath(wavePath, glowPaint);
+            canvas.drawPath(wavePath, paint);
         }
         lock.unlock();
 
@@ -412,9 +440,9 @@ public class WaveformView extends View {
         else if (scaledRange >= 1f) rangeDecimals = 1;
         else if (scaledRange >= 0.01f) rangeDecimals = 2;
         else rangeDecimals = 3;
-        String rangeFmt = "%." + rangeDecimals + "f";
-        String maxLabel = String.format(rangeFmt, yMax * unitScale) + " " + mUnit;
-        String minLabel = String.format(rangeFmt, yMin * unitScale) + " " + mUnit;
+        float rangeScale = (float) Math.pow(10, rangeDecimals);
+        String maxLabel = formatFloat(yMax * unitScale, rangeScale) + " " + mUnit;
+        String minLabel = formatFloat(yMin * unitScale, rangeScale) + " " + mUnit;
         canvas.drawText(maxLabel, left + 5, top + 15, textPaint);
         canvas.drawText(minLabel, left + 5, bottom - 10, textPaint);
 

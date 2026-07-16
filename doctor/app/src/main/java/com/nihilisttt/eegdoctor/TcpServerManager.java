@@ -289,8 +289,14 @@ public class TcpServerManager {
 
     private int mLastProcessedSeq = -1;
 
+    private static final java.util.regex.Pattern SEQ_PATTERN = java.util.regex.Pattern.compile("seq=(\\d+)");
+    private static final java.util.regex.Pattern TURN_EVENT_PATTERN = java.util.regex.Pattern.compile("TURN_EVENT,(?:seq=\\d+,)?count=\\d+,from=(\\w+),to=(\\w+)");
+    private static final java.util.regex.Pattern FALL_EVENT_PATTERN = java.util.regex.Pattern.compile("FALL_EVENT,(?:seq=\\d+)?");
+    private static final java.util.regex.Pattern NO_TURN_ALERT_PATTERN = java.util.regex.Pattern.compile("NO_TURN_ALERT,(?:seq=\\d+,)?duration_min=(\\d+)");
+    private static final java.util.regex.Pattern POSTURE_STATE_PATTERN = java.util.regex.Pattern.compile("POSTURE_STATE,(?:seq=\\d+,)?(\\w+),turns=(\\d+)");
+
     private boolean isDuplicateSeq(String line) {
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("seq=(\\d+)").matcher(line);
+        java.util.regex.Matcher m = SEQ_PATTERN.matcher(line);
         if (m.find()) {
             int seq = Integer.parseInt(m.group(1));
             if (seq == mLastProcessedSeq) return true;
@@ -300,7 +306,7 @@ public class TcpServerManager {
     }
 
     private void sendAckForSeq(String line) {
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("seq=(\\d+)").matcher(line);
+        java.util.regex.Matcher m = SEQ_PATTERN.matcher(line);
         if (m.find()) {
             String ack = "ACK," + m.group(1);
             sendToDevice(ack);
@@ -343,7 +349,7 @@ public class TcpServerManager {
                         dispatcher.postTaskStart(side);
                     } else if (line.startsWith("TURN_EVENT,")) {
                         sendAckForSeq(line);
-                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("TURN_EVENT,(?:seq=\\d+,)?count=\\d+,from=(\\w+),to=(\\w+)").matcher(line);
+                        java.util.regex.Matcher m = TURN_EVENT_PATTERN.matcher(line);
                         if (m.find()) {
                             Log.i("MCU_RESP", "TURN_EVENT: " + m.group(1) + " -> " + m.group(2));
                             dispatcher.postTurnEvent(m.group(1), m.group(2));
@@ -354,7 +360,7 @@ public class TcpServerManager {
                         dispatcher.postFallEvent();
                     } else if (line.startsWith("NO_TURN_ALERT,")) {
                         sendAckForSeq(line);
-                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("NO_TURN_ALERT,(?:seq=\\d+,)?duration_min=(\\d+)").matcher(line);
+                        java.util.regex.Matcher m = NO_TURN_ALERT_PATTERN.matcher(line);
                         if (m.find()) {
                             long dur = Long.parseLong(m.group(1));
                             Log.i("MCU_RESP", "NO_TURN_ALERT: " + dur + " min");
@@ -362,7 +368,7 @@ public class TcpServerManager {
                         }
                     } else if (line.startsWith("POSTURE_STATE,")) {
                         sendAckForSeq(line);
-                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("POSTURE_STATE,(?:seq=\\d+,)?(\\w+),turns=(\\d+)").matcher(line);
+                        java.util.regex.Matcher m = POSTURE_STATE_PATTERN.matcher(line);
                         if (m.find()) {
                             Log.i("MCU_RESP", "POSTURE_STATE: " + m.group(1) + " turns=" + m.group(2));
                             dispatcher.postPostureState(m.group(1), Integer.parseInt(m.group(2)));
@@ -601,13 +607,25 @@ public class TcpServerManager {
             while ((len = in.read(buf)) != -1) {
                 totalPacketsRead.addAndGet(1);
 
-                String peek = new String(buf, 0, len, "UTF-8");
-                if (peek.contains("PONG")) {
-                    pongReceived.set(true);
-                    Log.i("HEARTBEAT", "PONG received from ESP8266");
+                boolean hasText = false;
+                for (int i = 0; i < len; i++) {
+                    if ((buf[i] & 0xFF) >= 0x20 && (buf[i] & 0xFF) < 0x7F) {
+                        hasText = true;
+                        break;
+                    }
+                    if (buf[i] == '\n' || buf[i] == '\r' || buf[i] == 'P' || buf[i] == 'O') {
+                        hasText = true;
+                        break;
+                    }
                 }
-                parseMcuTextResponses(peek);
-
+                if (hasText) {
+                    String peek = new String(buf, 0, len, "UTF-8");
+                    if (peek.contains("PONG")) {
+                        pongReceived.set(true);
+                        Log.i("HEARTBEAT", "PONG received from ESP8266");
+                    }
+                    parseMcuTextResponses(peek);
+                }
 
                 byte[] copy = new byte[len];
                 System.arraycopy(buf, 0, copy, 0, len);
@@ -981,7 +999,7 @@ public class TcpServerManager {
                 } catch (NumberFormatException ignored) {}
             } else if (line.startsWith("TURN_EVENT,")) {
                 sendAckForSeq(line);
-                java.util.regex.Matcher m = java.util.regex.Pattern.compile("TURN_EVENT,(?:seq=\\d+,)?count=\\d+,from=(\\w+),to=(\\w+)").matcher(line);
+                    java.util.regex.Matcher m = TURN_EVENT_PATTERN.matcher(line);
                 if (m.find()) {
                     dispatcher.postTurnEvent(m.group(1), m.group(2));
                     framesParsed.incrementAndGet();
@@ -992,14 +1010,14 @@ public class TcpServerManager {
                 framesParsed.incrementAndGet();
             } else if (line.startsWith("NO_TURN_ALERT,")) {
                 sendAckForSeq(line);
-                java.util.regex.Matcher m = java.util.regex.Pattern.compile("NO_TURN_ALERT,(?:seq=\\d+,)?duration_min=(\\d+)").matcher(line);
+                    java.util.regex.Matcher m = NO_TURN_ALERT_PATTERN.matcher(line);
                 if (m.find()) {
                     dispatcher.postNoTurnAlert(Long.parseLong(m.group(1)));
                     framesParsed.incrementAndGet();
                 }
             } else if (line.startsWith("POSTURE_STATE,")) {
                 sendAckForSeq(line);
-                java.util.regex.Matcher m = java.util.regex.Pattern.compile("POSTURE_STATE,(?:seq=\\d+,)?(\\w+),turns=(\\d+)").matcher(line);
+                    java.util.regex.Matcher m = POSTURE_STATE_PATTERN.matcher(line);
                 if (m.find()) {
                     dispatcher.postPostureState(m.group(1), Integer.parseInt(m.group(2)));
                     framesParsed.incrementAndGet();

@@ -14,8 +14,6 @@ import android.view.View;
 
 import androidx.core.content.ContextCompat;
 
-import java.util.ArrayList;
-import java.util.List;
 
 public class SpectrumView extends View {
     private static final int TOTAL_BINS = 128;
@@ -23,6 +21,7 @@ public class SpectrumView extends View {
     private static final float FREQ_MAX = 125.0f;
 
     private float[] spectrumVoltage = new float[TOTAL_BINS];
+    private float[] displayValues = new float[TOTAL_BINS];
     private String mDisplayUnit = "mV";
     private float mDisplayMax = 5f;
 
@@ -33,6 +32,11 @@ public class SpectrumView extends View {
     private int spectrumColorStart;
     private int spectrumColorEnd;
     private LinearGradient barGradient;
+
+    private float[] yTickCache = new float[0];
+    private float yTickCacheMax = -1;
+    private float[] xTickCache = new float[0];
+    private boolean displayValuesDirty = true;
 
     public SpectrumView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -89,6 +93,7 @@ public class SpectrumView extends View {
     public void updateSpectrum(float[] newSpectrum) {
         if (newSpectrum.length != TOTAL_BINS) return;
         System.arraycopy(newSpectrum, 0, spectrumVoltage, 0, TOTAL_BINS);
+        displayValuesDirty = true;
         postInvalidate();
     }
 
@@ -98,6 +103,8 @@ public class SpectrumView extends View {
         mVoltageMax = voltageMax;
         mDisplayUnit = unit;
         mDisplayMax = convertFromVoltage(mVoltageMax, unit);
+        displayValuesDirty = true;
+        yTickCacheMax = -1;
         invalidate();
     }
 
@@ -130,20 +137,30 @@ public class SpectrumView extends View {
         }
     }
 
-    private List<Float> generateTicks(float max, int targetCount) {
-        List<Float> ticks = new ArrayList<>();
-        if (max <= 0) {
-            ticks.add(0f);
-            return ticks;
-        }
+    private float[] computeTicks(float max, int targetCount) {
+        if (max <= 0) return new float[]{0f};
         float step = niceNum(max / (targetCount - 1), true);
-        for (float v = 0; v <= max + step * 0.5f; v += step) {
-            ticks.add(v);
-        }
-        if (ticks.size() > 0 && ticks.get(ticks.size() - 1) < max) {
-            ticks.add(max);
-        }
+        int count = 0;
+        for (float v = 0; v <= max + step * 0.5f; v += step) count++;
+        float[] ticks = new float[count];
+        int idx = 0;
+        for (float v = 0; v <= max + step * 0.5f; v += step) ticks[idx++] = v;
         return ticks;
+    }
+
+    private float[] getYTicks() {
+        if (yTickCacheMax != mDisplayMax) {
+            yTickCache = computeTicks(mDisplayMax, 6);
+            yTickCacheMax = mDisplayMax;
+        }
+        return yTickCache;
+    }
+
+    private float[] getXTicks() {
+        if (xTickCache.length == 0) {
+            xTickCache = computeTicks(FREQ_MAX, 6);
+        }
+        return xTickCache;
     }
 
     private float niceNum(float range, boolean round) {
@@ -182,7 +199,7 @@ public class SpectrumView extends View {
         float xMax = FREQ_MAX;
         float xScale = (right - left) / (xMax - xMin);
 
-        List<Float> yTicks = generateTicks(yMax, 6);
+        float[] yTicks = getYTicks();
         for (float yTick : yTicks) {
             float y = bottom - (yTick - yMin) * yScale;
             canvas.drawLine(left, y, right, y, gridPaint);
@@ -190,40 +207,45 @@ public class SpectrumView extends View {
 
             String label;
             if (mDisplayUnit.startsWith("dB")) {
-                label = String.format("%.1f", yTick) + " " + mDisplayUnit;
+                label = formatFloat1(yTick) + " " + mDisplayUnit;
             } else {
                 if (Math.abs(yTick - Math.round(yTick)) < 0.001f) {
-                    label = String.format("%.0f", yTick);
+                    label = String.valueOf((int) yTick) + " " + mDisplayUnit;
                 } else {
-                    label = String.format("%.2f", yTick);
+                    label = formatFloat2(yTick) + " " + mDisplayUnit;
                 }
-                label += " " + mDisplayUnit;
             }
             float tw = textPaint.measureText(label);
             canvas.drawText(label, left - 10 - tw, y + 5, textPaint);
         }
 
-        List<Float> xTicks = generateTicks(xMax, 6);
+        float[] xTicks = getXTicks();
         for (float xTick : xTicks) {
             if (xTick >= xMax - 0.5f) continue;
             float x = left + (xTick - xMin) * xScale;
             canvas.drawLine(x, top, x, bottom, gridPaint);
             canvas.drawLine(x, bottom, x, bottom + 5, axisPaint);
-            String label = String.format("%.0f", xTick) + " Hz";
+            String label = String.valueOf((int) xTick) + " Hz";
             canvas.drawText(label, x - 15, bottom + 20, textPaint);
         }
 
         canvas.drawLine(left, top, left, bottom, axisPaint);
         canvas.drawLine(left, bottom, right, bottom, axisPaint);
 
+        if (displayValuesDirty) {
+            for (int i = 0; i < TOTAL_BINS; i++) {
+                float dv = convertFromVoltage(spectrumVoltage[i], mDisplayUnit);
+                if (dv > mDisplayMax) dv = mDisplayMax;
+                if (dv < 0) dv = 0;
+                displayValues[i] = dv;
+            }
+            displayValuesDirty = false;
+        }
+
         float barWidth = (right - left) / DISPLAY_BINS;
         float barGap = barWidth * 0.1f;
         for (int i = 0; i < DISPLAY_BINS; i++) {
-            float voltage = spectrumVoltage[i];
-            float displayValue = convertFromVoltage(voltage, mDisplayUnit);
-            if (displayValue > mDisplayMax) displayValue = mDisplayMax;
-            if (displayValue < 0) displayValue = 0;
-            float barHeight = (displayValue - yMin) * yScale;
+            float barHeight = displayValues[i] * yScale;
             float barLeft = left + i * barWidth + barGap;
             float barTop = bottom - barHeight;
             float barRight = left + (i + 1) * barWidth - barGap;
@@ -231,5 +253,13 @@ public class SpectrumView extends View {
                 canvas.drawRoundRect(barLeft, barTop, barRight, bottom, 1f, 1f, barPaint);
             }
         }
+    }
+
+    private static String formatFloat1(float v) {
+        return String.valueOf(Math.round(v * 10f) / 10f);
+    }
+
+    private static String formatFloat2(float v) {
+        return String.valueOf(Math.round(v * 100f) / 100f);
     }
 }

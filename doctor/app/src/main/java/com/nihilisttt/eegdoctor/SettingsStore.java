@@ -21,6 +21,11 @@ public class SettingsStore {
     private static final String KEY_WAVE_MODE_A = "wave_mode_a";
     private static final String KEY_WAVE_MODE_B = "wave_mode_b";
 
+    private static final String KEY_WC_CH_A = "wc_ch_a";
+    private static final String KEY_WC_CH_B = "wc_ch_b";
+    private static final String KEY_SC_CH_A = "sc_ch_a";
+    private static final String KEY_SC_CH_B = "sc_ch_b";
+
     private static final String KEY_FOCUS_LABEL_COUNT = "focus_label_count";
     private static final String KEY_FOCUS_Y_RANGE = "focus_y_range";
     private static final String KEY_FOCUS_X_POINTS = "focus_x_points";
@@ -146,5 +151,33 @@ public class SettingsStore {
     }
     public static void setWaveModeB(Context ctx, int val) {
         getPrefs(ctx).edit().putInt(KEY_WAVE_MODE_B, val).apply();
+    }
+
+    public static int getWcChA(Context ctx, int def) {
+        return getPrefs(ctx).getInt(KEY_WC_CH_A, def);
+    }
+    public static void setWcChA(Context ctx, int val) {
+        getPrefs(ctx).edit().putInt(KEY_WC_CH_A, val).apply();
+    }
+
+    public static int getWcChB(Context ctx, int def) {
+        return getPrefs(ctx).getInt(KEY_WC_CH_B, def);
+    }
+    public static void setWcChB(Context ctx, int val) {
+        getPrefs(ctx).edit().putInt(KEY_WC_CH_B, val).apply();
+    }
+
+    public static int getScChA(Context ctx, int def) {
+        return getPrefs(ctx).getInt(KEY_SC_CH_A, def);
+    }
+    public static void setScChA(Context ctx, int val) {
+        getPrefs(ctx).edit().putInt(KEY_SC_CH_A, val).apply();
+    }
+
+    public static int getScChB(Context ctx, int def) {
+        return getPrefs(ctx).getInt(KEY_SC_CH_B, def);
+    }
+    public static void setScChB(Context ctx, int val) {
+        getPrefs(ctx).edit().putInt(KEY_SC_CH_B, val).apply();
     }
 }

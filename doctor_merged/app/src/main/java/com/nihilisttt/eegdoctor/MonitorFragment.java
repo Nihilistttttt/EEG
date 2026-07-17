@@ -46,11 +46,14 @@ public class MonitorFragment extends Fragment implements DataListener {
     private TextView tvWaveRange;
     private TextView tvXRange;
     private TextView tvSpectrumRange;
+    private TextView tvSpecXRange;
     private TextView btnPauseResume;
     private boolean isPaused = false;
     private int currentLabelCount = DEFAULT_LABEL_COUNT;
     private boolean deviceConnected = false;
     private boolean patientConnected = false;
+    private float specXMin = 0f;
+    private float specXMax = 125f;
 
     private static final String[] CHANNEL_NAMES = {"OZ", "O1", "F3", "F4", "CP3", "CP4", "C3", "C4"};
     private static final String[] WAVE_TYPE_NAMES = {"原始波形", "滤波波形", "基线修复"};
@@ -60,6 +63,8 @@ public class MonitorFragment extends Fragment implements DataListener {
     private int[] waveType = {0, 1};
     private int[] specType = {0, 2};
     private int[] waveMode = {0, 0};
+
+    private TcpServerManager.ConnectionListener connectionListener;
 
     public MonitorFragment() {
         this.channels = ChannelConfig.getDefaultDualChannel();
@@ -115,6 +120,7 @@ public class MonitorFragment extends Fragment implements DataListener {
         tvWaveRange = root.findViewById(R.id.tv_wave_range);
         tvXRange = root.findViewById(R.id.tv_x_range);
         tvSpectrumRange = root.findViewById(R.id.tv_spectrum_range);
+        tvSpecXRange = root.findViewById(R.id.tv_spec_x_range);
         btnPauseResume = root.findViewById(R.id.btn_pause_resume);
 
         btnPauseResume.setOnClickListener(v -> {
@@ -131,7 +137,7 @@ public class MonitorFragment extends Fragment implements DataListener {
             }
         });
 
-        TcpServerManager.getInstance().addConnectionListener(new TcpServerManager.ConnectionListener() {
+        connectionListener = new TcpServerManager.ConnectionListener() {
             @Override
             public void onDeviceConnected(boolean connected) {
                 deviceConnected = connected;
@@ -149,10 +155,10 @@ public class MonitorFragment extends Fragment implements DataListener {
                 patientConnected = connected;
                 if (getActivity() != null) getActivity().runOnUiThread(() -> updateConnectionStatus());
             }
-        });
+        };
+        TcpServerManager.getInstance().addConnectionListener(connectionListener);
 
         setupRangeSelectors();
-        sendDisplayConfig();
         return root;
     }
 
@@ -276,6 +282,7 @@ public class MonitorFragment extends Fragment implements DataListener {
         tvWaveRange.setOnClickListener(v -> showWaveRangeDialog());
         tvXRange.setOnClickListener(v -> showXRangeDialog());
         tvSpectrumRange.setOnClickListener(v -> showSpectrumRangeDialog());
+        tvSpecXRange.setOnClickListener(v -> showSpecXRangeDialog());
 
         int step = SettingsStore.getWaveStep(requireContext(), DEFAULT_STEP);
         String stepUnit = SettingsStore.getWaveStepUnit(requireContext(), DEFAULT_STEP_UNIT);
@@ -294,7 +301,9 @@ public class MonitorFragment extends Fragment implements DataListener {
         applyXRange(xMax);
         for (SpectrumView sv : spectrumViews) {
             sv.setRange(specRange, specUnit);
+            sv.setFreqRange(specXMin, specXMax);
         }
+        tvSpecXRange.setText((int) specXMin + "-" + (int) specXMax);
         for (int i = 0; i < waveformViews.size() && i < 2; i++) {
             waveformViews.get(i).setMode(waveMode[i]);
         }
@@ -441,6 +450,47 @@ public class MonitorFragment extends Fragment implements DataListener {
                         tvSpectrumRange.setText((Math.abs(value - Math.round(value)) < 0.001f ? String.format("%.0f", value) : String.format("%.3g", value)) + " " + unit);
                         SettingsStore.setSpecRange(requireContext(), value);
                         SettingsStore.setSpecUnit(requireContext(), unit);
+                    } catch (NumberFormatException ignored) {}
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void showSpecXRangeDialog() {
+        LinearLayout layout = new LinearLayout(requireContext());
+        layout.setOrientation(LinearLayout.HORIZONTAL);
+        int dp8 = (int) (8 * getResources().getDisplayMetrics().density);
+        EditText etMin = new EditText(requireContext());
+        etMin.setHint("起始Hz");
+        etMin.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        etMin.setText(String.valueOf((int) specXMin));
+        EditText etMax = new EditText(requireContext());
+        etMax.setHint("结束Hz");
+        etMax.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        etMax.setText(String.valueOf((int) specXMax));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        etMin.setLayoutParams(lp);
+        etMax.setLayoutParams(lp);
+        layout.addView(etMin);
+        View div = new View(requireContext());
+        div.setLayoutParams(new LinearLayout.LayoutParams(dp8, 1));
+        layout.addView(div);
+        layout.addView(etMax);
+        layout.setPadding(dp8, dp8, dp8, dp8);
+        new AlertDialog.Builder(requireContext())
+                .setTitle("频谱 X 轴范围 (Hz)")
+                .setView(layout)
+                .setPositiveButton("确定", (d, which) -> {
+                    try {
+                        float min = Float.parseFloat(etMin.getText().toString().trim());
+                        float max = Float.parseFloat(etMax.getText().toString().trim());
+                        if (min >= max || max > 125f) return;
+                        specXMin = Math.max(0f, min);
+                        specXMax = max;
+                        for (SpectrumView sv : spectrumViews) {
+                            sv.setFreqRange(specXMin, specXMax);
+                        }
+                        tvSpecXRange.setText((int) specXMin + "-" + (int) specXMax);
                     } catch (NumberFormatException ignored) {}
                 })
                 .setNegativeButton("取消", null)
@@ -649,6 +699,7 @@ public class MonitorFragment extends Fragment implements DataListener {
         applyXRange(xMax);
         for (SpectrumView sv : spectrumViews) {
             sv.setRange(specRange, specUnit);
+            sv.setFreqRange(specXMin, specXMax);
         }
 
         for (int i = 0; i < 2; i++) {
@@ -737,7 +788,10 @@ public class MonitorFragment extends Fragment implements DataListener {
         super.onDestroyView();
         saveDisplayConfigToStore();
         DataDispatcher.getInstance().removeListener(this);
-        Log.d("MonitorFragment", "onDestroyView: listener removed, config saved");
+        if (connectionListener != null) {
+            TcpServerManager.getInstance().removeConnectionListener(connectionListener);
+            connectionListener = null;
+        }
     }
 
     private static int waveTypeToCmd(int waveType) {

@@ -1,14 +1,20 @@
 package com.nihilisttt.eegdoctor;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
@@ -25,6 +31,8 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
 
     private SpectrumView spectrumO1;
     private SpectrumView spectrumOZ;
+    private TextView tvSpecYRange;
+    private TextView tvSpecXRange;
     private TextView tvStatus;
     private TextView tvSelectedFreq;
     private TextView tvResult;
@@ -46,6 +54,10 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
 
     private int selectedFreqIndex = -1;
     private boolean ssvepRunning;
+    private float specYVal = 5f;
+    private String specYUnit = "mV";
+    private float specXMin = 0f;
+    private float specXMax = 45f;
 
     @Nullable
     @Override
@@ -60,6 +72,13 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         super.onViewCreated(view, savedInstanceState);
         spectrumO1 = view.findViewById(R.id.spectrum_o1);
         spectrumOZ = view.findViewById(R.id.spectrum_oz);
+        spectrumO1.setRange(specYVal, specYUnit);
+        spectrumO1.setFreqRange(specXMin, specXMax);
+        spectrumOZ.setRange(specYVal, specYUnit);
+        spectrumOZ.setFreqRange(specXMin, specXMax);
+
+        tvSpecYRange = view.findViewById(R.id.tv_spec_y_range);
+        tvSpecXRange = view.findViewById(R.id.tv_spec_x_range);
         tvStatus = view.findViewById(R.id.tv_ssvep_status);
         tvSelectedFreq = view.findViewById(R.id.tv_selected_freq);
         tvResult = view.findViewById(R.id.tv_ssvep_result);
@@ -79,11 +98,8 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         btnSelfTest = view.findViewById(R.id.btn_ssvep_self_test);
         btnStop = view.findViewById(R.id.btn_ssvep_stop);
 
-        spectrumO1.setFreqRange(0f, 45f);
-        spectrumO1.setYMax(0.005f);
-        spectrumOZ.setFreqRange(0f, 45f);
-        spectrumOZ.setYMax(0.005f);
-
+        tvSpecYRange.setOnClickListener(v -> showYRangeDialog());
+        tvSpecXRange.setOnClickListener(v -> showXRangeDialog());
         btnFreq11.setOnClickListener(v -> selectFreq(0));
         btnFreq13.setOnClickListener(v -> selectFreq(1));
         btnFreq15.setOnClickListener(v -> selectFreq(2));
@@ -232,12 +248,17 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
     @Override
     public void onSsvepProgress(SsvepProgress progress) {
         if (progress == null || getView() == null) return;
-        progressWindow.setProgress(progress.getPercent());
+        int pct = progress.getPercent();
+        if (pct >= 100) {
+            progressWindow.setProgress(0);
+        } else {
+            progressWindow.setProgress(pct);
+        }
         tvProgress.setText(String.format(Locale.US,
-                "窗口: %d / %d（%d%%） %s",
+                "窗口: %d/%d（%d%%） %s",
                 progress.getBufferedSamples(),
                 progress.getWindowSamples(),
-                progress.getPercent(),
+                pct,
                 progress.getMessage()));
         if (progress.getWaveCommand() > 0) {
             tvWaveSource.setText(String.format(Locale.US,
@@ -277,6 +298,28 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
                 result.getVote11(), result.getVote13(), result.getVote15(), result.getVote17()));
     }
 
+    private void sendDisplayConfig() {
+        String cmd = String.format(Locale.US,
+                "DISPLAY_CFG,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+                0, 1, 1, 1, 0, 2, 0, 0, 0, 0, 0, 0);
+        TcpServerManager.getInstance().sendToDevice(cmd);
+        Log.i("SsvepTraining", "Sent: " + cmd);
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        DataDispatcher.getInstance().removeListener(this);
+        DataDispatcher.getInstance().addListener(this);
+        sendDisplayConfig();
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        DataDispatcher.getInstance().removeListener(this);
+    }
+
     @Override
     public void onSpectrumData(int cmd, float[] mags) {
         int ch = -1;
@@ -285,6 +328,82 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         else if (cmd >= 0x40 && cmd <= 0x47) ch = cmd - 0x40;
         if (ch == 1 && spectrumO1 != null) spectrumO1.updateSpectrum(mags);
         if (ch == 0 && spectrumOZ != null) spectrumOZ.updateSpectrum(mags);
+    }
+
+    private void showYRangeDialog() {
+        View dialogView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_range_input, null);
+        EditText etValue = dialogView.findViewById(R.id.et_value);
+        Spinner unitSpinner = dialogView.findViewById(R.id.unit_spinner);
+        String[] units = {"uV", "mV", "V", "dBuV", "dBmV", "dBV"};
+        ArrayAdapter<String> ua = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_item, units);
+        ua.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        unitSpinner.setAdapter(ua);
+        new AlertDialog.Builder(requireContext())
+                .setTitle("频谱 Y 轴最大值")
+                .setView(dialogView)
+                .setPositiveButton("确定", (d, which) -> {
+                    String str = etValue.getText().toString().trim();
+                    if (str.isEmpty()) return;
+                    try {
+                        float val = Float.parseFloat(str);
+                        if (val <= 0) return;
+                        String unit = (String) unitSpinner.getSelectedItem();
+                        specYVal = val;
+                        specYUnit = unit;
+                        if (spectrumO1 != null) spectrumO1.setRange(val, unit);
+                        if (spectrumOZ != null) spectrumOZ.setRange(val, unit);
+                        tvSpecYRange.setText(formatSpecRange(val, unit));
+                    } catch (NumberFormatException ignored) {}
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void showXRangeDialog() {
+        LinearLayout layout = new LinearLayout(requireContext());
+        layout.setOrientation(LinearLayout.HORIZONTAL);
+        int dp8 = (int) (8 * getResources().getDisplayMetrics().density);
+        EditText etMin = new EditText(requireContext());
+        etMin.setHint("起始Hz");
+        etMin.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        etMin.setText(String.valueOf((int) specXMin));
+        EditText etMax = new EditText(requireContext());
+        etMax.setHint("结束Hz");
+        etMax.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        etMax.setText(String.valueOf((int) specXMax));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        etMin.setLayoutParams(lp);
+        etMax.setLayoutParams(lp);
+        layout.addView(etMin);
+        View div = new View(requireContext());
+        div.setLayoutParams(new LinearLayout.LayoutParams(dp8, 1));
+        layout.addView(div);
+        layout.addView(etMax);
+        layout.setPadding(dp8, dp8, dp8, dp8);
+        new AlertDialog.Builder(requireContext())
+                .setTitle("频谱 X 轴范围 (Hz)")
+                .setView(layout)
+                .setPositiveButton("确定", (d, which) -> {
+                    try {
+                        float min = Float.parseFloat(etMin.getText().toString().trim());
+                        float max = Float.parseFloat(etMax.getText().toString().trim());
+                        if (min >= max || max > 125f) return;
+                        specXMin = Math.max(0f, min);
+                        specXMax = max;
+                        if (spectrumO1 != null) spectrumO1.setFreqRange(specXMin, specXMax);
+                        if (spectrumOZ != null) spectrumOZ.setFreqRange(specXMin, specXMax);
+                        tvSpecXRange.setText((int) specXMin + "-" + (int) specXMax + " Hz");
+                    } catch (NumberFormatException ignored) {}
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private static String formatSpecRange(float val, String unit) {
+        if (val == (int) val) return (int) val + " " + unit;
+        return String.format(Locale.US, "%.1f %s", val, unit);
     }
 
     @Override

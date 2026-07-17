@@ -37,6 +37,9 @@ public class SpectrumCompareFragment extends Fragment implements DataListener {
     private final TextView[] labelViews = new TextView[NUM_VIEWS];
 
     private TextView tvSpecRange;
+    private TextView tvSpecXRange;
+    private float specXMin = 0f;
+    private float specXMax = 125f;
 
     private int[] ch = {4, 4, 5, 5};
     private int[] specType = {0, 2, 0, 2};
@@ -58,9 +61,11 @@ public class SpectrumCompareFragment extends Fragment implements DataListener {
         buildGrid(grid);
 
         tvSpecRange = root.findViewById(R.id.tv_spec_range);
+        tvSpecXRange = root.findViewById(R.id.tv_spec_x_range);
 
         root.findViewById(R.id.btn_channel_cfg).setOnClickListener(v -> showChannelConfigDialog());
         tvSpecRange.setOnClickListener(v -> showSpecRangeDialog());
+        tvSpecXRange.setOnClickListener(v -> showSpecXRangeDialog());
 
         com.google.android.material.button.MaterialButton btnPause = root.findViewById(R.id.btn_pause_resume);
         btnPause.setOnClickListener(v -> {
@@ -70,8 +75,12 @@ public class SpectrumCompareFragment extends Fragment implements DataListener {
 
         float specRange = SettingsStore.getSpecRange(requireContext(), 500f);
         String specUnit = SettingsStore.getSpecUnit(requireContext(), "uV");
-        for (SpectrumView sv : specViews) if (sv != null) sv.setRange(specRange, specUnit);
+        for (SpectrumView sv : specViews) if (sv != null) {
+            sv.setRange(specRange, specUnit);
+            sv.setFreqRange(specXMin, specXMax);
+        }
         tvSpecRange.setText(formatSpecRange(specRange, specUnit));
+        tvSpecXRange.setText((int) specXMin + "-" + (int) specXMax);
 
         updateLabels();
 
@@ -318,6 +327,47 @@ public class SpectrumCompareFragment extends Fragment implements DataListener {
                         tvSpecRange.setText(formatSpecRange(val, unit));
                         SettingsStore.setSpecRange(requireContext(), val);
                         SettingsStore.setSpecUnit(requireContext(), unit);
+                    } catch (NumberFormatException ignored) {}
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void showSpecXRangeDialog() {
+        LinearLayout layout = new LinearLayout(requireContext());
+        layout.setOrientation(LinearLayout.HORIZONTAL);
+        int dp8 = (int) (8 * getResources().getDisplayMetrics().density);
+        EditText etMin = new EditText(requireContext());
+        etMin.setHint("起始Hz");
+        etMin.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        etMin.setText(String.valueOf((int) specXMin));
+        EditText etMax = new EditText(requireContext());
+        etMax.setHint("结束Hz");
+        etMax.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        etMax.setText(String.valueOf((int) specXMax));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        etMin.setLayoutParams(lp);
+        etMax.setLayoutParams(lp);
+        layout.addView(etMin);
+        View div = new View(requireContext());
+        div.setLayoutParams(new LinearLayout.LayoutParams(dp8, 1));
+        layout.addView(div);
+        layout.addView(etMax);
+        layout.setPadding(dp8, dp8, dp8, dp8);
+        new AlertDialog.Builder(requireContext())
+                .setTitle("频谱 X 轴范围 (Hz)")
+                .setView(layout)
+                .setPositiveButton("确定", (d, which) -> {
+                    try {
+                        float min = Float.parseFloat(etMin.getText().toString().trim());
+                        float max = Float.parseFloat(etMax.getText().toString().trim());
+                        if (min >= max || max > 125f) return;
+                        specXMin = Math.max(0f, min);
+                        specXMax = max;
+                        for (SpectrumView sv : specViews) {
+                            if (sv != null) sv.setFreqRange(specXMin, specXMax);
+                        }
+                        tvSpecXRange.setText((int) specXMin + "-" + (int) specXMax);
                     } catch (NumberFormatException ignored) {}
                 })
                 .setNegativeButton("取消", null)

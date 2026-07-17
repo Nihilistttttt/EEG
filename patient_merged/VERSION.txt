@@ -1,0 +1,32 @@
+NeuroWave 康复端 版本更新日志
+================================
+
+v0.4.0 (2026-07-06)
+- TrainingFragment重命名为SsvepTrainingFragment, 明确SSVEP训练
+- 新增MiTrainingFragment: 运动想象训练(想象左手/右手), 由医生端控制
+- 页面列表: 连接/SSVEP训练/MI训练/方向识别
+
+v0.3.0 (2026-07-06)
+- 去除TabLayout和手动翻页,禁止滑动
+- TrainingFragment/InferenceFragment: 隐藏所有按钮,训练由下位机信号驱动
+- ConnectFragment: 自动搜索医生端IP(UDP广播+网关探测),断线自动重连
+- DoctorConnector: 新增41006端口接收医生端命令, PAGE命令驱动翻页
+- MainActivity: 修复连接状态不显示(onResume检查isConnected)
+- 复制.gradle/gradle wrapper/local.properties等构建文件
+- 新增onPageSwitch回调
+
+v0.2.0 (2026-07-05)
+- DoctorConnector TCP客户端连接医生端(41004数据+41005命令)
+- 内嵌FrameParser(含TASK/READY/MODE_SET_OK解析)
+- ConnectFragment医生端IP输入+连接
+- 应用名NeuroWave康复,包名com.nihilisttt.eegpatient
+
+v0.1.0 (2026-07-04)
+- 初始项目创建
+- TCP Client连接医生端
+- 训练/推理基础页面
+
+v0.9.0-merged (2026-07-17)
+- 以新版 patient 为主体，迁入 legacy SSVEP 单目标刺激、vsync 时序、医生指令响应和结果回传显示
+- 使用 41004 数据通道与 41006 双向控制通道，支持握手、心跳、断线重连和状态重放
+- 新增 MI/SSVEP 训练模式协调器，切换模式时清理刺激回调、MI 计时任务和运行状态

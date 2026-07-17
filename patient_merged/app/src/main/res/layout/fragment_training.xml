@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF000000"
+    android:keepScreenOn="true">
+
+    <com.nihilisttt.eegpatient.SsvepStimulusView
+        android:id="@+id/ssvep_stimulus_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/tv_trial_direction"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:text="等待医生端指令"
+        android:textSize="42sp"
+        android:textStyle="bold"
+        android:textColor="#FF90A4AE"
+        android:padding="32dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="#AA000000"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/tv_ssvep_patient_result"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="识别结果: --"
+            android:textColor="#FFEEEEEE"
+            android:textStyle="bold"
+            android:textSize="22sp" />
+
+        <TextView
+            android:id="@+id/tv_ssvep_patient_details"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="5秒窗口 / 2秒步长 / 3票确认"
+            android:textColor="#FFB0BEC5"
+            android:textSize="13sp"
+            android:paddingTop="4dp" />
+    </LinearLayout>
+</FrameLayout>

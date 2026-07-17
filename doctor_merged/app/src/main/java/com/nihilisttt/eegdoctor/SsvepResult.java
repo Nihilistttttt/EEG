@@ -1,0 +1,183 @@
+package com.nihilisttt.eegdoctor;
+
+import java.util.Locale;
+
+/** FBCCA result shared by the doctor UI and patient result message. */
+public class SsvepResult {
+    private final int seq;
+    private final String freq;
+    private final String rawFreq;
+    private final float ratio;
+    private final float bestScore;
+    private final float margin;
+    private final float score11;
+    private final float score13;
+    private final float score15;
+    private final float score17;
+    private final int vote11;
+    private final int vote13;
+    private final int vote15;
+    private final int vote17;
+    private final boolean synthetic;
+    private final boolean channelUsable;
+
+    public SsvepResult(int seq,
+                       String freq,
+                       String rawFreq,
+                       float ratio,
+                       float bestScore,
+                       float margin,
+                       float score11,
+                       float score13,
+                       float score15,
+                       float score17,
+                       int vote11,
+                       int vote13,
+                       int vote15,
+                       int vote17,
+                       boolean synthetic,
+                       boolean channelUsable) {
+        this.seq = seq;
+        this.freq = freq;
+        this.rawFreq = rawFreq;
+        this.ratio = ratio;
+        this.bestScore = bestScore;
+        this.margin = margin;
+        this.score11 = score11;
+        this.score13 = score13;
+        this.score15 = score15;
+        this.score17 = score17;
+        this.vote11 = vote11;
+        this.vote13 = vote13;
+        this.vote15 = vote15;
+        this.vote17 = vote17;
+        this.synthetic = synthetic;
+        this.channelUsable = channelUsable;
+    }
+
+    public static SsvepResult fromFbcca(FbccaOutput output, boolean synthetic) {
+        String voted = indexToFreq(output.votedIndex);
+        String raw = indexToFreq(output.rawIndex);
+        return new SsvepResult(
+                output.sequence,
+                voted,
+                raw,
+                (float) output.ratio,
+                (float) output.bestScore,
+                (float) output.margin,
+                scoreAt(output.scores, 0),
+                scoreAt(output.scores, 1),
+                scoreAt(output.scores, 2),
+                scoreAt(output.scores, 3),
+                countAt(output.voteCounts, 0),
+                countAt(output.voteCounts, 1),
+                countAt(output.voteCounts, 2),
+                countAt(output.voteCounts, 3),
+                synthetic,
+                output.channelUsable);
+    }
+
+    private static float scoreAt(double[] values, int index) {
+        return values != null && index < values.length ? (float) values[index] : 0f;
+    }
+
+    private static int countAt(int[] values, int index) {
+        return values != null && index < values.length ? values[index] : 0;
+    }
+
+    private static String indexToFreq(int index) {
+        if (index < 0 || index >= FbccaConfig.TARGET_FREQS.length) return "UNCERTAIN";
+        return String.format(Locale.US, "%.2f", FbccaConfig.TARGET_FREQS[index]);
+    }
+
+    public static SsvepResult fromLine(String line) {
+        try {
+            int seq = 0;
+            String freq = "UNCERTAIN";
+            String raw = "UNCERTAIN";
+            float ratio = 0, best = 0, margin = 0;
+            float s11 = 0, s13 = 0, s15 = 0, s17 = 0;
+            int v11 = 0, v13 = 0, v15 = 0, v17 = 0;
+            boolean synthetic = false;
+            boolean usable = true;
+            String[] parts = line.split(",");
+            for (String part : parts) {
+                String[] kv = part.split("=", 2);
+                if (kv.length != 2) continue;
+                String key = kv[0].trim();
+                String value = kv[1].trim();
+                switch (key) {
+                    case "seq": seq = Integer.parseInt(value); break;
+                    case "freq": freq = value; break;
+                    case "raw": raw = value; break;
+                    case "ratio": ratio = Float.parseFloat(value); break;
+                    case "best": best = Float.parseFloat(value); break;
+                    case "margin": margin = Float.parseFloat(value); break;
+                    case "s11": s11 = Float.parseFloat(value); break;
+                    case "s13": s13 = Float.parseFloat(value); break;
+                    case "s15": s15 = Float.parseFloat(value); break;
+                    case "s17": s17 = Float.parseFloat(value); break;
+                    case "v11": v11 = Integer.parseInt(value); break;
+                    case "v13": v13 = Integer.parseInt(value); break;
+                    case "v15": v15 = Integer.parseInt(value); break;
+                    case "v17": v17 = Integer.parseInt(value); break;
+                    case "synthetic": synthetic = "1".equals(value) || Boolean.parseBoolean(value); break;
+                    case "usable": usable = "1".equals(value) || Boolean.parseBoolean(value); break;
+                }
+            }
+            return new SsvepResult(seq, freq, raw, ratio, best, margin,
+                    s11, s13, s15, s17, v11, v13, v15, v17, synthetic, usable);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public String toPatientCommand() {
+        return String.format(Locale.US,
+                "SSVEP,RESULT,%d,%s,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%d,%d,%d,%d,%d,%d",
+                seq, freq, rawFreq, ratio, bestScore, margin,
+                score11, score13, score15, score17,
+                vote11, vote13, vote15, vote17,
+                synthetic ? 1 : 0, channelUsable ? 1 : 0);
+    }
+
+    public int getSeq() { return seq; }
+    public String getFreq() { return freq; }
+    public String getRawFreq() { return rawFreq; }
+    public float getRatio() { return ratio; }
+    public float getBestScore() { return bestScore; }
+    public float getMargin() { return margin; }
+    public float getScore11() { return score11; }
+    public float getScore13() { return score13; }
+    public float getScore15() { return score15; }
+    public float getScore17() { return score17; }
+    public int getVote11() { return vote11; }
+    public int getVote13() { return vote13; }
+    public int getVote15() { return vote15; }
+    public int getVote17() { return vote17; }
+    public boolean isSynthetic() { return synthetic; }
+    public boolean isChannelUsable() { return channelUsable; }
+
+    public int getFreqIndex() {
+        return freqToIndex(freq);
+    }
+
+    public int getRawFreqIndex() {
+        return freqToIndex(rawFreq);
+    }
+
+    private static int freqToIndex(String value) {
+        if (value == null) return -1;
+        try {
+            double parsed = Double.parseDouble(value);
+            for (int i = 0; i < FbccaConfig.TARGET_FREQS.length; i++) {
+                if (Math.abs(parsed - FbccaConfig.TARGET_FREQS[i]) < 0.2) return i;
+            }
+        } catch (NumberFormatException ignored) {}
+        return -1;
+    }
+
+    public boolean isUncertain() {
+        return "UNCERTAIN".equals(freq);
+    }
+}

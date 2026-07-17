@@ -68,7 +68,7 @@ static void DualCore_V5F_ProcessPreprocess(volatile DualCore_IPC_FrameSlot_t *sl
     slot->v5f_window_count = g_ipc_v5f_window_count;
 
     for (c = 0; c < DUALCORE_ADS1299_ACTIVE_CH_NUM; c++) {
-        uint8_t src_ch = c + 4u;
+        uint8_t src_ch = g_v5f_ch_map[c];
         int32_t uv_x1000 = DualCore_ADS1299_CodeToMicroVoltX1000(ch_data[src_ch]);
         float volt = (float)uv_x1000 / 1000000000.0f;
         float drift = DualCore_RemoveRealtimeDrift(volt, &g_v5f_drift[c]);
@@ -174,7 +174,7 @@ void DualCore_V5F_MainLoopProcess(void)
 
             slot->v5f_status = status;
             for (c = 0; c < DUALCORE_ADS1299_ACTIVE_CH_NUM; c++) {
-                slot->v5f_ch_code[c] = ch_data[c + 4u];
+                slot->v5f_ch_code[c] = ch_data[g_v5f_ch_map[c]];
             }
 
             DualCore_V5F_ProcessPreprocess(slot, ch_data);

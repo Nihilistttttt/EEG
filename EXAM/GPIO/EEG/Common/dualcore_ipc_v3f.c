@@ -239,7 +239,7 @@ void DualCore_IPC_SendFrameFromV3F(const uint8_t *frame, uint16_t len)
     g_ipc_v3f_tx_checksum_hist[hist_idx] = checksum;
     g_ipc_v3f_tx_status_hist[hist_idx] = status;
     for (c = 0; c < DUALCORE_ADS1299_ACTIVE_CH_NUM; c++) {
-        g_ipc_v3f_tx_ch_hist[hist_idx][c] = ch_data[c + 4u];
+        g_ipc_v3f_tx_ch_hist[hist_idx][c] = ch_data[g_v5f_ch_map[c]];
     }
 
     DUALCORE_FENCE();

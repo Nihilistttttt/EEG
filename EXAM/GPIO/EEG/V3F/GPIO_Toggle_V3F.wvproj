@@ -17,6 +17,7 @@
 			"calibrateSupport": false,
 			"calibrateCommand": "",
 			"UIConfigSupport": false,
+			"UIConfigCommand": "",
 			"externalFlashSupport": false
 		},
 		"linkedFolders": [

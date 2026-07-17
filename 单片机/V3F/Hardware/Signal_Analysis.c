@@ -218,8 +218,8 @@ void Signal_Analysis_Start (void) {
 #endif
 
             float filt_vals[NUM_CHANNELS];
-            filt_vals[0] = IIR_SOS_Step (ab_pre_vals[0], &g_bandpass_coeff, &g_bandpass_state[0]);
-            filt_vals[1] = IIR_SOS_Step (ab_pre_vals[1], &g_bandpass_coeff, &g_bandpass_state[1]);
+            filt_vals[0] = 0.0f;
+            filt_vals[1] = 0.0f;
             filt_vals[2] = IIR_SOS_Step (ab_pre_vals[2], &g_bandpass_coeff, &g_bandpass_state[2]);
             filt_vals[3] = IIR_SOS_Step (ab_pre_vals[3], &g_bandpass_coeff, &g_bandpass_state[3]);
             filt_vals[4] = IIR_SOS_Step (ab_pre_vals[4], &g_bandpass_coeff, &g_bandpass_state[4]);
@@ -253,8 +253,7 @@ void Signal_Analysis_Start (void) {
             }
 #endif
 
-            RingBufFiltered.CH0[RingBufFiltered.WriteIdx] = filt_vals[0];
-            RingBufFiltered.CH1[RingBufFiltered.WriteIdx] = filt_vals[1];
+
             RingBufFiltered.CH2[RingBufFiltered.WriteIdx] = filt_vals[2];
             RingBufFiltered.CH3[RingBufFiltered.WriteIdx] = filt_vals[3];
             RingBufFiltered.CH4[RingBufFiltered.WriteIdx] = filt_vals[4];

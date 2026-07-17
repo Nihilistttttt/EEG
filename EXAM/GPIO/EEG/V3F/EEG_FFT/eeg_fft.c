@@ -314,7 +314,7 @@ uint8_t Process_FFT_Step (void) {
         p_fft_data = &FFT_Data;
         fft_next_state = FFT_STEP_SEND_RAW_SPECTRUM;
         proc_channel = 0;
-        fft_pair_index = 1;
+        fft_pair_index = (DisplayConfig_NeedsRawFFT(0u) || DisplayConfig_NeedsRawFFT(1u)) ? 0u : 1u;
         raw_send_channel = 0;
         current_send_frag = 0;
         fft_step = FFT_STEP_FFT_COPY_INPUT;
@@ -331,15 +331,7 @@ uint8_t Process_FFT_Step (void) {
             break;
         }
         uint8_t ch = g_display_config.wave_ch[raw_send_channel];
-        if (ch <= 1u) {
-            current_send_frag = 0;
-            raw_send_channel++;
-            if (raw_send_channel >= DISPLAY_NUM_CH) {
-                raw_send_channel = 0;
-                fft_step = FFT_STEP_FREQ_FILTER;
-            }
-            break;
-        }
+
         float *mags = FFT_Data_GetMags(&FFT_Data, ch);
         CmdType cmd = DisplayConfig_GetSpectrumCmd(SPEC_TYPE_RAW, ch);
         Send_Spectrum(cmd, mags, current_send_frag);
@@ -448,16 +440,7 @@ uint8_t Process_FFT_Step (void) {
             break;
         }
         uint8_t ch = g_display_config.wave_ch[raw_send_channel];
-        if (ch <= 1u) {
-            current_send_frag = 0;
-            raw_send_channel++;
-            if (raw_send_channel >= DISPLAY_NUM_CH) {
-                raw_send_channel = 0;
-                fft_step = FFT_STEP_EXTRACT_FILT_FRAME;
-                proc_channel = 0;
-            }
-            break;
-        }
+
         float *mags = FFT_Data_GetMags(&FFT_Data, ch);
         CmdType cmd = DisplayConfig_GetSpectrumCmd(SPEC_TYPE_FREQ_FILTER, ch);
         Send_Spectrum(cmd, mags, current_send_frag);
@@ -485,7 +468,7 @@ uint8_t Process_FFT_Step (void) {
         fft_next_state = FFT_STEP_BAND_POWER;
         filt_send_channel = 0;
         current_filt_send_frag = 0;
-        fft_pair_index = 1;
+        fft_pair_index = (DisplayConfig_NeedsFiltFFT(0u) || DisplayConfig_NeedsFiltFFT(1u)) ? 0u : 1u;
         fft_step = FFT_STEP_FFT_COPY_INPUT;
         break;
 
@@ -782,15 +765,7 @@ uint8_t Process_FFT_Step (void) {
             break;
         }
         uint8_t ch = g_display_config.wave_ch[filt_send_channel];
-        if (ch <= 1u) {
-            current_filt_send_frag = 0;
-            filt_send_channel++;
-            if (filt_send_channel >= DISPLAY_NUM_CH) {
-                filt_send_channel = 0;
-                fft_step = FFT_STEP_FINISH;
-            }
-            break;
-        }
+
         float *mags = FFT_Data_GetMags(&FFT_DataFiltered, ch);
         CmdType cmd = DisplayConfig_GetSpectrumCmd(SPEC_TYPE_TIME_FILTER, ch);
         Send_Spectrum(cmd, mags, current_filt_send_frag);

@@ -83,6 +83,9 @@ typedef struct {
 void DisplayConfig_SetDefaults(DisplayConfig_t *cfg);
 CmdType DisplayConfig_GetWaveCmd(uint8_t wave_type);
 CmdType DisplayConfig_GetSpectrumCmd(uint8_t spec_type, uint8_t ch);
+uint8_t DisplayConfig_NeedsBandpass(uint8_t ch);
+uint8_t DisplayConfig_NeedsRawFFT(uint8_t ch);
+uint8_t DisplayConfig_NeedsFiltFFT(uint8_t ch);
 
 extern DisplayConfig_t g_display_config;
 

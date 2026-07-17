@@ -60,6 +60,41 @@ CmdType DisplayConfig_GetSpectrumCmd(uint8_t spec_type, uint8_t ch)
     }
 }
 
+uint8_t DisplayConfig_NeedsBandpass(uint8_t ch)
+{
+    uint8_t i;
+    for (i = 0; i < DISPLAY_NUM_CH; i++) {
+        if (g_display_config.wave_ch[i] == ch) {
+            if (g_display_config.wave_type[i] == WAVE_TYPE_FILT) return 1u;
+            if (g_display_config.spec_type[i] == SPEC_TYPE_TIME_FILTER) return 1u;
+        }
+    }
+    return 0u;
+}
+
+uint8_t DisplayConfig_NeedsRawFFT(uint8_t ch)
+{
+    uint8_t i;
+    for (i = 0; i < DISPLAY_NUM_CH; i++) {
+        if (g_display_config.wave_ch[i] == ch) {
+            if (g_display_config.spec_type[i] == SPEC_TYPE_RAW) return 1u;
+            if (g_display_config.spec_type[i] == SPEC_TYPE_FREQ_FILTER) return 1u;
+        }
+    }
+    return 0u;
+}
+
+uint8_t DisplayConfig_NeedsFiltFFT(uint8_t ch)
+{
+    uint8_t i;
+    for (i = 0; i < DISPLAY_NUM_CH; i++) {
+        if (g_display_config.wave_ch[i] == ch) {
+            if (g_display_config.spec_type[i] == SPEC_TYPE_TIME_FILTER) return 1u;
+        }
+    }
+    return 0u;
+}
+
 static uint8_t payload_buf_debug[SERIAL_DEBUG_RX_BUF_SIZE];
 static uint8_t payload_buf_wifi[SERIAL_WIFI_RX_BUF_SIZE];
 

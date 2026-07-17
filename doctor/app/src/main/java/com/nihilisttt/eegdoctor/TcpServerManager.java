@@ -47,8 +47,8 @@ public class TcpServerManager {
 
     private final CopyOnWriteArrayList<ConnectionListener> connectionListeners = new CopyOnWriteArrayList<>();
 
-    private final AtomicBoolean pongReceived = new AtomicBoolean(false);
-    private Thread heartbeatThread;
+
+
     private Thread senderThread;
     private final BlockingQueue<byte[]> sendQueue = new ArrayBlockingQueue<>(256);
 
@@ -212,41 +212,10 @@ public class TcpServerManager {
     }
 
     private void startHeartbeat() {
-        stopHeartbeat();
         startSender();
-        heartbeatThread = new Thread(() -> {
-            Log.i("HEARTBEAT", "Heartbeat thread started");
-            while (!Thread.currentThread().isInterrupted() && running) {
-                try {
-                    Thread.sleep(3000);
-                } catch (InterruptedException e) {
-                    break;
-                }
-                if (!isDeviceConnected()) continue;
-                pongReceived.set(false);
-                sendToDevice("PING");
-                try {
-                    Thread.sleep(2000);
-                } catch (InterruptedException e) {
-                    break;
-                }
-                if (!pongReceived.get()) {
-                    Log.w("HEARTBEAT", "PONG not received! ESP8266 may not be responding to PING");
-                } else {
-                    Log.i("HEARTBEAT", "Heartbeat OK");
-                }
-            }
-            Log.i("HEARTBEAT", "Heartbeat thread stopped");
-        });
-        heartbeatThread.setDaemon(true);
-        heartbeatThread.start();
     }
 
     private void stopHeartbeat() {
-        if (heartbeatThread != null) {
-            heartbeatThread.interrupt();
-            heartbeatThread = null;
-        }
         stopSender();
     }
 
@@ -569,14 +538,28 @@ public class TcpServerManager {
         }
     }
 
-    // 处理原有主服务器客户端连接（保持不变，但增加转发广播）
+    private static final int BUFFER_POOL_SIZE = 16;
+    private static final int BUFFER_SIZE = 512;
+
+    private static final class RawPacket {
+        byte[] buf;
+        int len;
+        RawPacket(byte[] buf, int len) { this.buf = buf; this.len = len; }
+    }
+
     private void handleClient(Socket client) {
         synchronized (this) {
             this.deviceClient = client;
         }
         notifyDeviceConnected(true);
         startHeartbeat();
-        BlockingQueue<byte[]> rawPackets = new ArrayBlockingQueue<>(1024);
+
+        ArrayBlockingQueue<RawPacket> rawPackets = new ArrayBlockingQueue<>(1024);
+        ArrayBlockingQueue<byte[]> bufferPool = new ArrayBlockingQueue<>(BUFFER_POOL_SIZE);
+        for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
+            bufferPool.offer(new byte[BUFFER_SIZE]);
+        }
+
         AtomicLong totalPacketsRead = new AtomicLong(0);
         AtomicLong totalPacketsDropped = new AtomicLong(0);
         AtomicLong totalFramesParsed = new AtomicLong(0);
@@ -586,9 +569,13 @@ public class TcpServerManager {
             FrameParser parser = new FrameParser(totalFramesParsed, totalInvalidFrames, udpSender);
             while (!Thread.currentThread().isInterrupted()) {
                 try {
-                    byte[] chunk = rawPackets.take();
-                    for (int i = 0; i < chunk.length; i++) {
-                        parser.parse(chunk[i] & 0xFF);
+                    RawPacket pkt = rawPackets.take();
+                    try {
+                        for (int i = 0; i < pkt.len; i++) {
+                            parser.parse(pkt.buf[i] & 0xFF);
+                        }
+                    } finally {
+                        bufferPool.offer(pkt.buf);
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -602,43 +589,27 @@ public class TcpServerManager {
         parserThread.start();
 
         try (InputStream in = client.getInputStream()) {
-            byte[] buf = new byte[512];
+            byte[] buf = new byte[BUFFER_SIZE];
             int len;
             while ((len = in.read(buf)) != -1) {
                 totalPacketsRead.addAndGet(1);
 
-                boolean hasText = false;
-                for (int i = 0; i < len; i++) {
-                    if ((buf[i] & 0xFF) >= 0x20 && (buf[i] & 0xFF) < 0x7F) {
-                        hasText = true;
-                        break;
-                    }
-                    if (buf[i] == '\n' || buf[i] == '\r' || buf[i] == 'P' || buf[i] == 'O') {
-                        hasText = true;
-                        break;
-                    }
-                }
-                if (hasText) {
-                    String peek = new String(buf, 0, len, "UTF-8");
-                    if (peek.contains("PONG")) {
-                        pongReceived.set(true);
-                        Log.i("HEARTBEAT", "PONG received from ESP8266");
-                    }
-                    parseMcuTextResponses(peek);
-                }
-
-                byte[] copy = new byte[len];
-                System.arraycopy(buf, 0, copy, 0, len);
                 if (forwardManager != null) {
-                    forwardManager.broadcast(copy);
+                    forwardManager.broadcast(buf, len);
                 }
                 if (patientDataManager != null) {
-                    patientDataManager.broadcast(copy);
+                    patientDataManager.broadcast(buf, len);
                 }
-                if (!rawPackets.offer(copy)) {
+
+                byte[] poolBuf = bufferPool.poll();
+                if (poolBuf == null) {
                     totalPacketsDropped.incrementAndGet();
-                    rawPackets.poll();
-                    rawPackets.offer(copy);
+                    continue;
+                }
+                System.arraycopy(buf, 0, poolBuf, 0, len);
+                if (!rawPackets.offer(new RawPacket(poolBuf, len))) {
+                    totalPacketsDropped.incrementAndGet();
+                    bufferPool.offer(poolBuf);
                 }
             }
         } catch (Exception e) {
@@ -696,18 +667,20 @@ public class TcpServerManager {
             }
         }
 
-        public void broadcast(byte[] data) {
+        public void broadcast(byte[] data, int len) {
             for (OutputStream os : outputStreams) {
                 try {
-                    os.write(data);
+                    os.write(data, 0, len);
                     os.flush();
                 } catch (IOException e) {
-                    // 发送失败，该客户端可能已断开，稍后会被清理
                     Log.w("TCP", "Failed to send to forward client", e);
                 }
             }
-            // 清理断开连接的输出流
             cleanDisconnected();
+        }
+
+        public void broadcast(byte[] data) {
+            broadcast(data, data.length);
         }
 
         private void cleanDisconnected() {

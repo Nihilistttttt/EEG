@@ -321,12 +321,27 @@ public class WaveCompareFragment extends Fragment implements DataListener {
         }
     }
 
+    private TcpServerManager.ConnectionListener connectionListener;
+
     @Override
     public void onResume() {
         super.onResume();
         DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
         sendDisplayConfig();
+        if (connectionListener == null) {
+            connectionListener = new TcpServerManager.ConnectionListener() {
+                @Override
+                public void onDeviceConnected(boolean connected) {
+                    if (connected && getActivity() != null) {
+                        getActivity().runOnUiThread(() -> sendDisplayConfig());
+                    }
+                }
+                @Override
+                public void onPatientConnected(boolean connected) {}
+            };
+            TcpServerManager.getInstance().addConnectionListener(connectionListener);
+        }
         Log.d("WaveCompare", "onResume: listener refreshed");
     }
 
@@ -341,6 +356,10 @@ public class WaveCompareFragment extends Fragment implements DataListener {
     public void onDestroyView() {
         super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);
+        if (connectionListener != null) {
+            TcpServerManager.getInstance().removeConnectionListener(connectionListener);
+            connectionListener = null;
+        }
         Log.d("WaveCompare", "onDestroyView: listener removed");
     }
 

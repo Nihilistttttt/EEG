@@ -114,7 +114,15 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
         super.onResume();
         DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
+        if (focusChart != null) focusChart.loadFromStore();
         Log.d("FocusHistory", "onResume: listener refreshed");
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        DataDispatcher.getInstance().removeListener(this);
+        Log.d("FocusHistory", "onPause: listener removed");
     }
 
     @Override

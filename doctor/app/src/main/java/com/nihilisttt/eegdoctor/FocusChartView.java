@@ -127,6 +127,23 @@ public class FocusChartView extends View {
         postInvalidate();
     }
 
+    public void loadFromStore() {
+        FocusHistoryStore store = FocusHistoryStore.getInstance();
+        float[] tmpFocus = new float[MAX_POINTS];
+        float[] tmpRelax = new float[MAX_POINTS];
+        int count = store.snapshot(tmpFocus, tmpRelax);
+        if (count == 0) return;
+        lock.lock();
+        for (int i = 0; i < count; i++) {
+            focusBuffer[i] = tmpFocus[i];
+            relaxBuffer[i] = tmpRelax[i];
+        }
+        writeIdx = count % MAX_POINTS;
+        pointCount = count;
+        lock.unlock();
+        invalidate();
+    }
+
     private float niceNum(float range, boolean round) {
         float exponent = (float) Math.floor(Math.log10(range));
         float fraction = range / (float) Math.pow(10, exponent);

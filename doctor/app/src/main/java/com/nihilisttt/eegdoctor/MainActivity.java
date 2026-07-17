@@ -63,7 +63,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         });
 
         viewPager.setUserInputEnabled(true);
-        viewPager.setOffscreenPageLimit(pageTitles.length);
+        viewPager.setOffscreenPageLimit(1);
 
         int initialPage = getIntent().getIntExtra("initial_page", 0);
         if (initialPage >= 0 && initialPage < fragments.size()) {

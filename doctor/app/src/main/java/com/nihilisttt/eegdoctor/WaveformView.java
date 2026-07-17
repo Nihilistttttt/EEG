@@ -38,7 +38,7 @@ public class WaveformView extends View {
     private float cachedAvg = 0f;
     private boolean avgDirty = true;
 
-    private Paint axisPaint, gridPaint, textPaint;
+    private Paint axisPaint, gridPaint, labelPaint, modePaint;
     private Paint canvasBgPaint;
     private String mUnit = "mV";
 
@@ -78,6 +78,7 @@ public class WaveformView extends View {
         int gridColor = ContextCompat.getColor(getContext(), R.color.grid_line);
         int axisColor = ContextCompat.getColor(getContext(), R.color.axis_line);
         int textColor = ContextCompat.getColor(getContext(), R.color.text_secondary);
+        int modeColor = ContextCompat.getColor(getContext(), R.color.accent_info);
 
         canvasBgPaint = new Paint();
         canvasBgPaint.setColor(bgColor);
@@ -109,10 +110,15 @@ public class WaveformView extends View {
         gridPaint.setStyle(Paint.Style.STROKE);
         gridPaint.setPathEffect(new DashPathEffect(new float[]{4f, 4f}, 0));
 
-        textPaint = new Paint();
-        textPaint.setColor(textColor);
-        textPaint.setTextSize(10f);
-        textPaint.setAntiAlias(true);
+        labelPaint = new Paint();
+        labelPaint.setColor(waveColor);
+        labelPaint.setTextSize(12f);
+        labelPaint.setAntiAlias(true);
+
+        modePaint = new Paint();
+        modePaint.setColor(modeColor);
+        modePaint.setTextSize(20f);
+        modePaint.setAntiAlias(true);
     }
 
     public int getMode() { return currentMode; }
@@ -384,8 +390,8 @@ public class WaveformView extends View {
             canvas.drawLine(left - 5, y, left, y, axisPaint);
             float scaled = yTick * unitScale;
             String label = formatFloat(scaled, tickScale) + mUnit;
-            float tw = textPaint.measureText(label);
-            canvas.drawText(label, left - 15 - tw, y + 5, textPaint);
+            float tw = labelPaint.measureText(label);
+            canvas.drawText(label, left - 15 - tw, y + 5, labelPaint);
             yTick += yTickSpacing;
         }
 
@@ -396,7 +402,7 @@ public class WaveformView extends View {
             canvas.drawLine(x, top, x, bottom, gridPaint);
             canvas.drawLine(x, bottom, x, bottom + 5, axisPaint);
             String label = formatFloat(xTick, 10f) + "s";
-            canvas.drawText(label, x - 15, bottom + 25, textPaint);
+            canvas.drawText(label, x - 15, bottom + 25, labelPaint);
             xTick += xTickSpacing;
         }
 
@@ -432,8 +438,6 @@ public class WaveformView extends View {
         }
         lock.unlock();
 
-        textPaint.setColor(waveColor);
-        textPaint.setTextSize(12f);
         float scaledRange = mYRange * unitScale;
         int rangeDecimals;
         if (scaledRange >= 100f) rangeDecimals = 0;
@@ -443,17 +447,14 @@ public class WaveformView extends View {
         float rangeScale = (float) Math.pow(10, rangeDecimals);
         String maxLabel = formatFloat(yMax * unitScale, rangeScale) + " " + mUnit;
         String minLabel = formatFloat(yMin * unitScale, rangeScale) + " " + mUnit;
-        canvas.drawText(maxLabel, left + 5, top + 15, textPaint);
-        canvas.drawText(minLabel, left + 5, bottom - 10, textPaint);
+        canvas.drawText(maxLabel, left + 5, top + 15, labelPaint);
+        canvas.drawText(minLabel, left + 5, bottom - 10, labelPaint);
 
-        int modeColor = ContextCompat.getColor(getContext(), R.color.accent_info);
-        textPaint.setColor(modeColor);
-        textPaint.setTextSize(20f);
         String modeText;
         if (currentMode == MODE_FIX) modeText = "Fix";
         else if (currentMode == MODE_TRACK) modeText = "Track";
         else modeText = "Slow";
-        float modeWidth = textPaint.measureText(modeText);
-        canvas.drawText(modeText, right - modeWidth - 10, top + 25, textPaint);
+        float modeWidth = modePaint.measureText(modeText);
+        canvas.drawText(modeText, right - modeWidth - 10, top + 25, modePaint);
     }
 }

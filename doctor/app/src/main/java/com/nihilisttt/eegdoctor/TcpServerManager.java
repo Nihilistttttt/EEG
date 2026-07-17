@@ -798,6 +798,12 @@ public class TcpServerManager {
                         }
                     } else if (rawByte >= 0x20 && rawByte < 0x7F) {
                         textLineBuf.append((char) rawByte);
+                    } else {
+                        state = STATE_PAYLOAD;
+                        payloadLen = 0;
+                        if (payloadLen < payload.length) {
+                            payload[payloadLen++] = (byte) rawByte;
+                        }
                     }
                     break;
                 case STATE_PAYLOAD:
@@ -809,6 +815,7 @@ public class TcpServerManager {
                         }
                         payloadLen = 0;
                         textLineBuf.setLength(0);
+                        state = STATE_HEADER;
                     } else {
                         if (payloadLen < payload.length) {
                             payload[payloadLen++] = (byte) rawByte;

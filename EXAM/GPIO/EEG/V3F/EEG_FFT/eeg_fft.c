@@ -134,12 +134,12 @@ static uint32_t s_result_window = 0;
 
 const float W_OZ = 0.00f;
 const float W_O1 = 0.00f;
-const float W_F3 = 0.22f;
-const float W_F4 = 0.22f;
-const float W_CP3 = 0.17f;
-const float W_CP4 = 0.17f;
-const float W_C3 = 0.11f;
-const float W_C4 = 0.11f;
+const float W_F3 = 0.28f;
+const float W_F4 = 0.00f;
+const float W_CP3 = 0.22f;
+const float W_CP4 = 0.22f;
+const float W_C3 = 0.14f;
+const float W_C4 = 0.14f;
 
 float *RingBuffer_GetChannel (RingBuffer_t *rb, uint8_t ch) {
     switch (ch) {

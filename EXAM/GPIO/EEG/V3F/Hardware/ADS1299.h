@@ -61,8 +61,8 @@ extern "C" {
  * ADS1299 ��������ʱ��Ȼ��ȡ���� 8 ͨ��֡��δ���õ� CH5~CH8 �ڼĴ����йرա�
  */
 #define ADS1299_ACTIVE_EEG_CHANNEL_NUM      8U
-#define ADS1299_EEG_CH_F4                   0U
-#define ADS1299_EEG_CH_C4                   1U
+#define ADS1299_EEG_CH_C4                   0U
+#define ADS1299_EEG_CH_F4                   1U
 #define ADS1299_EEG_CH_CP4                  2U
 #define ADS1299_EEG_CH_OZ                   3U
 #define ADS1299_EEG_CH_O1                   4U

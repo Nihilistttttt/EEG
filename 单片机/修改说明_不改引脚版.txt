@@ -1,0 +1,41 @@
+本次调整说明（保留全部功能、不修改最终引脚）
+==========================================
+
+一、明确未修改
+1. V3F/Hardware/Config.h 中 ADS1299、OLED、串口和 ICM42605 的最终引脚定义未修改；V3F/Hardware/Serial.c 也保持原样。
+2. 旧 24 维 FFT24+SVM 采集、推理和自动回退功能保留。
+3. 波形、频谱、注意力、OLED、姿态、翻身、坠床、重试和双串口输出入口均保留。
+4. CSP 占位权重没有用合成数据替换；真实数据训练前仍安全回退到 FFT24。
+
+二、主要修复
+1. Python 串口统一为 921600；MCU 波特率保持不变。
+2. CSP 文本改为每个 ADS1299 帧最多发送一个协议项，并检查两个 TX 环形缓冲的剩余空间。
+3. Python 仅接收完整且编号一致的 256 点 CSP 窗口。
+4. 一键训练显式覆盖真实 Common/DualCore_CSP_Model_4ch_Weights.h。
+5. CSP 新增独立 2-40 Hz 带通路径；旧 FFT24 预处理保持原样，避免破坏现有回退模型。
+6. 修正注意力伪迹阈值的伏特/微伏单位错误。
+7. 修正 IPC ACK 延迟、按序号校验和方向通道诊断。
+8. 修正未翻身首次计时/重复报警、坠床同帧触发和冷却状态。
+9. Python 增加 STATUS、POSTURE 原格式解析和坠床陀螺仪显示比例修正。
+10. Python模式切换新增模型绑定：应用COLLECT自动选择FFT24，应用CSP自动选择CSP；进入INFER保持已选模型。
+11. WIFI/原上位机的POSTURE重力数据行完全保留；DEBUG串口独立发送POSTURE_ANGLE，输出单片机已有的X/Y/Z陀螺仪相对积分角，WIFI/原上位机端不发送该角度消息。
+12. Python姿态区优先显示单片机横滚/俯仰/偏航三轴角；未收到新角度行时仍兼容旧POSTURE格式。
+13. 三轴积分角改为0.0°~359.9°循环显示，并在角度专用支路加入10Hz低通、静止2秒门控的在线零偏跟踪和温度系数归一化LMS；翻身/坠床支路保持原算法。
+14. 针对V3F FLASH空间，将一圈范围内的角度累加器由64位取模改为32位加减回绕，并把LMS六次除法合并为一次；数值行为不变但显著减少RV32代码体积。
+15. DEBUG/Python角度改为roll=345.3形式的直接十进制度数，并停止向DEBUG周期复制gx/gy/gz；WIFI/原上位机POSTURE数据格式及内容保持不变。Python同时兼容新旧角度格式。
+16. 补齐独立24维训练目录：COLLECT数据自动保存到direction_24d_pycharm/data，一键训练后只替换Common/DualCore_Direction_Model_4ch_Weights.h；CSP仍使用独立python_csp/data及CSP权重。
+17. 两套Windows训练批处理改为纯英文ASCII命令，避免cmd因UTF-8中文和换行格式产生乱码命令。
+
+三、使用顺序
+1. 在原 MounRiver 工程环境中 Clean/Build V3F 和 V5F，并重新烧录两核。
+2. Python 上位机连接 DEBUG 串口，波特率 921600。
+3. 需要24维推理时选择COLLECT并点击“应用”；需要CSP推理时选择CSP并点击“应用”。
+   界面会自动发送MODEL,SET,FFT24或MODEL,SET,CSP；随后点击“测试”即可。
+4. CSP 模式完成真实数据采集后，运行：
+   PyCharm_CSP优化_保留原UI/python_csp/一键训练CSP并替换权重.bat
+5. 确认生成的 Common/DualCore_CSP_Model_4ch_Weights.h 中
+   CSP4CH_WEIGHTS_TRAINED=1，再 Clean/Build/烧录 V5F。
+6. 界面“实际”模型和测试输出MODEL字段会显示最终执行的是CSP还是FFT24。
+
+注意：压缩包仍依赖原 MounRiver 工作区中的 SRC/Core、Peripheral、Startup、Ld；
+附件本身不包含这些外部 SDK 文件，因此需放回原工程环境编译。

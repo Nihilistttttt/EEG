@@ -1,0 +1,49 @@
+{
+  "row_count": 64,
+  "left_count": 32,
+  "right_count": 32,
+  "trial_group_count": 4,
+  "session_file_count": 1,
+  "model_type": "spatial_narrow14_shrinkage_lda",
+  "solver": "lsqr",
+  "shrinkage": "auto",
+  "protocol_feature_dim": 24,
+  "model_feature_dim": 14,
+  "trial_cv_balanced_accuracy": 0.4375,
+  "trial_cv_pred_right_ratio": 0.59375,
+  "trial_cv_confusion_matrix": [
+    [
+      11,
+      21
+    ],
+    [
+      15,
+      17
+    ]
+  ],
+  "quality_warnings": [
+    "每类独立试次少于10个；建议至少完成5次四组COLLECT采集，再训练正式展示权重",
+    "只有一个采集文件，无法完成更可靠的跨文件验证",
+    "按试次验证平衡准确率低于0.60，建议重新采集更多独立试次"
+  ],
+  "session_cv_balanced_accuracy": null,
+  "session_cv_pred_right_ratio": null,
+  "session_cv_confusion_matrix": null,
+  "train_balanced_accuracy": 0.59375,
+  "train_pred_right_ratio": 0.46875,
+  "train_confusion_matrix": [
+    [
+      20,
+      12
+    ],
+    [
+      14,
+      18
+    ]
+  ],
+  "mcu_margin_max_abs_error": 4.440892098500626e-16,
+  "mcu_float32_margin_max_abs_error": 2.0345749440764394e-07,
+  "mcu_float32_prediction_mismatch_count": 0,
+  "generated_header": "D:\\Libraries\\Projects\\EEG\\单片机\\PyCharm_CSP优化_保留原UI\\direction_24d_pycharm\\output\\DualCore_Direction_Model_4ch_Weights.h",
+  "firmware_header": "D:\\Libraries\\Projects\\EEG\\单片机\\PyCharm_CSP优化_保留原UI\\direction_24d_pycharm\\..\\..\\Common\\DualCore_Direction_Model_4ch_Weights.h"
+}

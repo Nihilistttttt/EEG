@@ -1,0 +1,30 @@
+Python双模型切换说明
+====================
+
+本版不修改单片机引脚，也不需要改C代码来切换模型。
+
+一、使用24维FFT24模型
+1. Python界面选择 COLLECT。
+2. 点击“应用”。
+3. 等待日志出现“已切换至 FFT24”。
+4. 点击“测试”。
+5. 推理结果应显示 MODEL=FFT24，界面显示“实际: FFT24”。
+
+二、使用CSP模型
+1. Python界面选择 CSP。
+2. 点击“应用”。
+3. 等待日志出现“已切换至 CSP”。
+4. 点击“测试”。
+5. 权重有效时结果显示 MODEL=CSP，界面显示“实际: CSP”。
+
+三、CSP尚未训练时
+如果 Common/DualCore_CSP_Model_4ch_Weights.h 中
+CSP4CH_WEIGHTS_TRAINED=0，即使选择CSP，固件也会安全回退FFT24。
+界面会明确提示“CSP权重尚未生效，本次实际回退FFT24”。
+
+四、内部命令对应
+应用COLLECT：MODE,SET,1 -> MODEL,SET,FFT24
+应用CSP：    MODE,SET,3 -> MODEL,SET,CSP
+点击测试：   MODE,SET,2 -> MODE,TEST（保留已选模型）
+
+串口连接后界面会发送 MODEL,GET，并显示单片机当前模型选择。

@@ -776,10 +776,14 @@ public class MonitorFragment extends Fragment implements DataListener {
         int ch = -1;
         int specTypeIdx = -1;
         if (cmd >= 0x20 && cmd <= 0x27) { ch = cmd - 0x20; specTypeIdx = 0; }
-        else if (cmd >= 0x30 && cmd <= 0x37) { ch = cmd - 0x30; specTypeIdx = 0; }
-        else if (cmd >= 0x40 && cmd <= 0x47) { ch = cmd - 0x40; specTypeIdx = 1; }
-        else if (cmd == 0x07 || cmd == 0x03) { ch = 0; specTypeIdx = 0; }
-        else if (cmd == 0x06 || cmd == 0x02) { ch = 1; specTypeIdx = 0; }
+        else if (cmd >= 0x30 && cmd <= 0x37) { ch = cmd - 0x30; specTypeIdx = 1; }
+        else if (cmd >= 0x40 && cmd <= 0x47) { ch = cmd - 0x40; specTypeIdx = 2; }
+        else if (cmd == 0x03) { ch = 0; specTypeIdx = 0; }
+        else if (cmd == 0x02) { ch = 1; specTypeIdx = 0; }
+        else if (cmd == 0x07) { ch = 0; specTypeIdx = 1; }
+        else if (cmd == 0x06) { ch = 1; specTypeIdx = 1; }
+        else if (cmd == 0x09) { ch = 0; specTypeIdx = 2; }
+        else if (cmd == 0x08) { ch = 1; specTypeIdx = 2; }
         for (int i = 0; i < 2; i++) {
             if (ch == waveCh[i] && specType[i] == specTypeIdx && spectrumViews.size() > i) {
                 spectrumViews.get(i).updateSpectrum(mags);

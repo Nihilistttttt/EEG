@@ -34,8 +34,8 @@ public final class FbccaConfig {
     public static final double INPUT_SCALE_TO_MV = 1000.0;
 
     /** Preferred waveform command: 0x10 filtered waveform. Raw 0x04 is used after a short fallback delay. */
-    public static final int PREFERRED_WAVE_CMD = 0x10;
-    public static final int FALLBACK_WAVE_CMD = 0x04;
+    public static final int PREFERRED_WAVE_CMD = EegChannels.CMD_WAVE_FILT;
+    public static final int FALLBACK_WAVE_CMD = EegChannels.CMD_WAVE_RAW;
     public static final long RAW_FALLBACK_DELAY_MS = 1000L;
 
     private FbccaConfig() {}

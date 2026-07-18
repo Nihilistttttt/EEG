@@ -1209,14 +1209,14 @@ public class TcpServerManager {
             int loadLen = payloadLen - 1;
             boolean valid = false;
 
-            if (cmd == 0x04 || cmd == 0x10 || cmd == 0x11) {
+            if (EegChannels.isWaveCmd(cmd)) {
                 if (loadLen == 5) {
                     valid = true;
                     int ch = payload[1] & 0xFF;
                     ByteBuffer buf = ByteBuffer.wrap(payload, 2, 4).order(ByteOrder.LITTLE_ENDIAN);
                     float val = buf.getFloat();
                     dispatcher.postWaveData(cmd, ch, val);
-                    if (ch == 0) {
+                    if (ch == EegChannels.CH_O1) {
                         SsvepAnalysisManager.getInstance().offerWaveSample(cmd, val);
                     }
                     udpSender.sendWaveData(val, val);
@@ -1229,9 +1229,9 @@ public class TcpServerManager {
                     float valB = buf.getFloat();
                     dispatcher.postWaveData(cmd, chA, valA);
                     dispatcher.postWaveData(cmd, chB, valB);
-                    if (chA == 0) {
+                    if (chA == EegChannels.CH_O1) {
                         SsvepAnalysisManager.getInstance().offerWaveSample(cmd, valA);
-                    } else if (chB == 0) {
+                    } else if (chB == EegChannels.CH_O1) {
                         SsvepAnalysisManager.getInstance().offerWaveSample(cmd, valB);
                     }
                     udpSender.sendWaveData(valA, valB);
@@ -1240,9 +1240,9 @@ public class TcpServerManager {
                     ByteBuffer buf = ByteBuffer.wrap(payload, 1, 8).order(ByteOrder.LITTLE_ENDIAN);
                     float valA = buf.getFloat();
                     float valB = buf.getFloat();
-                    dispatcher.postWaveData(cmd, 0, valA);
-                    dispatcher.postWaveData(cmd, 1, valB);
-                    SsvepAnalysisManager.getInstance().offerWaveSample(cmd, valA);
+                    dispatcher.postWaveData(cmd, EegChannels.CH_OZ, valA);
+                    dispatcher.postWaveData(cmd, EegChannels.CH_O1, valB);
+                    SsvepAnalysisManager.getInstance().offerWaveSample(cmd, valB);
                     udpSender.sendWaveData(valA, valB);
                 }
             } else if (cmd == 0x05) {
@@ -1281,9 +1281,7 @@ public class TcpServerManager {
         }
 
         private boolean isSpectrumCmd(int cmd) {
-            if (cmd >= 0x20 && cmd <= 0x27) return true;
-            if (cmd >= 0x30 && cmd <= 0x37) return true;
-            if (cmd >= 0x40 && cmd <= 0x47) return true;
+            if (EegChannels.isSpectrumCmd(cmd)) return true;
             if (cmd == 0x02 || cmd == 0x03 || cmd == 0x06 ||
                 cmd == 0x07 || cmd == 0x08 || cmd == 0x09) return true;
             return false;

@@ -55,9 +55,9 @@ public class MonitorFragment extends Fragment implements DataListener {
     private float specXMin = 0f;
     private float specXMax = 125f;
 
-    private static final String[] CHANNEL_NAMES = {"OZ", "O1", "F3", "F4", "CP3", "CP4", "C3", "C4"};
-    private static final String[] WAVE_TYPE_NAMES = {"原始波形", "滤波波形", "基线修复"};
-    private static final String[] SPEC_TYPE_NAMES = {"原始频谱", "频域滤波频谱", "时域滤波频谱"};
+    private static final String[] CHANNEL_NAMES = EegChannels.NAMES;
+    private static final String[] WAVE_TYPE_NAMES = EegChannels.WAVE_TYPE_NAMES;
+    private static final String[] SPEC_TYPE_NAMES = EegChannels.SPEC_TYPE_NAMES;
 
     private int[] waveCh = {2, 2};
     private int[] waveType = {0, 1};
@@ -658,9 +658,9 @@ public class MonitorFragment extends Fragment implements DataListener {
         };
         for (int i = 0; i < 2; i++) {
             int ch = waveCh[i];
-            String name = (ch >= 0 && ch < CHANNEL_NAMES.length) ? CHANNEL_NAMES[ch] : "CH" + ch;
+            String name = EegChannels.nameOf(ch);
             channels.add(new ChannelConfig("CH " + ch, name, ChannelConfig.ChannelType.EEG,
-                    colors[ch % colors.length], 0.5f, "uV", 0x04));
+                    colors[ch % colors.length], 0.5f, "uV", EegChannels.CMD_WAVE_RAW));
         }
     }
 
@@ -704,7 +704,7 @@ public class MonitorFragment extends Fragment implements DataListener {
 
         for (int i = 0; i < 2; i++) {
             int sCh = waveCh[i];
-            String specName = (sCh >= 0 && sCh < CHANNEL_NAMES.length) ? CHANNEL_NAMES[sCh] : "CH" + sCh;
+            String specName = EegChannels.nameOf(sCh);
             String typeName = (specType[i] >= 0 && specType[i] < SPEC_TYPE_NAMES.length) ? SPEC_TYPE_NAMES[specType[i]] : "";
             updateSpectrumLabel(container, i, specName + " " + typeName);
         }
@@ -795,17 +795,13 @@ public class MonitorFragment extends Fragment implements DataListener {
     }
 
     private static int waveTypeToCmd(int waveType) {
-        switch (waveType) {
-            case 1: return 0x10;
-            case 2: return 0x11;
-            default: return 0x04;
-        }
+        return EegChannels.waveTypeToCmd(waveType);
     }
 
     @Override
     public void onWaveData(int cmd, int ch, float val) {
         if (isPaused) return;
-        if (cmd == 0x04 || cmd == 0x10 || cmd == 0x11) {
+        if (EegChannels.isWaveCmd(cmd)) {
             for (int i = 0; i < 2; i++) {
                 if (ch == waveCh[i] && cmd == waveTypeToCmd(waveType[i])
                         && waveformViews.size() > i && waveformViews.get(i) != null)
@@ -827,17 +823,9 @@ public class MonitorFragment extends Fragment implements DataListener {
     @Override
     public void onSpectrumData(int cmd, float[] mags) {
         if (isPaused) return;
-        int ch = -1;
-        int specTypeIdx = -1;
-        if (cmd >= 0x20 && cmd <= 0x27) { ch = cmd - 0x20; specTypeIdx = 0; }
-        else if (cmd >= 0x30 && cmd <= 0x37) { ch = cmd - 0x30; specTypeIdx = 1; }
-        else if (cmd >= 0x40 && cmd <= 0x47) { ch = cmd - 0x40; specTypeIdx = 2; }
-        else if (cmd == 0x03) { ch = 0; specTypeIdx = 0; }
-        else if (cmd == 0x02) { ch = 1; specTypeIdx = 0; }
-        else if (cmd == 0x07) { ch = 0; specTypeIdx = 1; }
-        else if (cmd == 0x06) { ch = 1; specTypeIdx = 1; }
-        else if (cmd == 0x09) { ch = 0; specTypeIdx = 2; }
-        else if (cmd == 0x08) { ch = 1; specTypeIdx = 2; }
+        int ch = EegChannels.spectrumCmdToChannel(cmd);
+        int specTypeIdx = EegChannels.spectrumCmdToType(cmd);
+        if (ch < 0 || specTypeIdx < 0) return;
         for (int i = 0; i < 2; i++) {
             if (ch == waveCh[i] && specType[i] == specTypeIdx && spectrumViews.size() > i) {
                 spectrumViews.get(i).updateSpectrum(mags);

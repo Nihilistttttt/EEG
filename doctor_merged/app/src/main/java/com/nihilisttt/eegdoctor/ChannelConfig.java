@@ -51,15 +51,15 @@ public class ChannelConfig {
     public static List<ChannelConfig> getDefaultDualChannel() {
         List<ChannelConfig> channels = new ArrayList<>();
         channels.add(new ChannelConfig("CH 0", "Fp1", ChannelType.EEG,
-                R.color.wave_ch0, 0.5f, "mV", 0x04));
+                R.color.wave_ch0, 0.5f, "mV", EegChannels.CMD_WAVE_RAW));
         channels.add(new ChannelConfig("CH 1", "Fp2", ChannelType.EEG,
-                R.color.wave_ch1, 0.5f, "mV", 0x04));
+                R.color.wave_ch1, 0.5f, "mV", EegChannels.CMD_WAVE_RAW));
         return channels;
     }
 
     public static List<ChannelConfig> getDefault8Channel() {
         List<ChannelConfig> channels = new ArrayList<>();
-        String[] electrodes = {"OZ", "O1", "F3", "F4", "CP3", "CP4", "C3", "C4"};
+        String[] electrodes = EegChannels.NAMES;
         int[] colors = {
             R.color.wave_ch0, R.color.wave_ch1, R.color.wave_filtered,
             R.color.focus_line, R.color.spectrum_bar, R.color.accent_info,
@@ -67,7 +67,7 @@ public class ChannelConfig {
         };
         for (int i = 0; i < electrodes.length; i++) {
             channels.add(new ChannelConfig("CH " + i, electrodes[i], ChannelType.EEG,
-                    colors[i % colors.length], 0.5f, "uV", 0x04));
+                    colors[i % colors.length], 0.5f, "uV", EegChannels.CMD_WAVE_RAW));
         }
         return channels;
     }
@@ -83,7 +83,7 @@ public class ChannelConfig {
         };
         for (int i = 0; i < electrodes.length; i++) {
             channels.add(new ChannelConfig("CH " + i, electrodes[i], ChannelType.EEG,
-                    colors[i % colors.length], 0.5f, "mV", 0x04));
+                    colors[i % colors.length], 0.5f, "mV", EegChannels.CMD_WAVE_RAW));
         }
         return channels;
     }

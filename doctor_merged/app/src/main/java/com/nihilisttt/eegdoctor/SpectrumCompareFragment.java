@@ -26,8 +26,8 @@ import com.google.android.material.card.MaterialCardView;
 public class SpectrumCompareFragment extends Fragment implements DataListener {
 
     private static final int NUM_VIEWS = 4;
-    private static final String[] CHANNEL_NAMES = {"OZ", "O1", "F3", "F4", "CP3", "CP4", "C3", "C4"};
-    private static final String[] SPEC_TYPE_NAMES = {"原始频谱", "频域滤波频谱", "时域滤波频谱"};
+    private static final String[] CHANNEL_NAMES = EegChannels.NAMES;
+    private static final String[] SPEC_TYPE_NAMES = EegChannels.SPEC_TYPE_NAMES;
     private static final int[] COLORS = {
         R.color.spectrum_bar, R.color.spectrum_bar_end,
         R.color.accent_info, R.color.accent_warning
@@ -164,7 +164,7 @@ public class SpectrumCompareFragment extends Fragment implements DataListener {
 
     private void updateLabels() {
         for (int i = 0; i < NUM_VIEWS; i++) {
-            String chName = (ch[i] >= 0 && ch[i] < CHANNEL_NAMES.length) ? CHANNEL_NAMES[ch[i]] : "CH" + ch[i];
+            String chName = EegChannels.nameOf(ch[i]);
             String typeName = (specType[i] >= 0 && specType[i] < SPEC_TYPE_NAMES.length) ? SPEC_TYPE_NAMES[specType[i]] : "";
             if (labelViews[i] != null) labelViews[i].setText(chName + " " + typeName);
         }
@@ -427,16 +427,11 @@ public class SpectrumCompareFragment extends Fragment implements DataListener {
     @Override
     public void onSpectrumData(int cmd, float[] mags) {
         if (isPaused) return;
+        int chNum = EegChannels.spectrumCmdToChannel(cmd);
+        int cmdType = EegChannels.spectrumCmdToType(cmd);
+        if (chNum < 0 || cmdType < 0) return;
         for (int i = 0; i < NUM_VIEWS; i++) {
-            int chNum = -1;
-            if (specType[i] == 0 && cmd >= 0x20 && cmd <= 0x27) {
-                chNum = cmd - 0x20;
-            } else if (specType[i] == 1 && cmd >= 0x30 && cmd <= 0x37) {
-                chNum = cmd - 0x30;
-            } else if (specType[i] == 2 && cmd >= 0x40 && cmd <= 0x47) {
-                chNum = cmd - 0x40;
-            }
-            if (chNum == ch[i] && specViews[i] != null) {
+            if (specType[i] == cmdType && chNum == ch[i] && specViews[i] != null) {
                 specViews[i].updateSpectrum(mags);
             }
         }

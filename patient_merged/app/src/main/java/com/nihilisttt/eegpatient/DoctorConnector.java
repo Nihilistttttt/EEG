@@ -861,7 +861,7 @@ public class DoctorConnector {
             int cmd = payload[0] & 0xFF;
             int loadLen = payloadLen - 1;
 
-            if ((cmd == 0x04 || cmd == 0x10) && loadLen == 8) {
+            if ((cmd == EegChannels.CMD_WAVE_RAW || cmd == EegChannels.CMD_WAVE_FILT) && loadLen == 8) {
                 ByteBuffer buf = ByteBuffer.wrap(payload, 1, 8).order(ByteOrder.LITTLE_ENDIAN);
                 float ch0 = buf.getFloat();
                 float ch1 = buf.getFloat();

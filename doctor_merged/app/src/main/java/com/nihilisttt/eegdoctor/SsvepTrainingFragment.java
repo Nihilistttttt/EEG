@@ -301,7 +301,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
     private void sendDisplayConfig() {
         String cmd = String.format(Locale.US,
                 "DISPLAY_CFG,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
-                0, 1, 1, 1, 0, 2, 0, 0, 0, 0, 0, 0);
+                EegChannels.CH_O1, 1, EegChannels.CH_O1, 1, 0, 2, 0, 0, 0, 0, 0, 0);
         TcpServerManager.getInstance().sendToDevice(cmd);
         Log.i("SsvepTraining", "Sent: " + cmd);
     }
@@ -322,12 +322,10 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
 
     @Override
     public void onSpectrumData(int cmd, float[] mags) {
-        int ch = -1;
-        if (cmd >= 0x20 && cmd <= 0x27) ch = cmd - 0x20;
-        else if (cmd >= 0x30 && cmd <= 0x37) ch = cmd - 0x30;
-        else if (cmd >= 0x40 && cmd <= 0x47) ch = cmd - 0x40;
-        if (ch == 1 && spectrumO1 != null) spectrumO1.updateSpectrum(mags);
-        if (ch == 0 && spectrumOZ != null) spectrumOZ.updateSpectrum(mags);
+        int ch = EegChannels.spectrumCmdToChannel(cmd);
+        if (ch < 0) return;
+        if (ch == EegChannels.CH_O1 && spectrumO1 != null) spectrumO1.updateSpectrum(mags);
+        if (ch == EegChannels.CH_OZ && spectrumOZ != null) spectrumOZ.updateSpectrum(mags);
     }
 
     private void showYRangeDialog() {

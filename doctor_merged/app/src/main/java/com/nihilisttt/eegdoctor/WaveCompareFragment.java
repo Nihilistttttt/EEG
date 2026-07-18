@@ -32,8 +32,8 @@ public class WaveCompareFragment extends Fragment implements DataListener {
     private static final float DEFAULT_X_MAX = 2.048f;
     private static final int NUM_VIEWS = 4;
 
-    private static final String[] CHANNEL_NAMES = {"OZ", "O1", "F3", "F4", "CP3", "CP4", "C3", "C4"};
-    private static final String[] WAVE_TYPE_NAMES = {"原始波形", "滤波波形", "基线修复"};
+    private static final String[] CHANNEL_NAMES = EegChannels.NAMES;
+    private static final String[] WAVE_TYPE_NAMES = EegChannels.WAVE_TYPE_NAMES;
     private static final int[] COLORS = {
         R.color.wave_ch0, R.color.wave_filtered,
         R.color.wave_ch1, R.color.accent_info
@@ -181,7 +181,7 @@ public class WaveCompareFragment extends Fragment implements DataListener {
 
     private void updateLabels() {
         for (int i = 0; i < NUM_VIEWS; i++) {
-            String chName = (ch[i] >= 0 && ch[i] < CHANNEL_NAMES.length) ? CHANNEL_NAMES[ch[i]] : "CH" + ch[i];
+            String chName = EegChannels.nameOf(ch[i]);
             String typeName = (waveType[i] >= 0 && waveType[i] < WAVE_TYPE_NAMES.length) ? WAVE_TYPE_NAMES[waveType[i]] : "";
             if (labelViews[i] != null) labelViews[i].setText(chName + " " + typeName);
         }
@@ -458,7 +458,7 @@ public class WaveCompareFragment extends Fragment implements DataListener {
     }
 
     private static int waveTypeToCmd(int wt) {
-        switch (wt) { case 1: return 0x10; case 2: return 0x11; default: return 0x04; }
+        switch (wt) { case 1: return EegChannels.CMD_WAVE_FILT; case 2: return EegChannels.CMD_WAVE_BASELINE; default: return EegChannels.CMD_WAVE_RAW; }
     }
 
     @Override

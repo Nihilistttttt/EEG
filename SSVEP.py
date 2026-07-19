@@ -25,6 +25,18 @@ ESCAPE_CHAR = 0x7D
 ESCAPE_XOR = 0x20
 CMD_RAW_WAVE = 0x04
 CMD_FILT_WAVE = 0x10
+CMD_BASELINE_WAVE = 0x11
+
+CH_OZ = 0
+CH_O1 = 1
+CH_F3 = 2
+CH_F4 = 3
+CH_CP3 = 4
+CH_CP4 = 5
+CH_C3 = 6
+CH_C4 = 7
+
+SSVEP_CHANNEL = CH_O1
 
 # ============================================================
 # 自动获取默认网关
@@ -92,7 +104,7 @@ FBCCA_WINDOW_SIZE = int(SAMPLE_RATE * FBCCA_WINDOW_SEC)
 FBCCA_STEP_SEC = 2.0
 FBCCA_STEP_SIZE = int(SAMPLE_RATE * FBCCA_STEP_SEC)
 FBCCA_HARMONICS = 2
-FBCCA_USE_CHANNELS = [0]            # 使用通道 0 (Oz)
+FBCCA_USE_CHANNELS = [0]            # buffer索引0 = SSVEP_CHANNEL
 
 FILTER_BANKS = [
     (6.0, 45.0),
@@ -465,7 +477,7 @@ def vote_result(new_result):
 # ============================================================
 
 class FrameParser:
-    """解析无线数据帧，仅提取波形数据"""
+    """解析无线数据帧，提取SSVEP通道波形数据"""
     def __init__(self, data_queue):
         self.data_queue = data_queue
         self.state = 0
@@ -482,6 +494,7 @@ class FrameParser:
             elif b == FRAME_CHAR:
                 if len(self.payload) >= 1:
                     self._process()
+                self.state = 1
                 self.payload = bytearray()
             else:
                 self.payload.append(b)
@@ -492,11 +505,26 @@ class FrameParser:
     def _process(self):
         cmd = self.payload[0]
         data = self.payload[1:]
-        # 仅处理波形数据包 (CMD_RAW_WAVE 或 CMD_FILT_WAVE)
-        if cmd in (CMD_RAW_WAVE, CMD_FILT_WAVE) and len(data) == 8:
-            ch0, ch1 = struct.unpack('<ff', data)      # 电压值，单位 V（通常）
-            # 无线设备输出可能是 V，转换为 mV 以便与原有系统一致
-            self.data_queue.put((ch0 * 1000.0, ch1 * 1000.0))
+        if cmd in (CMD_RAW_WAVE, CMD_FILT_WAVE, CMD_BASELINE_WAVE):
+            if len(data) == 5:
+                ch = data[0]
+                val = struct.unpack('<f', data[1:5])[0]
+                if ch == SSVEP_CHANNEL:
+                    self.data_queue.put(val * 1000.0)
+            elif len(data) == 9:
+                chA = data[0]
+                chB = data[1]
+                valA, valB = struct.unpack('<ff', data[2:10])
+                if chA == SSVEP_CHANNEL:
+                    self.data_queue.put(valA * 1000.0)
+                elif chB == SSVEP_CHANNEL:
+                    self.data_queue.put(valB * 1000.0)
+            elif len(data) == 8:
+                valA, valB = struct.unpack('<ff', data[0:8])
+                if SSVEP_CHANNEL == CH_O1:
+                    self.data_queue.put(valB * 1000.0)
+                else:
+                    self.data_queue.put(valA * 1000.0)
 
 
 class DataReceiver(threading.Thread):
@@ -582,8 +610,20 @@ def integrated_window(host=None, port=FORWARD_PORT):
 
     pygame.display.set_caption("SSVEP Stimulus + FBCCA Evaluation")
     clock = pygame.time.Clock()
-    font_large = pygame.font.SysFont("Arial", int(screen_height * 0.06))
-    font_small = pygame.font.SysFont("Arial", int(screen_height * 0.025))
+
+    cn_font_names = ["microsoftyahei", "simhei", "simsun", "dengxian", "fangsong",
+                     "notosanscjksc", "wenquanyimicrohei", "arialunicodems"]
+    font_large = None
+    font_small = None
+    for fn in cn_font_names:
+        test = pygame.font.SysFont(fn, int(screen_height * 0.06))
+        if test.render("测试", True, (0,0,0)).get_width() > 10:
+            font_large = pygame.font.SysFont(fn, int(screen_height * 0.06))
+            font_small = pygame.font.SysFont(fn, int(screen_height * 0.025))
+            break
+    if font_large is None:
+        font_large = pygame.font.SysFont(None, int(screen_height * 0.06))
+        font_small = pygame.font.SysFont(None, int(screen_height * 0.025))
 
     # ---------- 刺激频率状态 ----------
     current_freq_index = 0
@@ -598,14 +638,16 @@ def integrated_window(host=None, port=FORWARD_PORT):
     receiver.start()
 
     # ---------- 信号处理组件 ----------
-    display_filters = [DisplayFilter(), DisplayFilter()]
-    analysis_filters = [NotchFilter(), NotchFilter()]
-    peak_histories = [deque(maxlen=PEAK_WINDOW) for _ in range(2)]
+    display_filters = [DisplayFilter()]
+    analysis_filters = [NotchFilter()]
+    peak_histories = [deque(maxlen=PEAK_WINDOW)]
 
-    fbcca_buffers = [deque(maxlen=FBCCA_WINDOW_SIZE) for _ in range(2)]
+    fbcca_buffers = [deque(maxlen=FBCCA_WINDOW_SIZE)]
     fbcca_total_sample_count = 0
     fbcca_since_last_update = 0
     fbcca_round_index = 0
+    data_recv_count = 0
+    last_recv_time = 0.0
 
     # FBCCA 结果变量
     current_fbcca_result = None
@@ -626,16 +668,18 @@ def integrated_window(host=None, port=FORWARD_PORT):
         threading.Thread(target=gain_adjust_thread, daemon=True).start()
 
     # ---------- 内部函数：处理一对采样（电压值单位 mV）----------
-    def process_sample_pair(ch0_mv, ch1_mv):
+    def process_sample(mv_raw):
         nonlocal prev_time, sample_counter
         nonlocal fbcca_total_sample_count, fbcca_since_last_update
-        nonlocal fbcca_round_index
+        nonlocal fbcca_round_index, data_recv_count, last_recv_time
         nonlocal current_fbcca_result, current_raw_fbcca_result, current_fbcca_scores
         nonlocal current_fbcca_ratio, current_fbcca_best_score, current_fbcca_margin
         nonlocal current_used_channels, current_vote_counter
 
         now = time.time()
         sample_counter += 1
+        data_recv_count += 1
+        last_recv_time = now
 
         if prev_time is not None:
             dt = now - prev_time
@@ -651,13 +695,10 @@ def integrated_window(host=None, port=FORWARD_PORT):
 
         prev_time = now
 
-        # 处理两个通道（电压值 mV）
-        mv_raw_list = [ch0_mv, ch1_mv]
-        for ch_idx, mv_raw in enumerate(mv_raw_list):
-            peak_histories[ch_idx].append(mv_raw)
-            _ = display_filters[ch_idx].process(mv_raw)      # 仅用于显示（不再绘图）
-            mv_analysis = analysis_filters[ch_idx].process(mv_raw)
-            fbcca_buffers[ch_idx].append(mv_analysis)
+        peak_histories[0].append(mv_raw)
+        _ = display_filters[0].process(mv_raw)
+        mv_analysis = analysis_filters[0].process(mv_raw)
+        fbcca_buffers[0].append(mv_analysis)
 
         fbcca_total_sample_count += 1
         fbcca_since_last_update += 1
@@ -758,8 +799,8 @@ def integrated_window(host=None, port=FORWARD_PORT):
         # 从无线队列中取出所有波形数据并处理
         while not data_queue.empty():
             try:
-                ch0_mv, ch1_mv = data_queue.get_nowait()
-                process_sample_pair(ch0_mv, ch1_mv)
+                mv = data_queue.get_nowait()
+                process_sample(mv)
             except queue.Empty:
                 break
 
@@ -776,47 +817,58 @@ def integrated_window(host=None, port=FORWARD_PORT):
 
         screen.fill(bg_color)
 
+        # ---- 顶部连接状态栏 ----
+        now_ts = time.time()
+        data_alive = (now_ts - last_recv_time) < 2.0 if last_recv_time > 0 else False
+        if data_alive:
+            conn_label = f"● 已连接 {host}:{port}  |  采样: {data_recv_count}"
+            conn_color = (0, 220, 0)
+        elif "已连接" in receiver.status:
+            conn_label = f"● 已连接 {host}:{port}  |  等待数据... ({data_recv_count})"
+            conn_color = (220, 220, 0)
+        else:
+            conn_label = f"● 未连接 {host}:{port}  |  {receiver.status}"
+            conn_color = (220, 0, 0)
+        conn_surf = font_small.render(conn_label, True, conn_color)
+        screen.blit(conn_surf, (10, 8))
+
         # ---- 组装居中文字信息 ----
         lines_to_draw = []
 
-        # 连接状态
-        status_text = font_small.render(receiver.status, True, text_color)
-        lines_to_draw.append((status_text, None))
-
         # 当前刺激频率
-        stim_line = font_large.render(f"Stim: {current_stim_freq:.2f} Hz", True, text_color)
+        stim_line = font_large.render(f"刺激频率: {current_stim_freq:.2f} Hz", True, text_color)
         lines_to_draw.append((stim_line, None))
 
         # FBCCA 结果
         if current_fbcca_result is not None:
             if current_fbcca_result == "UNCERTAIN":
-                res_str = "UNCERTAIN"
+                res_str = "不确定"
                 res_color = (200, 0, 0)
             else:
                 res_str = f"{current_fbcca_result:.2f} Hz"
                 res_color = (0, 200, 0)
-            res_text = font_large.render(f"Result: {res_str}", True, res_color)
+            res_text = font_large.render(f"识别结果: {res_str}", True, res_color)
             lines_to_draw.append((res_text, None))
 
             # 详细信息
             detail_color = text_color
             details = [
-                f"Ratio: {current_fbcca_ratio:.2f}   Margin: {current_fbcca_margin:.4f}",
-                f"Best Score: {current_fbcca_best_score:.4f}",
-                f"Channels used: {current_used_channels}",
+                f"比值: {current_fbcca_ratio:.2f}   差值: {current_fbcca_margin:.4f}",
+                f"最高分: {current_fbcca_best_score:.4f}",
+                f"使用通道: O1 (ch{SSVEP_CHANNEL})",
             ]
-            score_str = "Scores: " + " | ".join(f"{f:.2f}:{current_fbcca_scores.get(f,0):.4f}" for f in TARGET_FREQS)
+            score_str = "各频得分: " + " | ".join(f"{f:.2f}:{current_fbcca_scores.get(f,0):.4f}" for f in TARGET_FREQS)
             details.append(score_str)
 
             for det in details:
                 det_surf = font_small.render(det, True, detail_color)
                 lines_to_draw.append((det_surf, None))
         else:
-            wait_text = font_small.render("等待无线数据 ...", True, text_color)
+            wait_text = font_small.render("等待数据 ...", True, text_color)
             lines_to_draw.append((wait_text, None))
 
         # 操作提示（底部居中）
-        hint_text = font_small.render("UP/DOWN: 切换频率 | ESC: 退出", True, (150, 150, 150))
+        hint_text = font_small.render("↑↓ 切换频率 | ESC 退出", True, (150, 150, 150))
         hint_rect = hint_text.get_rect(center=(screen_width // 2, screen_height - 30))
         screen.blit(hint_text, hint_rect)
 

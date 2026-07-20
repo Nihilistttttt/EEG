@@ -1,0 +1,1033 @@
+================================================================================
+  EEG 脑电采集与运动想象方向识别系统 v3.0 — 项目架构与数据链路文档
+================================================================================
+  硬件平台: CH32H417 双核 MCU (V3F 100MHz + V5F 400MHz)
+  ADC:      ADS1299 8通道 24bit EEG 前端
+  IMU:      ICM-42605 六轴 (姿态/翻身/坠床检测)
+  Android:  医生端 (doctor_merged) + 患者端 (patient_merged)
+  PC上位机: Python (SSVEP.py / exercise_Data.py)
+================================================================================
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+第一部分: 项目整体架构
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+系统由5个物理节点组成:
+
+  [ADS1299] --SPI3/DMA--> [CH32H417 V3F] --IPC--> [CH32H417 V5F]
+                               |
+                          USART2(921600bps)
+                               |
+                          [WiFi模块/ESP32]
+                               |
+                    ┌──────────┼──────────┐
+                    |          |          |
+              TCP:41002   TCP:41003   UDP:41007
+               (命令)     (原始数据)   (发现)
+                    |          |          |
+             [Android医生端]  [Python上位机]
+                    |
+             TCP:41004/41005/41006
+               (数据/命令/控制)
+                    |
+             [Android患者端]
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+第二部分: 8通道映射 (关键常量)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ADS1299物理引脚 → ch_data索引 (硬件层):
+  CH0=C4(0), CH1=F4(1), CH2=CP4(2), CH3=OZ(3),
+  CH4=O1(4), CH5=CP3(5), CH6=C3(6), CH7=F3(7)
+  注意: F4/C4物理通道已交换 (C4用好的ch0, F4用有噪声的ch1)
+
+ch_data索引 → raw_vals逻辑索引 (软件层):
+  raw_vals[0]=OZ, [1]=O1, [2]=F3, [3]=F4,
+  [4]=CP3, [5]=CP4, [6]=C3, [7]=C4
+
+Android EegChannels常量 (与raw_vals索引一致):
+  CH_OZ=0, CH_O1=1, CH_F3=2, CH_F4=3,
+  CH_CP3=4, CH_CP4=5, CH_C3=6, CH_C4=7
+
+V5F MI通道映射:
+  g_v5f_ch_map[4] = {5, 2, 6, 0} → CP3, CP4, C3, C4
+  Laplacian: left=CP3-C3, right=CP4-C4
+
+专注度5通道加权:
+  W_F3=0.28, W_CP3=0.22, W_CP4=0.22, W_C3=0.14, W_C4=0.14
+  W_OZ=0.00, W_O1=0.00, W_F4=0.00
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+第三部分: MCU固件文件详解 (V3F核心)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+路径前缀: EXAM/GPIO/EEG/
+
+────────────────────────────────────────────────────────────────────────────────
+3.1 V3F/User/ — 系统启动与中断
+────────────────────────────────────────────────────────────────────────────────
+
+main.c
+  V3F核入口。初始化系统时钟、串口、唤醒V5F核、初始化双核IPC，
+  最终调用 Hardware() 进入信号采集主循环。
+
+ch32h417_it.c
+  V3F中断服务。NMI和HardFault处理，HardFault时打印MEPC/MCAUSE/MTVAL后复位。
+
+system_ch32h417.c
+  系统时钟配置。PLL/HSE/HCLK分频，V3F=100MHz, V5F=400MHz。
+
+ch32h417_conf.h
+  外设库统一include头文件。
+
+system_ch32h417.h
+  系统时钟变量声明 (SystemClock, SystemCoreClock等)。
+
+ch32h417_it.h
+  中断处理函数声明。
+
+────────────────────────────────────────────────────────────────────────────────
+3.2 V3F/Hardware/ — 硬件驱动与信号处理主循环
+────────────────────────────────────────────────────────────────────────────────
+
+ADS1299.c / ADS1299.h
+  ADS1299 8通道EEG ADC驱动。
+  通过SPI3+DMA双缓冲采集27字节帧数据，DRDY下降沿触发DMA读取，
+  环形缓冲区存储。
+  关键函数: ADS1299_Init(), ADS1299_ParseRawFrame(), ADS1299_CodeToVolt(),
+            ring_buffer_get_frame()
+  通道映射: ADS1299_EEG_CH_C4=0, CH_F4=1, CH_CP4=2, CH_OZ=3,
+            CH_O1=4, CH_CP3=5, CH_C3=6, CH_F3=7
+  常量: ADS1299_VREF_DEFAULT=4.5V, ADS1299_GAIN_DEFAULT=24
+
+ICM42605.c / ICM42605.h
+  ICM-42605六轴IMU驱动。SPI4通信，100Hz采样，
+  含陀螺仪零偏校准、角速度积分、温度补偿低通滤波、角度计算。
+  关键函数: ICM42605_BCI_Init(), ICM42605_Task(), ICM42605_GetAngleDeg10()
+
+Serial.c / Serial.h
+  双串口驱动(DEBUG=USART1, WiFi=USART2)，921600bps。
+  TX环形缓冲区(8192字节)，RX IDLE中断+DMA接收。
+  关键函数: Serial_Init(), Serial_Printf(), Serial_SendArray_DMA(),
+            Serial_IsDataReady(), Serial_GetDataPacket()
+
+Signal_Analysis.c / Signal_Analysis.h
+  ★核心信号处理主循环★
+  主循环流程:
+    1. 从ADS1299环形缓冲区取帧
+    2. 解析8通道原始数据 → raw_vals[8]
+    3. 基线去除 → baseline_vals[8]
+    4. 实时去漂移 → drift_vals[8]
+    5. 50Hz陷波 → ab_pre_vals[8]
+    6. 带通滤波(2-40Hz) → filt_vals[8]
+       - OZ/O1按需计算(由DisplayConfig_NeedsBandpass决定)
+       - ch2-ch7始终计算
+    7. 按DISPLAY_CFG发送波形(跳过WAVE_TYPE_NONE)
+    8. 填充FFT环形缓冲区
+    9. 触发FFT流水线(每STEP_SIZE=125个采样)
+   10. 处理串口命令(Parse_CommandEx)
+   11. ICM42605_Task()处理IMU数据
+   12. 姿态监测和患者监护
+   13. 双核IPC帧共享(每1帧通知V5F)
+  关键全局变量: g_eeg_app_mode, g_ipc_diag_enable, g_posture_diag_enable
+
+Config.c / Config.h
+  外设时钟使能函数 + ★全局硬件引脚配置★
+  集中定义所有引脚编码、AF映射、DMA通道、中断号、波特率等。
+  关键常量: SERIAL_DEBUG_BAUDRATE=921600, SERIAL_WIFI_BAUDRATE=921600,
+            SERIAL_WIFI_TX_RING_SIZE=8192
+
+OLED.c / OLED.h / OLED_Font.h
+  OLED显示驱动(SPI/I2C双接口)，含频谱柱状图和波形折线绘制。
+
+Timer_1ms.c / Timer_1ms.h
+  TIM2 1ms定时中断，驱动ICM42605采样节拍。
+
+patient_monitor.c / patient_monitor.h
+  患者监护算法。基于IMU姿态数据检测翻身、坠床和久卧不动，
+  含状态机驱动的坠床确认和冷却逻辑。
+
+posture_detect.c / posture_detect.h
+  姿态检测算法。对加速度低通滤波后按重力方向分类:
+  仰卧/俯卧/左侧/右侧/坐姿，带稳定确认延时。
+
+Direction_Classifier.c / Direction_Classifier.h
+  方向分类器。SVM/LDA/MLP三种分类器，24维特征标准化后输出LEFT/RIGHT。
+
+Direction_Model.c / Direction_Model.h
+  方向推理模型封装层，将分类器结果转为Direction_t枚举。
+
+Direction_Model_Weights.h
+  10维MLP占位权重(全零)。
+
+Direction_Model_4ch_Weights.h
+  24维4通道方向模型实际训练权重(由train_direction_24d.py生成)。
+
+Direction_Model_10feat_Weights.h
+  10维特征方向模型权重(由train_current_10feat.py生成)。
+
+Signal_Analysis_current_10feat_integration_snippet.c
+  非编译文件，集成示例代码片段。
+
+────────────────────────────────────────────────────────────────────────────────
+3.3 V3F/EEG_FFT/ — FFT与频谱分析
+────────────────────────────────────────────────────────────────────────────────
+
+eeg_fft.c / eeg_fft.h
+  ★FFT流水线主逻辑★
+  分步状态机执行(Process_FFT_Step每帧调用一次):
+    FFT_STEP_START
+    → FFT_STEP_EXTRACT_RAW_FRAME (提取原始帧起始位置)
+    → FFT_STEP_SPECTRUM_RAW (设置FFT参数,fft_pair_index按需跳过)
+    → FFT_STEP_FFT_COPY_INPUT (Hanning窗+去均值去线性趋势)
+    → FFT_STEP_FFT_TRANSFORM (复数FFT变换)
+    → FFT_STEP_FFT_MAGS (提取幅度谱,4对通道循环)
+    → FFT_STEP_SEND_RAW_SPECTRUM (发送原始频谱,去重)
+    → FFT_STEP_FREQ_FILTER (频域滤波:DC窗+50Hz陷波+HF截止)
+    → FFT_STEP_SEND_FREQ_SPECTRUM (发送频域滤波频谱,去重)
+    → FFT_STEP_EXTRACT_FILT_FRAME (提取滤波帧起始位置)
+    → FFT_STEP_SPECTRUM_FILT (设置滤波FFT参数)
+    → FFT_STEP_FFT_COPY_INPUT/TRANSFORM/MAGS (第二次FFT)
+    → FFT_STEP_BAND_POWER (计算8通道delta/theta/alpha/beta功率)
+    → FFT_STEP_ATTENTION (5通道加权专注度计算+EMA平滑)
+    → FFT_STEP_SEND_FOCUS (发送专注度数据)
+    → FFT_STEP_SEND_FILT_SPECTRUM (发送时域滤波频谱,去重)
+    → FFT_STEP_UPDATE_TREND (趋势窗口更新)
+    → FFT_STEP_JUDGE_STATE (瞬时/趋势状态判定)
+    → FFT_STEP_FINISH
+
+  关键常量: FFT_SIZE=256, SAMPLE_RATE=250Hz, STEP_SIZE=125,
+            NUM_CHANNELS=8
+  专注度权重: W_F3=0.28, W_CP3=0.22, W_CP4=0.22, W_C3=0.14, W_C4=0.14
+  频谱发送去重: 同一通道+同一类型只发送一次
+
+────────────────────────────────────────────────────────────────────────────────
+3.3 V3F/EEG_Filter/ — IIR滤波与信号预处理
+────────────────────────────────────────────────────────────────────────────────
+
+eeg_filter.c / eeg_filter.h
+  IIR SOS滤波器实现:
+  - 50Hz陷波(2阶): g_notch_coeff, g_notch_state[8]
+  - 2-40Hz带通(4阶Butterworth): g_bandpass_coeff, g_bandpass_state[8]
+  - 实时去慢漂移: EEG_RemoveRealtimeDrift(), AB_Drift_CH0~CH7
+  - 去均值去线性趋势: EEG_RemoveMeanAndSlope(), EEG_CalcMeanAndSlope()
+  - 波形显示基线去除: Waveform_RemoveDisplayBaseline_8CH()
+
+eeg_ab_extract.c / eeg_ab_extract.h
+  Alpha/Beta频带功率提取与CSV输出。
+  计算alpha/beta功率、占比、dB、对数比等指标。
+
+────────────────────────────────────────────────────────────────────────────────
+3.4 V3F/EEG_Direction/ — 方向意图识别
+────────────────────────────────────────────────────────────────────────────────
+
+eeg_direction_feature.c / eeg_direction_feature.h
+  方向特征构建。从8通道theta/alpha/beta功率计算24维对数比特征:
+  左右半球对比、频带占比、跨频带比等。
+  输出DIRCSV格式供训练/推理使用。
+
+eeg_direction_collect.c / eeg_direction_collect.h
+  方向数据采集与CSP流式输出。
+  支持自动REST/LEFT/RIGHT交替采集、CMD模式下上位机控制试次、
+  CSP窗口快照与分片发送。
+
+eeg_direction_infer.c / eeg_direction_infer.h
+  V3F本地方向推理(可选，默认关闭V3F_LOCAL_INFER_ENABLE=0)。
+  滚动平均多行特征后调用Direction_Model_Infer()输出RESULT。
+
+────────────────────────────────────────────────────────────────────────────────
+3.5 V3F/EEG_Protocol/ — 命令解析协议
+────────────────────────────────────────────────────────────────────────────────
+
+eeg_cmd_parser.c / eeg_cmd_parser.h
+  EEG串口命令解析器。支持以下命令:
+  - MODE,TRAIN / MODE,TEST — 设置训练/测试模式
+  - MODE,SET,n — 设置应用模式(1=COLLECT, 2=INFER, 3=CSP)
+  - TRIAL,LEFT / TRIAL,RIGHT — 开始试次
+  - STOP — 停止
+  - STATUS — 查询状态
+  - MODEL,SET,AUTO/FFT24/CSP — 设置推理模型
+  - MODEL,GET — 查询当前模型
+  - DISPLAY_CFG,12参数 — 设置显示配置(接受0xFF=NONE)
+  - IPCDIAG,ON/OFF — IPC诊断开关
+  - POSTURE,ON/OFF — 姿态诊断开关
+  - ACK,seq — 确认收到(停止重传)
+  含ACK重传机制(Retry_Tick, 300ms超时, 最多10次)。
+
+────────────────────────────────────────────────────────────────────────────────
+3.6 V3F/Protocol/ — 二进制帧协议
+────────────────────────────────────────────────────────────────────────────────
+
+Message_Parser.c / Message_Parser.h
+  二进制帧协议解析与打包。HDLC式帧格式:
+  - 帧定界: 0x7E
+  - 转义: 0x7D, 异或0x20
+  - 命令码: CMD_RAW_WAVE=0x04, CMD_FILT_WAVE=0x10, CMD_BASELINE_WAVE=0x11,
+            CMD_FOCUS=0x05,
+            CMD_RAW_SPECTRUM_CH0~7=0x20~0x27,
+            CMD_FREQ_SPECTRUM_CH0~7=0x30~0x37,
+            CMD_FILT_SPECTRUM_CH0~7=0x40~0x47
+
+  波形帧: 5字节 (1字节通道号 + 4字节float值)
+  频谱帧: 分32个片段发送，每片16字节(4个float)
+  专注度帧: 18字节 (4xfloat attn0/attn1/ema0/ema1 + 1byte trend + 1byte instant)
+
+  DisplayConfig_t: 4通道紧凑格式
+    wave_ch[4], wave_type[4], spec_type[4]
+    WAVE_TYPE_NONE=0xFF, SPEC_TYPE_NONE=0xFF
+
+  按需计算函数:
+    DisplayConfig_NeedsBandpass(ch) — 通道ch是否需要带通滤波
+    DisplayConfig_NeedsRawFFT(ch) — 通道ch是否需要原始FFT
+    DisplayConfig_NeedsFiltFFT(ch) — 通道ch是否需要滤波FFT
+    DisplayConfig_IsAllNone() — 是否所有slot都是NONE
+
+────────────────────────────────────────────────────────────────────────────────
+3.7 V3F/Attention/ — 注意力/眨眼检测算法
+────────────────────────────────────────────────────────────────────────────────
+
+algo_core.c / algo_core.h
+  注意力引擎核心。P^2分位数在线归一化、频带功率积分、
+  注意力/放松度/眨眼特征计算、EMA平滑、校准基线、伪迹窗口检测。
+  含快速对数查表法(fast_logf)。
+  关键函数: attention_engine_init(), attention_engine_process(),
+            compute_band_powers()
+
+blink_detector.c / blink_detector.h
+  眨眼检测器。0.1-10Hz带通滤波后做峰值检测，
+  计算prominence/width，极性自适应，多级过滤。
+
+────────────────────────────────────────────────────────────────────────────────
+3.8 V3F/FFT/ — FFT数学库
+────────────────────────────────────────────────────────────────────────────────
+
+FFT.c / FFT.h
+  基-2/4蝶形FFT实现，浮点复数运算。
+
+FFT_Real.c / FFT_Real.h
+  实数FFT封装，N点实数→N/2点复数FFT后处理。
+
+FFT_Guts.h
+  FFT内部宏定义(复数乘/加/减、旋转因子)。
+
+malloc.c / malloc.h
+  自定义内存池管理器，8字节块分配，32KB池，用于FFT工作内存。
+
+────────────────────────────────────────────────────────────────────────────────
+3.9 V3F/HAL/ — 硬件抽象层
+────────────────────────────────────────────────────────────────────────────────
+
+hal_gpio.c / hal_gpio.h
+  GPIO硬件抽象层。统一引脚编码(port<<16|pin)，
+  封装初始化/读写/EXTI中断配置与回调分发。
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+第四部分: MCU固件文件详解 (双核共享)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+路径前缀: EXAM/GPIO/EEG/Common/
+
+hardware.c / hardware.h
+  顶层硬件模式选择入口。V3F调用OLED初始化后进入Signal_Analysis_Start()；
+  V5F空循环等待IPC中断。
+
+dualcore_ipc.h
+  双核IPC公共API声明。关键函数:
+  DualCore_IPC_Init_V3F/V5F(), DualCore_IPC_SendFrameFromV3F(),
+  DualCore_V5F_MainLoopProcess()
+
+dualcore_ipc_shared.h
+  ★双核共享常量与数据结构★
+  - IPC帧格式: 27字节(与ADS1299帧一致)
+  - V5F通道映射: V5F_CH_CP3=5, V5F_CH_CP4=2, V5F_CH_C3=6, V5F_CH_C4=0
+  - FFT/CSP参数: DUALCORE_V5F_FEATURE_DIM=24, DUALCORE_V5F_WINDOW_SIZE=125
+  - 模型选择: DUALCORE_V5F_MODEL_SELECT_AUTO/FFT24/CSP
+  - IIR/漂移结构体定义
+  - 内存屏障宏: DUALCORE_FENCE()
+
+dualcore_ipc.c
+  双核IPC公共工具函数: 16位校验和、ADS1299帧解析、24位符号扩展。
+
+dualcore_ipc_v3f.c
+  V3F端IPC实现。通过IPC_CH0中断向V5F发送ADS1299帧数据，
+  接收V5F返回的预处理/特征/推理结果，维护发送历史和校验。
+
+dualcore_ipc_v5f.c
+  V5F端IPC实现。在IPC_CH0中断中接收V3F帧，
+  执行去漂移/陷波/带通预处理，调用DSP模块做FFT特征提取和推理，
+  ACK回传结果。
+
+dualcore_ipc_diag.c / dualcore_ipc_diag.h
+  IPC诊断函数。提供V3F端各IPC计数器、V5F特征/推理结果的只读访问。
+
+dualcore_v5f_dsp.c / dualcore_v5f_dsp.h
+  ★V5F DSP核心算法★
+  4通道环形缓冲(CP3/CP4/C3/C4)、Goertzel频域功率、
+  24维FFT特征提取、CSP空间滤波特征、SVM/LDA推理、EMA结果融合。
+  关键函数: DualCore_V5F_DSP_Init(), DualCore_V5F_ComputeFFTFeature()
+
+Direction_Model_4ch_Weights.h
+  V5F使用的24维方向模型训练权重。
+
+DualCore_CSP_Model_4ch_Weights.h
+  V5F CSP空间滤波模型占位权重(单位矩阵，训练后替换)。
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+第五部分: MCU固件文件详解 (V5F核心)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+路径前缀: EXAM/GPIO/EEG/V5F/User/
+
+main.c
+  V5F核入口。释放HSEM信号量同步V3F，初始化IPC_CH0中断，
+  主循环调用DualCore_V5F_MainLoopProcess()处理推理。
+
+ch32h417_it.c
+  V5F中断服务。HardFault时通过IPC_MSG写入魔数0xDEADF00D+故障地址后复位。
+
+system_ch32h417.c / .h
+  V5F系统时钟配置(与V3F版本相同，V5F运行于400MHz)。
+
+ch32h417_conf.h / ch32h417_it.h
+  与V3F版本相同。
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+第六部分: Android医生端文件详解 (doctor_merged)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+路径前缀: doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/
+
+────────────────────────────────────────────────────────────────────────────────
+6.1 Activity类
+────────────────────────────────────────────────────────────────────────────────
+
+SplashActivity.java
+  启动画面，2秒后自动跳转到HomeActivity。
+
+HomeActivity.java
+  主页导航，9张MaterialCard卡片分别跳转到各功能页:
+  脑电监测/专注度/波形对比/频谱对比/SSVEP训练/MI训练/方向识别/姿态监护/系统配置
+
+MainActivity.java
+  核心容器Activity。ViewPager2管理9个Fragment:
+    页0=MonitorFragment, 页1=FocusHistoryFragment, 页2=WaveCompareFragment,
+    页3=SpectrumCompareFragment, 页4=SsvepTrainingFragment,
+    页5=MiTrainingFragment, 页6=InferenceFragment,
+    页7=PostureFragment, 页8=ConfigFragment
+  页面切换时向患者端发送"PAGE,n"命令。
+  页4自动激活SSVEP训练模式，页5自动激活MI训练模式。
+
+────────────────────────────────────────────────────────────────────────────────
+6.2 Fragment类
+────────────────────────────────────────────────────────────────────────────────
+
+MonitorFragment.java
+  脑电监测主页面。双通道波形+频谱+信号质量。
+  支持通道/量程/波形类型/频谱类型/频谱X轴范围配置。
+  onResume发送DISPLAY_CFG(2通道有效,slot2-3为NONE)。
+  ConnectionListener字段化，onDestroyView移除。
+
+FocusHistoryFragment.java
+  专注度历史曲线页面。focus/relax双线时间序列。
+  onResume发送全NONE DISPLAY_CFG(不需要波形数据)。
+
+WaveCompareFragment.java
+  4路波形对比页面。可独立配置每路通道和波形类型。
+  onResume发送DISPLAY_CFG(4路波形,频谱全NONE)。
+
+SpectrumCompareFragment.java
+  4路频谱对比页面。可独立配置每路通道和频谱类型。
+  onResume发送DISPLAY_CFG(4路频谱,波形类型固定RAW)。
+
+SsvepTrainingFragment.java
+  SSVEP训练页面(Mode 1)。医生选择目标频率，显示O1频谱，
+  运行FBCCA分析，发送刺激指令给患者端。
+  onResume发送DISPLAY_CFG(O1滤波波形+O1原始频谱+O1时域滤波频谱)。
+  进度条满后清空重来。
+
+MiTrainingFragment.java
+  运动想象(MI)训练页面。按LEFT/RIGHT序列执行试次(25秒/试次)，
+  通过状态机管理休息-试次-模型训练流程。
+  onResume发送全NONE DISPLAY_CFG(不需要波形数据)。
+
+InferenceFragment.java
+  方向推理页面。显示实时推理结果(LEFT/RIGHT)，
+  支持验证、统计、导出记录。
+  onResume发送全NONE DISPLAY_CFG。
+
+PostureFragment.java
+  姿态监护页面。显示当前姿态状态、翻身计数、跌倒/久卧告警。
+  onResume发送全NONE DISPLAY_CFG。
+
+ConfigFragment.java
+  系统配置页面。WiFi SSID/密码的添加和删除。
+  onResume发送全NONE DISPLAY_CFG。
+
+MainFragment.java (旧版)
+  旧版脑电监测Fragment，功能已被MonitorFragment替代。
+
+TrainingFragment.java (旧版)
+  旧版训练页面，功能已被SsvepTrainingFragment+MiTrainingFragment替代。
+
+GameFragment.java (旧版)
+  专注度小车游戏，用EMA专注度值控制音符下落速度。
+
+────────────────────────────────────────────────────────────────────────────────
+6.3 网络通信类
+────────────────────────────────────────────────────────────────────────────────
+
+TcpServerManager.java
+  ★核心网络管理器(单例)★
+  管理6个网络通道:
+    TCP:41002 — 设备端命令通道(接收MCU数据+发送命令)
+    TCP:41003 — Python上位机原始数据转发
+    TCP:41004 — 患者端数据通道(已停用原始二进制转发)
+    TCP:41005 — 患者端命令通道
+    TCP:41006 — 医生→患者控制通道(文本行转发)
+    UDP:41007 — 设备/患者发现广播
+
+  数据解析流程:
+    MCU二进制帧 → FrameParser解析 → 按cmd类型分发:
+      CMD_WAVE_* → onWaveData
+      CMD_SPEC_* → onSpectrumData
+      CMD_FOCUS → onFocusData
+    MCU文本行 → parseTextLine解析:
+      RESULT → onInferenceResult
+      SSVEP,RESULT → onSsvepResult
+      POSTURE → onPostureState/onTurnEvent/onFallEvent
+      TASK → onTaskStart/onTaskDone
+      READY_TRAIN/READY_TEST → onReadyTrain/onReadyTest
+      MODE_SET_OK → onModeSetOk
+      IPCDIAG → onIpcDiag
+      DISPLAY_CFG_OK → onDisplayConfigOk
+    文本行同时通过41006转发给患者端
+
+  心跳机制: 每5秒发送"HEARTBEAT", 15秒无回复判定断开
+  握手协议: 设备连接后发送"HELLO,DEVICE", 患者连接后发送"HELLO,PATIENT"
+
+UdpSender.java
+  UDP数据转发器，按Python上位机协议(16字节帧头+int32波形)向PC端发送实时脑电数据。
+
+CommandSender.java
+  命令发送封装(单例)，将高层语义命令转为文本协议:
+  setMode(), startTraining(), startTest(), trialLeft(), trialRight(),
+  ssvepStart(), ssvepStop()
+
+────────────────────────────────────────────────────────────────────────────────
+6.4 数据分发与监听
+────────────────────────────────────────────────────────────────────────────────
+
+DataListener.java
+  数据监听接口，定义全部数据回调:
+  onWaveData, onSpectrumData, onFocusData, onEegFrame,
+  onInferenceResult, onSsvepResult, onSsvepProgress,
+  onPostureState, onTurnEvent, onFallEvent, onNoTurnAlert,
+  onIpcDiag, onConnectionChanged, onReadyTrain, onReadyTest,
+  onTaskStart, onTaskDone, onModeSetOk, onDisplayConfigOk
+
+DataDispatcher.java
+  数据分发器(单例)，将网络层解析的数据批量分发到所有DataListener。
+  波形数据使用批量合并+主线程投递优化。
+
+────────────────────────────────────────────────────────────────────────────────
+6.5 SSVEP/FBCCA算法类
+────────────────────────────────────────────────────────────────────────────────
+
+FbccaConfig.java
+  FBCCA算法参数配置常量，与SSVEP.py保持对齐:
+  采样率250Hz, 窗口1000, 步长125, 目标频率[11,13,15,17]Hz,
+  滤波器组6个, RATIO_THRESHOLD=1.5
+
+FbccaEngine.java
+  纯Java单通道FBCCA引擎。环形缓冲区+50Hz陷波+Tukey窗+
+  DFT多相关数计算+投票机制。
+
+FbccaOutput.java
+  FBCCA单次分析输出数据类。
+
+SsvepAnalysisManager.java
+  SSVEP分析会话管理器(单例)，拥有FBCCA后台线程，
+  管理真实/合成测试会话，将FbccaOutput转为SsvepResult/SsvepProgress分发。
+
+SsvepResult.java
+  SSVEP识别结果数据类，支持从FbccaOutput转换和文本协议序列化/反序列化。
+
+SsvepProgress.java
+  SSVEP进度状态数据类。状态: IDLE/PREPARED/WAITING_WAVE_SOURCE/
+  COLLECTING/ANALYZING/STOPPED/ERROR
+
+SsvepDetector.java (旧版)
+  旧版SSVEP检测器，基于FFT功率比较和CCA。
+
+NotchFilter.java
+  二阶50Hz陷波滤波器，用于FBCCA预处理。
+
+────────────────────────────────────────────────────────────────────────────────
+6.6 自定义View类
+────────────────────────────────────────────────────────────────────────────────
+
+WaveformView.java
+  波形绘制自定义View。环形缓冲区+实时滚动+Y轴固定/跟踪/慢跟踪三种模式+
+  触摸拖拽偏移。
+
+SpectrumView.java
+  频谱柱状图自定义View。渐变色柱+Y轴量程+X轴频率范围+网格/标签。
+
+FocusChartView.java
+  专注度历史曲线自定义View。双线(focus/relax)绘制+环形缓冲。
+
+PianoGameView.java
+  钢琴块小游戏自定义View。4轨道音符下落+专注度控制速度。
+
+────────────────────────────────────────────────────────────────────────────────
+6.7 数据模型与存储类
+────────────────────────────────────────────────────────────────────────────────
+
+EegChannels.java
+  ★EEG逻辑通道映射(唯一真相源)★
+  8通道索引常量: CH_OZ=0, CH_O1=1, CH_F3=2, CH_F4=3,
+                 CH_CP3=4, CH_CP4=5, CH_C3=6, CH_C4=7
+  波形命令码: CMD_WAVE_RAW=0x04, CMD_WAVE_FILT=0x10, CMD_WAVE_BASELINE=0x11
+  频谱命令码范围: CMD_SPEC_RAW_BASE=0x20~0x27, FREQ_FILT=0x30~0x37,
+                  TIME_FILT=0x40~0x47
+  类型常量: WAVE_TYPE_RAW/FILT/BASELINE/NONE, SPEC_TYPE_RAW/FREQ_FILT/TIME_FILT/NONE
+  工具方法: nameOf(), isWaveCmd(), isSpectrumCmd(), waveTypeToCmd(),
+            spectrumCmdToChannel(), spectrumCmdToType(), buildAllNoneDisplayConfig()
+
+ChannelConfig.java
+  通道配置数据类。标签/电极名/类型/颜色/量程/单位/命令码。
+  提供默认双通道/8通道/10-20预设。
+
+EegFrame.java
+  EEG数据帧数据类。8通道+24特征+标签+时间戳，支持从DIRCSV文本行解析。
+
+InferenceResult.java
+  方向推理结果数据类。窗口/意图/左右得分/置信度/训练状态。
+
+IpcDiagInfo.java
+  IPC诊断信息数据类。解析MCU上报的IPC通信统计。
+
+FocusHistoryStore.java
+  专注度历史数据环形缓冲存储(单例)，最大5000点。
+
+InferenceRecordStore.java
+  推理记录持久化存储。SharedPreferences+JSON，最大500条，支持CSV导出。
+
+InferenceRecordAdapter.java
+  推理记录RecyclerView适配器。
+
+SettingsStore.java
+  SharedPreferences持久化设置存储。管理全部UI配置。
+
+────────────────────────────────────────────────────────────────────────────────
+6.8 协调器
+────────────────────────────────────────────────────────────────────────────────
+
+TrainingModeCoordinator.java
+  训练模式仲裁器(单例)。MI和SSVEP两种训练模式互斥，
+  切换时自动停止前一个模式的控制器。
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+第七部分: Android患者端文件详解 (patient_merged)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+路径前缀: patient_merged/app/src/main/java/com/nihilisttt/eegpatient/
+
+MainActivity.java
+  患者端主Activity。ViewPager2管理4页:
+  连接/SSVEP训练/MI训练/推理结果，连接状态指示。
+
+DoctorConnector.java
+  患者端连接管理器(单例)。作为TCP客户端连接医生端:
+    41004 — 数据通道(接收MCU原始数据)
+    41005 — 命令通道(接收文本命令)
+    41006 — 控制通道(接收医生端转发)
+    41007 — UDP发现
+  含心跳、握手、自动重连。
+
+ConnectFragment.java
+  连接状态页面。显示搜索医生端状态和已连接提示。
+
+SsvepTrainingFragment.java
+  SSVEP训练患者端页面。接收医生端频率指令后启动全屏闪烁刺激，
+  使用Choreographer同步vsync。
+
+SsvepStimulusView.java
+  SSVEP刺激渲染自定义View。Choreographer.FrameCallback实现vsync精确闪烁，
+  首帧回调通知医生端。
+
+MiTrainingFragment.java
+  MI训练患者端页面。接收医生端试次指令显示方向箭头和倒计时(25秒)。
+
+InferenceFragment.java
+  推理结果患者端页面。显示方向箭头(左/右)。
+
+TrainingFragment.java (旧版)
+  向后兼容别名，继承SsvepTrainingFragment。
+
+TrainingModeCoordinator.java
+  患者端训练模式仲裁器(与Doctor端同构)。
+
+PatientSsvepResult.java
+  患者端SSVEP结果数据类，从医生端SSVEP,RESULT命令解析。
+
+EegChannels.java
+  患者端EEG通道映射(与Doctor端一致)。
+
+EegFrame.java / InferenceResult.java / IpcDiagInfo.java
+  与Doctor端一致的数据类。
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+第八部分: Python上位机文件详解
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SSVEP.py
+  PC端SSVEP刺激与评估集成程序。
+  - 使用pygame显示240Hz闪烁刺激(11/13/15/17Hz)
+  - 通过TCP:41003接收无线脑电数据
+  - 实现FBCCA算法识别目标频率
+  - 含自动网关发现、帧协议解析、50Hz陷波滤波、投票决策
+  - 只提取SSVEP_CHANNEL=CH_O1的数据
+  - 支持中文字体自动搜索
+  - 顶部连接状态栏
+
+exercise_Data.py
+  PC端EEG训练/测试上位机(PyQt5)。
+  - 通过串口(2Mbps)与MCU通信
+  - 支持训练(4试次LEFT/RIGHT)、测试(推理模式)、停止
+  - 含CSP数据采集、DIRCSV解析、方向识别结果显示
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+第九部分: 数据链路详解
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+9.1 脑电信号采集链路
+────────────────────────────────────────────────────────────────────────────────
+
+ADS1299 (250Hz采样)
+  │ SPI3+DMA双缓冲, 27字节/帧 (3字节状态+8x3字节通道数据)
+  ↓
+ring_buffer (V3F)
+  │ ring_buffer_get_frame()
+  ↓
+ADS1299_ParseRawFrame() → ch_data[8] (24bit有符号)
+  │ ADS1299_CodeToVolt() → raw_vals[8] (float, μV)
+  ↓
+Signal_Analysis主循环:
+  ├─ baseline_vals[8] = Waveform_RemoveDisplayBaseline_8CH(raw_vals)
+  ├─ drift_vals[8] = EEG_RemoveRealtimeDrift(raw_vals)
+  ├─ ab_pre_vals[8] = IIR_SOS_Step(drift_vals, notch)  // 50Hz陷波
+  ├─ filt_vals[8] = IIR_SOS_Step(ab_pre_vals, bandpass) // 2-40Hz带通
+  │   (OZ/O1按需计算, ch2-ch7始终计算)
+  ├─ 按DISPLAY_CFG发送波形 → Send_WaveformSingle() → USART2
+  ├─ 填充RingBuf/RingBufFiltered → FFT流水线
+  └─ 双核IPC → V5F
+
+9.2 FFT频谱分析链路
+────────────────────────────────────────────────────────────────────────────────
+
+RingBuf (去漂移+陷波后) / RingBufFiltered (带通滤波后)
+  │ STEP_SIZE=125个采样触发一次
+  ↓
+Process_FFT_Step() 分步状态机:
+  1. 提取原始帧 → Hanning窗 + 去均值去线性趋势
+  2. 复数FFT (256点, 2通道配对)
+  3. 提取幅度谱 → 8通道
+  4. 发送原始频谱(按DISPLAY_CFG, 去重)
+  5. 频域滤波(DC窗+50Hz陷波+HF截止)
+  6. 发送频域滤波频谱(按DISPLAY_CFG, 去重)
+  7. 提取滤波帧 → 第二次FFT
+  8. 发送时域滤波频谱(按DISPLAY_CFG, 去重)
+  9. 计算8通道频带功率(delta/theta/alpha/beta)
+  10. 5通道加权专注度计算 + EMA平滑
+  11. 发送专注度数据
+  12. 趋势/瞬时状态判定
+
+9.3 双核IPC数据链路
+────────────────────────────────────────────────────────────────────────────────
+
+V3F → V5F (每1帧ADS1299数据):
+  DualCore_IPC_SendFrameFromV3F(frame_buf, 27)
+  │ IPC_CH0中断
+  ↓
+V5F IPC_CH0_Handler():
+  1. 校验帧数据
+  2. 提取4通道(CP3/CP4/C3/C4)数据
+  3. 去漂移 + 陷波 + 带通滤波
+  4. 填充4通道环形缓冲区
+  5. 每DUALCORE_V5F_WINDOW_SIZE=125采样:
+     - FFT特征提取(24维) 或 CSP特征提取
+     - SVM/LDA推理
+     - EMA结果融合
+  6. ACK回传: 预处理结果 + 特征 + 推理结果
+  ↓
+V3F接收ACK → 更新全局变量 → Signal_Analysis读取
+
+9.4 WiFi通信数据链路
+────────────────────────────────────────────────────────────────────────────────
+
+MCU USART2 (921600bps) ←→ WiFi模块 ←→ TCP
+
+  MCU → Android (二进制帧, HDLC格式):
+    波形帧: [0x7E][cmd][ch][float4B][0x7E]
+    频谱帧: [0x7E][cmd][frag_idx][total_frags][float×4]×32片[0x7E]
+    专注度帧: [0x7E][0x05][attn0×4][attn1×4][ema0×4][ema1×4][trend][instant][0x7E]
+
+  MCU → Android/Python (文本行, \r\n结尾):
+    RESULT,seq=,src=,window=,INTENT=LEFT/RIGHT,S_LEFT=,S_RIGHT=,CONF=,MODEL=
+    TASK,LEFT/RIGHT,start/done
+    READY_TRAIN / READY_TEST
+    MODE_SET_OK,n
+    DISPLAY_CFG_OK,12参数
+    IPCDIAG,ack=,notify=,ok=,bad=,v5fhb=
+    POSTURE,姿态名,gx=,gy=,gz=,conf=,stable=
+    MODE_DIAG,app=,work=,paused=
+    V5F_DIAG/RAW,valid=,cnt=,pred=
+
+  Android → MCU (文本行):
+    DISPLAY_CFG,12参数
+    MODE,TRAIN / MODE,TEST / MODE,SET,n
+    TRIAL,LEFT / TRIAL,RIGHT
+    STOP
+    MODEL,SET,AUTO/FFT24/CSP
+    ACK,seq
+    IPCDIAG,ON/OFF
+    POSTURE,ON/OFF
+    WIFI_ADD,ssid,pwd / WIFI_DEL,ssid
+
+  Android医生端 → Android患者端 (TCP:41006文本行):
+    PAGE,n (页面切换通知)
+    SSVEP,START,freqHz (SSVEP刺激开始)
+    SSVEP,STOP (SSVEP刺激停止)
+    SSVEP,RESULT,freq,ratio,score (SSVEP识别结果)
+    TASK,LEFT/RIGHT,start/done (MI试次)
+    RESULT,INTENT=LEFT/RIGHT (推理结果)
+
+9.5 DISPLAY_CFG页面感知机制
+────────────────────────────────────────────────────────────────────────────────
+
+需要波形的页面 (onResume发送各自DISPLAY_CFG):
+  MonitorFragment    → 2通道波形+频谱, slot2-3=NONE
+  WaveCompareFragment → 4路波形, 频谱全NONE
+  SpectrumCompareFragment → 4路频谱, 波形=RAW
+  SsvepTrainingFragment → O1滤波波形+O1原始频谱+O1时域滤波频谱
+
+不需要波形的页面 (onResume发送全NONE DISPLAY_CFG):
+  FocusHistoryFragment, MiTrainingFragment, InferenceFragment,
+  PostureFragment, ConfigFragment
+
+安全策略:
+  ① onCreateView中绝不发送DISPLAY_CFG
+  ② 只在onResume发送
+  ③ 不需要波形的页面发送全NONE, MCU停止波形/频谱发送(节省带宽)
+  ④ FFT/专注度/MI训练等后台计算不受影响
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+第十部分: 系统跑通流程
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+10.1 硬件准备
+────────────────────────────────────────────────────────────────────────────────
+
+1. 烧录V3F固件 (EXAM/GPIO/EEG/V3F/)
+   - 配置: V3F=100MHz, USART1=921600(DEBUG), USART2=921600(WiFi)
+   - SPI3连接ADS1299, SPI4连接ICM42605
+
+2. 烧录V5F固件 (EXAM/GPIO/EEG/V5F/)
+   - 配置: V5F=400MHz, 等待IPC中断
+
+3. ADS1299连接8通道EEG电极:
+   CH0=C4, CH1=F4, CH2=CP4, CH3=OZ, CH4=O1, CH5=CP3, CH6=C3, CH7=F3
+
+4. WiFi模块连接USART2, 配置为AP模式或STA模式
+
+5. ICM42605连接SPI4, 安装在患者胸部/腰部
+
+10.2 软件启动流程
+────────────────────────────────────────────────────────────────────────────────
+
+1. MCU上电:
+   a. V3F main() → SystemInit() → Serial_Init() → ICM42605_BCI_Init()
+      → ADS1299_Init() → EEG_FFT_Init() → DisplayConfig_SetDefaults()
+      → Signal_Analysis_Start() 主循环
+   b. V5F main() → 释放HSEM → IPC_CH0中断初始化 → 空循环等待
+   c. V3F主循环: 采集→滤波→FFT→专注度→波形/频谱发送→命令解析→IMU→姿态
+
+2. Android医生端启动:
+   a. SplashActivity → HomeActivity (9张卡片)
+   b. TcpServerManager.start() 启动所有TCP/UDP监听
+   c. 等待MCU WiFi模块连接TCP:41002
+   d. 收到"HELLO,DEVICE" → 设备已连接
+   e. 点击卡片 → MainActivity → ViewPager2 → 各Fragment
+
+3. Android患者端启动:
+   a. DoctorConnector.startAutoConnect() 搜索医生端
+   b. 连接TCP:41004/41005/41006
+   c. 收到"HELLO,PATIENT" → 患者已连接
+
+10.3 脑电监测流程
+────────────────────────────────────────────────────────────────────────────────
+
+1. 医生端点击"脑电监测" → MonitorFragment
+2. onResume → sendDisplayConfig() → MCU开始发送配置的波形+频谱
+3. MCU: 每帧采样 → 按DISPLAY_CFG发送波形(5字节/通道)
+4. MCU: 每125采样 → FFT流水线 → 发送频谱(32片×20字节) + 专注度(18字节)
+5. Android: FrameParser解析 → DataDispatcher → MonitorFragment.onWaveData/onSpectrumData
+6. WaveformView/SpectrumView实时绘制
+
+10.4 专注度监测流程
+────────────────────────────────────────────────────────────────────────────────
+
+1. 医生端切换到"专注度"页 → FocusHistoryFragment
+2. onResume → 发送全NONE DISPLAY_CFG → MCU停止波形/频谱发送
+3. MCU: FFT仍运行 → 专注度数据仍发送(CMD_FOCUS)
+4. Android: onFocusData → FocusHistoryStore → FocusChartView绘制
+
+10.5 SSVEP训练流程
+────────────────────────────────────────────────────────────────────────────────
+
+1. 医生端切换到"SSVEP训练"页 → SsvepTrainingFragment
+2. onResume → sendDisplayConfig(O1滤波波形+频谱) → MCU发送O1数据
+3. 医生选择目标频率(11/13/15/17Hz)
+4. 点击"开始训练" → CommandSender.ssvepStart() → MCU
+5. 同时通过41006发送"SSVEP,START,freqHz"给患者端
+6. 患者端SsvepStimulusView开始vsync精确闪烁
+7. 患者端首帧回调 → "SSVEP,STIMULUS_STARTED" → 医生端
+8. 医生端SsvepAnalysisManager开始收集O1波形样本
+9. 窗口满后FBCCA分析 → SsvepResult → 显示结果
+10. 结果通过41006转发给患者端
+11. 进度条满后清空重来，进入下一次分析
+
+10.6 MI训练流程
+────────────────────────────────────────────────────────────────────────────────
+
+1. 医生端切换到"MI训练"页 → MiTrainingFragment
+2. onResume → 发送全NONE DISPLAY_CFG → MCU停止波形/频谱发送
+3. 点击"开始训练" → CommandSender.setMode(COLLECT) + startTraining()
+4. MCU进入训练模式 → 回复READY_TRAIN
+5. 医生端状态机: REST(5秒) → TRIAL(25秒) → REST → TRIAL...
+6. 每个试次: CommandSender.trialLeft/Right() → MCU
+7. MCU: TASK,LEFT,start → 采集CSP数据 → TASK,LEFT,done
+8. 同时通过41006转发TASK命令给患者端 → 显示方向箭头
+9. 训练完成 → CommandSender.startTest() → MCU进入推理模式
+10. MCU: V5F推理 → RESULT,INTENT=LEFT/RIGHT → 医生端+患者端
+
+10.7 方向推理流程
+────────────────────────────────────────────────────────────────────────────────
+
+1. 医生端切换到"方向识别"页 → InferenceFragment
+2. onResume → 发送全NONE DISPLAY_CFG
+3. 如果MCU已在推理模式 → 实时接收RESULT
+4. MCU: V5F每125采样推理一次 → 4行投票 → RESULT
+5. Android: onInferenceResult → 显示方向/置信度
+6. 可验证结果(正确/错误) → InferenceRecordStore持久化
+7. 可导出CSV
+
+10.8 姿态监护流程
+────────────────────────────────────────────────────────────────────────────────
+
+1. 医生端切换到"姿态监护"页 → PostureFragment
+2. onResume → 发送全NONE DISPLAY_CFG
+3. MCU: ICM42605_Task()每帧更新 → Posture_FeedAccel()
+4. 姿态分类 → POSTURE文本行 → Android
+5. 患者监护: 翻身/坠床/久卧检测 → 事件上报
+6. Android: onPostureState/onTurnEvent/onFallEvent → 显示
+
+10.9 Python上位机SSVEP流程
+────────────────────────────────────────────────────────────────────────────────
+
+1. 运行SSVEP.py
+2. 自动发现网关 → 连接TCP:41003
+3. pygame窗口显示闪烁刺激(240Hz vsync)
+4. 接收MCU原始数据 → FrameParser解析 → 提取O1通道
+5. FBCCA分析 → 识别目标频率 → 显示结果
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+第十一部分: Layout XML文件清单
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+医生端 (doctor_merged/app/src/main/res/layout/):
+  activity_splash.xml      — 启动画面
+  activity_home.xml        — 主页9张卡片网格
+  activity_main.xml        — ViewPager2+状态栏
+  fragment_main.xml        — 旧版监测
+  fragment_monitor.xml     — 脑电监测(波形+频谱+ParamChip控制)
+  fragment_focus_history.xml — 专注度历史曲线
+  fragment_wave_compare.xml  — 4路波形对比
+  fragment_spectrum_compare.xml — 4路频谱对比
+  fragment_ssvep_training.xml — SSVEP训练(频谱+ParamChip Y/X轴)
+  fragment_mi_training.xml  — MI训练(方向+进度)
+  fragment_inference.xml    — 方向推理(结果+验证+记录)
+  fragment_posture.xml      — 姿态监护(状态+告警+日志)
+  fragment_config.xml       — WiFi配置
+  fragment_training.xml     — 旧版训练
+  fragment_game.xml         — 钢琴游戏
+  fragment_history.xml      — 历史记录
+  item_inference_record.xml — 推理记录列表项
+  dialog_range_input.xml    — 量程输入对话框
+
+患者端 (patient_merged/app/src/main/res/layout/):
+  activity_main.xml         — ViewPager2+连接状态
+  fragment_connect.xml      — 连接页面
+  fragment_training.xml     — SSVEP训练(SsvepStimulusView)
+  fragment_mi_training.xml  — MI训练(方向+进度)
+  fragment_inference.xml    — 推理结果
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+第十二部分: 网络端口汇总
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  端口    方向                    用途
+  ──────  ──────────────────────  ──────────────────────────────────
+  41002   MCU → Android医生端     命令/数据通道(双向)
+  41003   Android医生端 → Python  原始数据转发(MCU二进制帧)
+  41004   Android医生端 → 患者端  数据通道(已停用二进制转发)
+  41005   Android医生端 → 患者端  命令通道(文本行)
+  41006   Android医生端 → 患者端  控制通道(文本行转发)
+  41007   UDP广播                 设备/患者发现
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+第十三部分: 关键协议格式
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+13.1 DISPLAY_CFG命令格式
+────────────────────────────────────────────────────────────────────────────────
+
+  DISPLAY_CFG,wave_ch0,wave_type0,wave_ch1,wave_type1,spec_type0,spec_type1,
+              wave_ch2,wave_type2,wave_ch3,wave_type3,spec_type2,spec_type3
+
+  wave_type: 0=RAW, 1=FILT, 2=BASELINE, 0xFF=NONE
+  spec_type: 0=RAW, 1=FREQ_FILTER, 2=TIME_FILTER, 0xFF=NONE
+  wave_ch:   0=OZ, 1=O1, 2=F3, 3=F4, 4=CP3, 5=CP4, 6=C3, 7=C4
+
+13.2 RESULT命令格式
+────────────────────────────────────────────────────────────────────────────────
+
+  RESULT,seq=N,src=V5F,window=N,dt_ms=2000,win_rows=4,
+         INTENT=LEFT/RIGHT,S_LEFT=N,S_RIGHT=N,CONF=N,trained=0/1,MODEL=FFT24/CSP
+
+13.3 二进制帧格式 (HDLC)
+────────────────────────────────────────────────────────────────────────────────
+
+  [0x7E][cmd_byte][payload...][0x7E]
+  转义: payload中0x7E→0x7D 0x5E, 0x7D→0x7D 0x5D
+  波形payload: [ch(1B)][float_value(4B)] = 5字节
+  频谱payload: [frag_idx(1B)][total_frags(1B)][float×4] = 18字节/片, 32片
+  专注度payload: [attn0(4B)][attn1(4B)][ema0(4B)][ema1(4B)][trend(1B)][instant(1B)] = 18字节
+
+================================================================================
+  文档结束
+================================================================================

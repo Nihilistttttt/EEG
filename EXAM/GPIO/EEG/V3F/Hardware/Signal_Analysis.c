@@ -13,11 +13,13 @@
 #include "ADS1299.h"
 
 #include "hardware.h"
+#ifdef HAS_ICM42605
 #include "ICM42605.h"
 #include "Timer_1ms.h"
-#include "dualcore_ipc.h"
 #include "posture_detect.h"
 #include "patient_monitor.h"
+#endif
+#include "dualcore_ipc.h"
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -27,7 +29,11 @@
 #define DUALCORE_IPC_FRAME_NOTIFY_EVERY_FRAMES 1
 #define DUALCORE_IPC_FRAME_PRINT_EVERY_ACKS 500
 uint8_t g_ipc_diag_enable = 0;
+#ifdef HAS_ICM42605
 uint8_t g_posture_diag_enable = 0;
+#else
+volatile uint32_t g_icm42605_ms_tick = 0;
+#endif
 
 #define DIR_1S_TEST_TEXT_ONLY 0
 #define AB_REALTIME_NOTCH_ENABLE 1
@@ -41,17 +47,21 @@ void Signal_Analysis_Start (void) {
     Serial_Init (SERIAL_PORT_WIFI);
 
 
+#ifdef HAS_ICM42605
     ICM42605_Status icm_status = ICM42605_BCI_Init();
     Timer_1ms_Init();
     Serial_Printf (SERIAL_PORT_DEBUG, "ICM42605_INIT=%d\r\n", (int)icm_status);
+    OLED_ShowString(SPI,0,0,"ICM42605 = ");
+    OLED_ShowNum(SPI,1,0,(int)icm_status,4);
+    EEG_FFT_Init();
+    DisplayConfig_SetDefaults(&g_display_config);
+#endif
 
     // Serial_Printf (SERIAL_PORT_DEBUG, "ADS1299_Init start\r\n");
     uint8_t id = ADS1299_Init();
     Serial_Printf (SERIAL_PORT_DEBUG, "ADS1299_Init done, id=%d\r\n", id);
-
-    EEG_FFT_Init();
-    DisplayConfig_SetDefaults(&g_display_config);
-
+    OLED_ShowString(SPI,2,0,"ADS1299 id = ");
+    OLED_ShowNum(SPI,2,13,id,2);
 #if AB_EXTRACT_PRINT_ENABLE
     Serial_Printf (DIR_TEXT_PORT, "ABCFG,fs=%d,fft=%d,step=%d,alpha=8-13Hz,beta=13-30Hz,drift_k=9960/10000,notch=%d,detrend=%d,power_scale=1e15,pct_scale=10000,db_scale=100\r\n",
                    (int)SAMPLE_RATE, FFT_SIZE, STEP_SIZE, AB_REALTIME_NOTCH_ENABLE, AB_FFT_DETREND_ENABLE);
@@ -77,6 +87,10 @@ void Signal_Analysis_Start (void) {
 #endif
 
     while (1) {
+#ifndef HAS_ICM42605
+
+        g_icm42605_ms_tick++;
+#endif
 #if CMD_MODE_ENABLE
         Retry_Tick();
         if (Serial_IsDataReady (SERIAL_PORT_DEBUG)) {
@@ -301,6 +315,7 @@ void Signal_Analysis_Start (void) {
             Direction_CSPStreamTask();
         }
 
+#ifdef HAS_ICM42605
         ICM42605_Task();
 
         {
@@ -403,5 +418,6 @@ void Signal_Analysis_Start (void) {
                 break;
             }
         }
+#endif /* HAS_ICM42605 */
     }
 }

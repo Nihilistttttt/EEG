@@ -2,6 +2,7 @@
 #define __SIGNAL_ANALYSIS_H
 
 #include <stdint.h>
+#include "Config.h"
 #include "Serial.h"
 
 #define EEG_APP_MODE_COLLECT        1

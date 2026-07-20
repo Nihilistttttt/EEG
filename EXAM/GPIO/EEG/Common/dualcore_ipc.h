@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 #include "ch32h417.h"
+
 #include "debug.h"
 #include "dualcore_ipc_shared.h"
 #include "dualcore_ipc_diag.h"

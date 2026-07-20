@@ -2,6 +2,8 @@
 #include <math.h>
 #include <string.h>
 
+#ifdef HAS_ICM42605
+
 static PostureConfig_t s_cfg;
 static float s_lpf_x;
 static float s_lpf_y;
@@ -147,3 +149,6 @@ const PostureResult_t *Posture_GetResult(void)
 {
     return &s_result;
 }
+
+
+#endif /* HAS_ICM42605 */

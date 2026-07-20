@@ -3,6 +3,7 @@
 
 #include "ch32h417.h"
 #include <stdint.h>
+#include "Config.h"
 
 
 #ifdef __cplusplus

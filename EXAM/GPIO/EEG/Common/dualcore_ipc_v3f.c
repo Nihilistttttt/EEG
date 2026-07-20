@@ -3,11 +3,14 @@
 #include <string.h>
 
 #if defined(Core_V3F) && DUALCORE_IPC_RUNTIME_ENABLE
+#include "Config.h"
 #include "OLED.h"
 #include "signal_analysis.h"
 #include "ADS1299.h"
 #include "Serial.h"
+#ifdef HAS_ICM42605
 #include "ICM42605.h"
+#endif
 
 volatile uint32_t g_ipc_v3f_notify_count       = 0;
 volatile uint32_t g_ipc_v3f_ack_count          = 0;

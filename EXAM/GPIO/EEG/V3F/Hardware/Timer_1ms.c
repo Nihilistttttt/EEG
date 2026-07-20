@@ -1,6 +1,8 @@
 #include "Timer_1ms.h"
 #include "ICM42605.h"
 
+#ifdef HAS_ICM42605
+
 /*
  * TIM2 1ms定时中断 —— V3F 96MHz版
  *
@@ -71,3 +73,6 @@ void TIM2_IRQHandler(void)
         ICM42605_1msTickISR();
     }
 }
+
+
+#endif /* HAS_ICM42605 */

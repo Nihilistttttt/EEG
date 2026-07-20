@@ -13,7 +13,9 @@
 
 extern uint8_t g_eeg_app_mode;
 extern uint8_t g_ipc_diag_enable;
+#ifdef HAS_ICM42605
 extern uint8_t g_posture_diag_enable;
+#endif
 extern volatile uint32_t g_icm42605_ms_tick;
 
 #define RESP(fmt, ...) do { \
@@ -218,6 +220,7 @@ void Parse_CommandEx(const char *cmd, const char *source)
         RESP("IPCDIAG,OFF\r\n");
         return;
     }
+#ifdef HAS_ICM42605
     if (strcmp(clean_cmd, "POSTURE,ON") == 0) {
         g_posture_diag_enable = 1;
         RESP("POSTURE,ON\r\n");
@@ -228,6 +231,7 @@ void Parse_CommandEx(const char *cmd, const char *source)
         RESP("POSTURE,OFF\r\n");
         return;
     }
+#endif
     if (strncmp(clean_cmd, "DISPLAY_CFG,", 12) == 0) {
         const char *p = clean_cmd + 12;
         int vals[12];

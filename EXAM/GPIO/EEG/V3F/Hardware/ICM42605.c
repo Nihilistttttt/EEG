@@ -6,6 +6,8 @@
 #include "patient_monitor.h"
 #include <math.h>
 
+#ifdef HAS_ICM42605
+
 
 #define ICM42605_CS_LOW()            Hal_GPIO_Reset(ICM42605_CS_PIN_ENC)
 #define ICM42605_CS_HIGH()           Hal_GPIO_Set(ICM42605_CS_PIN_ENC)
@@ -1662,3 +1664,6 @@ static int16_t ICM42605_CombineInt16(uint8_t high_byte, uint8_t low_byte)
         (uint16_t)low_byte
     );
 }
+
+
+#endif /* HAS_ICM42605 */

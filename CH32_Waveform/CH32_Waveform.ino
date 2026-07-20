@@ -110,7 +110,7 @@ bool connectToServer() {
 }
 
 void setup() {
-    Serial.begin(921600);
+    Serial.begin(2000000);
     Serial.setRxBufferSize(4096);
     connectToWiFi();
 }

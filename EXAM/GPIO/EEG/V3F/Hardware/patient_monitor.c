@@ -2,6 +2,8 @@
 #include <math.h>
 #include <string.h>
 
+#ifdef HAS_ICM42605
+
 static PM_Config_t s_cfg;
 static PM_Result_t s_result;
 
@@ -254,3 +256,6 @@ void PM_ClearNoTurnAlert(void)
     s_result.no_turn_duration_ms = 0u;
     s_no_turn_base_tick = s_last_update_tick;
 }
+
+
+#endif /* HAS_ICM42605 */

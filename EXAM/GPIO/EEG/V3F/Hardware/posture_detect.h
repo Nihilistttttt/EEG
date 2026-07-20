@@ -2,6 +2,7 @@
 #define __POSTURE_DETECT_H
 
 #include <stdint.h>
+#include "Config.h"
 
 #ifdef __cplusplus
 extern "C" {

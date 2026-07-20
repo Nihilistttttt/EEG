@@ -2,6 +2,8 @@ package com.nihilisttt.eegdoctor;
 
 import com.nihilisttt.eegdoctor.R;
 
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -257,6 +259,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         runOnUiThread(() -> {
             if (tvBarPosture != null)
                 tvBarPosture.setText("跌倒!");
+            showSafetyAlertDialog("坠床警报", "患者可能发生坠床，请立即查看！", true);
         });
     }
 
@@ -265,6 +268,34 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         runOnUiThread(() -> {
             if (tvBarPosture != null)
                 tvBarPosture.setText("未翻身:" + durationMin + "分钟");
+            showSafetyAlertDialog("久未翻身", "患者已 " + durationMin + " 分钟未翻身，请协助翻身。", false);
         });
+    }
+
+    private AlertDialog currentSafetyDialog = null;
+
+    private void showSafetyAlertDialog(String title, String message, boolean critical) {
+        if (currentSafetyDialog != null && currentSafetyDialog.isShowing()) {
+            currentSafetyDialog.dismiss();
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(message)
+                .setPositiveButton("已知晓", (DialogInterface dialog, int which) -> {
+                    currentSafetyDialog = null;
+                });
+        if (critical) {
+            builder.setCancelable(false);
+        }
+        currentSafetyDialog = builder.create();
+        currentSafetyDialog.getWindow().setBackgroundDrawableResource(R.drawable.bg_dialog_alert);
+        currentSafetyDialog.show();
+        if (critical) {
+            currentSafetyDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(
+                    ContextCompat.getColor(this, R.color.accent_error));
+        } else {
+            currentSafetyDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(
+                    ContextCompat.getColor(this, R.color.accent_warning));
+        }
     }
 }

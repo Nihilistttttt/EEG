@@ -1094,12 +1094,17 @@ public class TcpServerManager {
                                    byte[] data, int offset, int len) {
             ReassemblyState state = states.get(cmd);
             long now = System.currentTimeMillis();
-            if (state == null || state.totalFrags != totalFrags
+            if (state == null || fragIdx == 0
+                || state.totalFrags != totalFrags
                 || (now - state.createTime > FRAG_TIMEOUT_MS)) {
                 state = new ReassemblyState(totalFrags);
                 states.put(cmd, state);
             }
             int startFloatIdx = fragIdx * 4;
+            long fragBit = 1L << fragIdx;
+            if ((state.receivedMask & fragBit) != 0) {
+                return null;
+            }
             ByteBuffer bb = ByteBuffer.wrap(data, offset, len).order(ByteOrder.LITTLE_ENDIAN);
             for (int i = 0; i < len / 4; i++) {
                 int idx = startFloatIdx + i;
@@ -1107,7 +1112,7 @@ public class TcpServerManager {
                     state.mags[idx] = bb.getFloat();
                 }
             }
-            state.receivedMask |= (1L << fragIdx);
+            state.receivedMask |= fragBit;
             state.receivedCount++;
             if (state.receivedCount == totalFrags) {
                 states.remove(cmd);

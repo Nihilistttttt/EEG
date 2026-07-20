@@ -24,6 +24,7 @@ extern WorkMode_t g_work_mode;
 #define DIR_RESULT_DT_MS 2000
 
 #define ARTIFACT_THRESHOLD_V 200.0e-6f
+#define ARTIFACT_DETECT_ALL_CH 0
 #define BAD_WINDOW_THRESHOLD 0.3f
 #define BAD_WINDOW_LIMIT 5
 
@@ -255,11 +256,16 @@ static uint8_t Judge_Attn_State (float attn_score, float relax_score, float conf
 void EEG_FFT_Init (void) {
     size_t fft_mem_needed = 0;
     FFT_Alloc (FFT_SIZE, FFT_FORWARD, NULL, &fft_mem_needed);
-    if (fft_mem_needed > sizeof (s_fft_mem_pool))
+    if (fft_mem_needed > sizeof (s_fft_mem_pool)) {
+        Serial_Printf (SERIAL_PORT_DEBUG, "FATAL:FFT mem need=%u,pool=%u\r\n",
+                       (unsigned)fft_mem_needed, (unsigned)sizeof(s_fft_mem_pool));
         while (1);
+    }
     Cplx_FFT_Cfg = FFT_Alloc (FFT_SIZE, FFT_FORWARD, s_fft_mem_pool, &fft_mem_needed);
-    if (Cplx_FFT_Cfg == NULL)
+    if (Cplx_FFT_Cfg == NULL) {
+        Serial_Printf (SERIAL_PORT_DEBUG, "FATAL:FFT_Alloc failed\r\n");
         while (1);
+    }
 
     const float bin_width = SAMPLE_RATE / FFT_SIZE;
     Compute_Band_Indices (1.0f, 4.0f, bin_width, &BandIdx.DeltaStart, &BandIdx.DeltaEnd);
@@ -285,17 +291,32 @@ void EEG_FFT_Init (void) {
 }
 
 static float compute_artifact_from_ringbuf (RingBuffer_t *rb, uint16_t start_idx) {
+#if ARTIFACT_DETECT_ALL_CH
     int count = 0;
     int i;
     for (i = 0; i < FFT_SIZE; i++) {
         uint16_t idx = (start_idx + i) & (FFT_SIZE - 1);
         float v0 = fabsf (rb->CH0[idx]);
         float v1 = fabsf (rb->CH1[idx]);
-        if (v0 > ARTIFACT_THRESHOLD_V || v1 > ARTIFACT_THRESHOLD_V) {
+        float v2 = fabsf (rb->CH2[idx]);
+        float v3 = fabsf (rb->CH3[idx]);
+        float v4 = fabsf (rb->CH4[idx]);
+        float v5 = fabsf (rb->CH5[idx]);
+        float v6 = fabsf (rb->CH6[idx]);
+        float v7 = fabsf (rb->CH7[idx]);
+        if (v0 > ARTIFACT_THRESHOLD_V || v1 > ARTIFACT_THRESHOLD_V ||
+            v2 > ARTIFACT_THRESHOLD_V || v3 > ARTIFACT_THRESHOLD_V ||
+            v4 > ARTIFACT_THRESHOLD_V || v5 > ARTIFACT_THRESHOLD_V ||
+            v6 > ARTIFACT_THRESHOLD_V || v7 > ARTIFACT_THRESHOLD_V) {
             count++;
         }
     }
     return (float)count / (float)FFT_SIZE;
+#else
+    (void)rb;
+    (void)start_idx;
+    return 0.0f;
+#endif
 }
 
 uint8_t Process_FFT_Step (void) {

@@ -68,6 +68,8 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
         return root;
     }
 
+    private static final long READY_TRAIN_TIMEOUT_MS = 15000L;
+
     private void startTraining() {
         Log.i("MiTraining", "btnStartTraining clicked, isTraining=" + isTraining);
         if (isTraining) return;
@@ -87,6 +89,15 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
 
         CommandSender.getInstance().setModeCollect();
         CommandSender.getInstance().startTraining();
+
+        handler.postDelayed(() -> {
+            if (waitingReadyTrain) {
+                stopTrainingInternal(true);
+                tvDirection.setText("超时");
+                tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_error));
+                tvHint.setText("下位机未响应，请检查连接");
+            }
+        }, READY_TRAIN_TIMEOUT_MS);
     }
 
     private void stopTraining() {

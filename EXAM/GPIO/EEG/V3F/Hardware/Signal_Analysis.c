@@ -13,12 +13,14 @@
 #include "ADS1299.h"
 
 #include "hardware.h"
+
 #ifdef HAS_ICM42605
 #include "ICM42605.h"
 #include "Timer_1ms.h"
 #include "posture_detect.h"
 #include "patient_monitor.h"
 #endif
+
 #include "dualcore_ipc.h"
 #include <math.h>
 #include <string.h>
@@ -47,14 +49,15 @@ void Signal_Analysis_Start (void) {
     Serial_Init (SERIAL_PORT_WIFI);
 
 
+    EEG_FFT_Init();
+    DisplayConfig_SetDefaults(&g_display_config);
+
 #ifdef HAS_ICM42605
     ICM42605_Status icm_status = ICM42605_BCI_Init();
     Timer_1ms_Init();
     Serial_Printf (SERIAL_PORT_DEBUG, "ICM42605_INIT=%d\r\n", (int)icm_status);
     OLED_ShowString(SPI,0,0,"ICM42605 = ");
     OLED_ShowNum(SPI,1,0,(int)icm_status,4);
-    EEG_FFT_Init();
-    DisplayConfig_SetDefaults(&g_display_config);
 #endif
 
     // Serial_Printf (SERIAL_PORT_DEBUG, "ADS1299_Init start\r\n");

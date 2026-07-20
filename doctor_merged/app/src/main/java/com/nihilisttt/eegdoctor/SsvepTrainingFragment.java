@@ -301,7 +301,11 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
     private void sendDisplayConfig() {
         String cmd = String.format(Locale.US,
                 "DISPLAY_CFG,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
-                EegChannels.CH_O1, 1, EegChannels.CH_O1, 1, 0, 2, 0, 0, 0, 0, 0, 0);
+                EegChannels.CH_O1, EegChannels.WAVE_TYPE_FILT,
+                EegChannels.CH_O1, EegChannels.WAVE_TYPE_FILT,
+                EegChannels.SPEC_TYPE_RAW, EegChannels.SPEC_TYPE_TIME_FILT,
+                0, EegChannels.WAVE_TYPE_NONE, 0, EegChannels.WAVE_TYPE_NONE,
+                EegChannels.SPEC_TYPE_NONE, EegChannels.SPEC_TYPE_NONE);
         TcpServerManager.getInstance().sendToDevice(cmd);
         Log.i("SsvepTraining", "Sent: " + cmd);
     }

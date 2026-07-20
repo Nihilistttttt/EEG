@@ -52,4 +52,10 @@ public class ConfigFragment extends Fragment {
 
         return root;
     }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        TcpServerManager.getInstance().sendToDevice(EegChannels.buildAllNoneDisplayConfig());
+    }
 }

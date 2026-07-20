@@ -62,6 +62,12 @@ public final class EegChannels {
     public static final int SPEC_TYPE_RAW       = 0;
     public static final int SPEC_TYPE_FREQ_FILT = 1;
     public static final int SPEC_TYPE_TIME_FILT = 2;
+    public static final int SPEC_TYPE_NONE      = 0xFF;
+
+    public static final int WAVE_TYPE_RAW      = 0;
+    public static final int WAVE_TYPE_FILT     = 1;
+    public static final int WAVE_TYPE_BASELINE = 2;
+    public static final int WAVE_TYPE_NONE     = 0xFF;
 
     public static final String[] SPEC_TYPE_NAMES = {
         "原始频谱", "频域滤波频谱", "时域滤波频谱"
@@ -95,6 +101,12 @@ public final class EegChannels {
         if (cmd >= CMD_SPEC_TIME_FILT_BASE && cmd <= CMD_SPEC_TIME_FILT_END)
             return SPEC_TYPE_TIME_FILT;
         return -1;
+    }
+
+    public static String buildAllNoneDisplayConfig() {
+        return String.format("DISPLAY_CFG,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+                0, WAVE_TYPE_NONE, 0, WAVE_TYPE_NONE, SPEC_TYPE_NONE, SPEC_TYPE_NONE,
+                0, WAVE_TYPE_NONE, 0, WAVE_TYPE_NONE, SPEC_TYPE_NONE, SPEC_TYPE_NONE);
     }
 
     private EegChannels() {}

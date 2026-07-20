@@ -232,6 +232,7 @@ void Signal_Analysis_Start (void) {
 #if !DIR_1S_TEST_TEXT_ONLY
             {
                 for (int wi = 0; wi < DISPLAY_NUM_CH; wi++) {
+                    if (g_display_config.wave_type[wi] == WAVE_TYPE_NONE) continue;
                     uint8_t ch = g_display_config.wave_ch[wi];
                     float val;
                     switch (g_display_config.wave_type[wi]) {

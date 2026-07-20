@@ -240,20 +240,21 @@ void Parse_CommandEx(const char *cmd, const char *source)
         }
         if (count >= 6) {
             if (vals[0] >= 0 && vals[0] < DISPLAY_MAX_CH) g_display_config.wave_ch[0] = (uint8_t)vals[0];
-            if (vals[1] >= 0 && vals[1] <= 2) g_display_config.wave_type[0] = (uint8_t)vals[1];
+            if (vals[1] >= 0 && vals[1] <= 2 || vals[1] == WAVE_TYPE_NONE) g_display_config.wave_type[0] = (uint8_t)vals[1];
             if (vals[2] >= 0 && vals[2] < DISPLAY_MAX_CH) g_display_config.wave_ch[1] = (uint8_t)vals[2];
-            if (vals[3] >= 0 && vals[3] <= 2) g_display_config.wave_type[1] = (uint8_t)vals[3];
-            if (vals[4] >= 0 && vals[4] <= 2) g_display_config.spec_type[0] = (uint8_t)vals[4];
-            if (vals[5] >= 0 && vals[5] <= 2) g_display_config.spec_type[1] = (uint8_t)vals[5];
+            if (vals[3] >= 0 && vals[3] <= 2 || vals[3] == WAVE_TYPE_NONE) g_display_config.wave_type[1] = (uint8_t)vals[3];
+            if (vals[4] >= 0 && vals[4] <= 2 || vals[4] == SPEC_TYPE_NONE) g_display_config.spec_type[0] = (uint8_t)vals[4];
+            if (vals[5] >= 0 && vals[5] <= 2 || vals[5] == SPEC_TYPE_NONE) g_display_config.spec_type[1] = (uint8_t)vals[5];
         }
         if (count >= 12) {
             if (vals[6] >= 0 && vals[6] < DISPLAY_MAX_CH) g_display_config.wave_ch[2] = (uint8_t)vals[6];
-            if (vals[7] >= 0 && vals[7] <= 2) g_display_config.wave_type[2] = (uint8_t)vals[7];
+            if (vals[7] >= 0 && vals[7] <= 2 || vals[7] == WAVE_TYPE_NONE) g_display_config.wave_type[2] = (uint8_t)vals[7];
             if (vals[8] >= 0 && vals[8] < DISPLAY_MAX_CH) g_display_config.wave_ch[3] = (uint8_t)vals[8];
-            if (vals[9] >= 0 && vals[9] <= 2) g_display_config.wave_type[3] = (uint8_t)vals[9];
-            if (vals[10] >= 0 && vals[10] <= 2) g_display_config.spec_type[2] = (uint8_t)vals[10];
-            if (vals[11] >= 0 && vals[11] <= 2) g_display_config.spec_type[3] = (uint8_t)vals[11];
+            if (vals[9] >= 0 && vals[9] <= 2 || vals[9] == WAVE_TYPE_NONE) g_display_config.wave_type[3] = (uint8_t)vals[9];
+            if (vals[10] >= 0 && vals[10] <= 2 || vals[10] == SPEC_TYPE_NONE) g_display_config.spec_type[2] = (uint8_t)vals[10];
+            if (vals[11] >= 0 && vals[11] <= 2 || vals[11] == SPEC_TYPE_NONE) g_display_config.spec_type[3] = (uint8_t)vals[11];
         }
+
         RESP("DISPLAY_CFG_OK,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\r\n",
              (unsigned)g_display_config.wave_ch[0],
              (unsigned)g_display_config.wave_type[0],

@@ -65,13 +65,15 @@ typedef enum {
 typedef enum {
     WAVE_TYPE_RAW      = 0,
     WAVE_TYPE_FILT     = 1,
-    WAVE_TYPE_BASELINE = 2
+    WAVE_TYPE_BASELINE = 2,
+    WAVE_TYPE_NONE     = 0xFF
 } WaveType_t;
 
 typedef enum {
     SPEC_TYPE_RAW          = 0,
     SPEC_TYPE_FREQ_FILTER  = 1,
-    SPEC_TYPE_TIME_FILTER  = 2
+    SPEC_TYPE_TIME_FILTER  = 2,
+    SPEC_TYPE_NONE         = 0xFF
 } SpecType_t;
 
 typedef struct {
@@ -86,6 +88,7 @@ CmdType DisplayConfig_GetSpectrumCmd(uint8_t spec_type, uint8_t ch);
 uint8_t DisplayConfig_NeedsBandpass(uint8_t ch);
 uint8_t DisplayConfig_NeedsRawFFT(uint8_t ch);
 uint8_t DisplayConfig_NeedsFiltFFT(uint8_t ch);
+uint8_t DisplayConfig_IsAllNone(void);
 
 extern DisplayConfig_t g_display_config;
 

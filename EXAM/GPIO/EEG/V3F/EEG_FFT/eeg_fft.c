@@ -331,7 +331,23 @@ uint8_t Process_FFT_Step (void) {
             break;
         }
         uint8_t ch = g_display_config.wave_ch[raw_send_channel];
-
+        int spec_dup = 0;
+        for (int pj = 0; pj < (int)raw_send_channel; pj++) {
+            if (g_display_config.wave_ch[pj] == ch &&
+                g_display_config.spec_type[pj] == SPEC_TYPE_RAW) {
+                spec_dup = 1;
+                break;
+            }
+        }
+        if (spec_dup) {
+            current_send_frag = 0;
+            raw_send_channel++;
+            if (raw_send_channel >= DISPLAY_NUM_CH) {
+                raw_send_channel = 0;
+                fft_step = FFT_STEP_FREQ_FILTER;
+            }
+            break;
+        }
         float *mags = FFT_Data_GetMags(&FFT_Data, ch);
         CmdType cmd = DisplayConfig_GetSpectrumCmd(SPEC_TYPE_RAW, ch);
         Send_Spectrum(cmd, mags, current_send_frag);
@@ -440,7 +456,24 @@ uint8_t Process_FFT_Step (void) {
             break;
         }
         uint8_t ch = g_display_config.wave_ch[raw_send_channel];
-
+        int spec_dup = 0;
+        for (int pj = 0; pj < (int)raw_send_channel; pj++) {
+            if (g_display_config.wave_ch[pj] == ch &&
+                g_display_config.spec_type[pj] == SPEC_TYPE_FREQ_FILTER) {
+                spec_dup = 1;
+                break;
+            }
+        }
+        if (spec_dup) {
+            current_send_frag = 0;
+            raw_send_channel++;
+            if (raw_send_channel >= DISPLAY_NUM_CH) {
+                raw_send_channel = 0;
+                fft_step = FFT_STEP_EXTRACT_FILT_FRAME;
+                proc_channel = 0;
+            }
+            break;
+        }
         float *mags = FFT_Data_GetMags(&FFT_Data, ch);
         CmdType cmd = DisplayConfig_GetSpectrumCmd(SPEC_TYPE_FREQ_FILTER, ch);
         Send_Spectrum(cmd, mags, current_send_frag);
@@ -765,7 +798,23 @@ uint8_t Process_FFT_Step (void) {
             break;
         }
         uint8_t ch = g_display_config.wave_ch[filt_send_channel];
-
+        int spec_dup = 0;
+        for (int pj = 0; pj < (int)filt_send_channel; pj++) {
+            if (g_display_config.wave_ch[pj] == ch &&
+                g_display_config.spec_type[pj] == SPEC_TYPE_TIME_FILTER) {
+                spec_dup = 1;
+                break;
+            }
+        }
+        if (spec_dup) {
+            current_filt_send_frag = 0;
+            filt_send_channel++;
+            if (filt_send_channel >= DISPLAY_NUM_CH) {
+                filt_send_channel = 0;
+                fft_step = FFT_STEP_FINISH;
+            }
+            break;
+        }
         float *mags = FFT_Data_GetMags(&FFT_DataFiltered, ch);
         CmdType cmd = DisplayConfig_GetSpectrumCmd(SPEC_TYPE_TIME_FILTER, ch);
         Send_Spectrum(cmd, mags, current_filt_send_frag);

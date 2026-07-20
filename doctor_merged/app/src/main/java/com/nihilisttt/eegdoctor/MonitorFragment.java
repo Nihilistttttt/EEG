@@ -55,6 +55,8 @@ public class MonitorFragment extends Fragment implements DataListener {
     private float specXMin = 0f;
     private float specXMax = 125f;
 
+    private TcpServerManager.ConnectionListener connectionListener;
+
     private static final String[] CHANNEL_NAMES = EegChannels.NAMES;
     private static final String[] WAVE_TYPE_NAMES = EegChannels.WAVE_TYPE_NAMES;
     private static final String[] SPEC_TYPE_NAMES = EegChannels.SPEC_TYPE_NAMES;
@@ -64,7 +66,6 @@ public class MonitorFragment extends Fragment implements DataListener {
     private int[] specType = {0, 2};
     private int[] waveMode = {0, 0};
 
-    private TcpServerManager.ConnectionListener connectionListener;
 
     public MonitorFragment() {
         this.channels = ChannelConfig.getDefaultDualChannel();
@@ -644,7 +645,8 @@ public class MonitorFragment extends Fragment implements DataListener {
         String cmd = String.format(Locale.US,
                 "DISPLAY_CFG,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
                 waveCh[0], waveType[0], waveCh[1], waveType[1], specType[0], specType[1],
-                waveCh[0], waveType[0], waveCh[1], waveType[1], specType[0], specType[1]);
+                0, EegChannels.WAVE_TYPE_NONE, 0, EegChannels.WAVE_TYPE_NONE,
+                EegChannels.SPEC_TYPE_NONE, EegChannels.SPEC_TYPE_NONE);
         TcpServerManager.getInstance().sendToDevice(cmd);
         Log.i("DisplayConfig", "Sent: " + cmd);
     }

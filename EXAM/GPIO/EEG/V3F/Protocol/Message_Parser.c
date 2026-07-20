@@ -95,6 +95,16 @@ uint8_t DisplayConfig_NeedsFiltFFT(uint8_t ch)
     return 0u;
 }
 
+uint8_t DisplayConfig_IsAllNone(void)
+{
+    uint8_t i;
+    for (i = 0; i < DISPLAY_NUM_CH; i++) {
+        if (g_display_config.wave_type[i] != WAVE_TYPE_NONE) return 0u;
+        if (g_display_config.spec_type[i] != SPEC_TYPE_NONE) return 0u;
+    }
+    return 1u;
+}
+
 static uint8_t payload_buf_debug[SERIAL_DEBUG_RX_BUF_SIZE];
 static uint8_t payload_buf_wifi[SERIAL_WIFI_RX_BUF_SIZE];
 

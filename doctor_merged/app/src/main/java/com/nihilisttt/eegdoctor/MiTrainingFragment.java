@@ -239,6 +239,7 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
         super.onResume();
         DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
+        TcpServerManager.getInstance().sendToDevice(EegChannels.buildAllNoneDisplayConfig());
     }
 
     @Override

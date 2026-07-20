@@ -309,8 +309,11 @@ public class WaveCompareFragment extends Fragment implements DataListener {
 
     private void sendDisplayConfig() {
         String cmd = String.format(java.util.Locale.US,
-                "DISPLAY_CFG,%d,%d,%d,%d,0,0,%d,%d,%d,%d,0,0",
-                ch[0], waveType[0], ch[1], waveType[1], ch[2], waveType[2], ch[3], waveType[3]);
+                "DISPLAY_CFG,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+                ch[0], waveType[0], ch[1], waveType[1],
+                EegChannels.SPEC_TYPE_NONE, EegChannels.SPEC_TYPE_NONE,
+                ch[2], waveType[2], ch[3], waveType[3],
+                EegChannels.SPEC_TYPE_NONE, EegChannels.SPEC_TYPE_NONE);
         TcpServerManager.getInstance().sendToDevice(cmd);
         Log.d("WaveCompare", "Sent: " + cmd);
     }

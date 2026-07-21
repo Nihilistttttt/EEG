@@ -3,10 +3,15 @@ package com.nihilisttt.eegdoctor;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -20,10 +25,15 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.util.List;
 import java.util.Locale;
+import java.util.Random;
 
 public class InferenceFragment extends Fragment implements DataListener {
 
+    private static final int DEFAULT_CYCLE_ROUNDS = 3;
+    private static final int RESULT_TO_NEXT_TARGET_MS = 2000;
+
     private TextView tvDirection;
+    private TextView tvTargetDir;
     private TextView tvConfidence;
     private TextView tvScores;
     private TextView tvStatTotal;
@@ -35,17 +45,23 @@ public class InferenceFragment extends Fragment implements DataListener {
 
     private View btnStartInfer;
     private View btnStopInfer;
-    private View btnVerifyLeft;
-    private View btnVerifyRight;
-    private View btnVerifySkip;
     private View btnExport;
     private View btnClearRecords;
+
+    private Spinner spinnerMode;
+    private Spinner spinnerRounds;
 
     private RecyclerView rvRecords;
     private InferenceRecordAdapter adapter;
 
     private boolean isInferencing = false;
-    private InferenceRecordStore.Record lastResult = null;
+
+    private String currentTarget = null;
+    private boolean targetIsLeft = true;
+    private int cycleCount = 0;
+    private final Random random = new Random();
+    private final Handler targetHandler = new Handler(Looper.getMainLooper());
+    private Runnable nextTargetRunnable = null;
 
     @Nullable
     @Override
@@ -55,6 +71,7 @@ public class InferenceFragment extends Fragment implements DataListener {
         View root = inflater.inflate(R.layout.fragment_inference, container, false);
 
         tvDirection = root.findViewById(R.id.tv_direction);
+        tvTargetDir = root.findViewById(R.id.tv_target_dir);
         tvConfidence = root.findViewById(R.id.tv_confidence);
         tvScores = root.findViewById(R.id.tv_scores);
         tvStatTotal = root.findViewById(R.id.tv_stat_total);
@@ -66,11 +83,34 @@ public class InferenceFragment extends Fragment implements DataListener {
 
         btnStartInfer = root.findViewById(R.id.btn_start_infer);
         btnStopInfer = root.findViewById(R.id.btn_stop_infer);
-        btnVerifyLeft = root.findViewById(R.id.btn_verify_left);
-        btnVerifyRight = root.findViewById(R.id.btn_verify_right);
-        btnVerifySkip = root.findViewById(R.id.btn_verify_skip);
         btnExport = root.findViewById(R.id.btn_export);
         btnClearRecords = root.findViewById(R.id.btn_clear_records);
+
+        spinnerMode = root.findViewById(R.id.spinner_target_mode);
+        spinnerRounds = root.findViewById(R.id.spinner_target_sec);
+
+        ArrayAdapter<String> modeAdapter = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_item, new String[]{"循环", "随机"});
+        modeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerMode.setAdapter(modeAdapter);
+
+        String[] roundOptions = new String[10];
+        for (int i = 0; i < 10; i++) roundOptions[i] = (i + 1) + " 次";
+        ArrayAdapter<String> roundAdapter = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_item, roundOptions);
+        roundAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerRounds.setAdapter(roundAdapter);
+        spinnerRounds.setSelection(DEFAULT_CYCLE_ROUNDS - 1);
+        spinnerRounds.setEnabled(false);
+
+        spinnerMode.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                spinnerRounds.setEnabled(position == 0);
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
 
         rvRecords = root.findViewById(R.id.rv_records);
         adapter = new InferenceRecordAdapter();
@@ -80,10 +120,6 @@ public class InferenceFragment extends Fragment implements DataListener {
         btnStartInfer.setOnClickListener(v -> startInference());
         btnStopInfer.setOnClickListener(v -> stopInference());
 
-        btnVerifyLeft.setOnClickListener(v -> verifyResult("LEFT"));
-        btnVerifyRight.setOnClickListener(v -> verifyResult("RIGHT"));
-        btnVerifySkip.setOnClickListener(v -> skipVerification());
-
         btnExport.setOnClickListener(v -> exportRecords());
         btnClearRecords.setOnClickListener(v -> confirmClearRecords());
 
@@ -91,55 +127,70 @@ public class InferenceFragment extends Fragment implements DataListener {
         return root;
     }
 
+    private boolean isCycleMode() {
+        return spinnerMode != null && spinnerMode.getSelectedItemPosition() == 0;
+    }
+
+    private int getCycleRounds() {
+        if (spinnerRounds == null) return DEFAULT_CYCLE_ROUNDS;
+        return spinnerRounds.getSelectedItemPosition() + 1;
+    }
+
+    private String generateNextTarget() {
+        if (isCycleMode()) {
+            cycleCount++;
+            if (cycleCount > getCycleRounds()) {
+                cycleCount = 1;
+                targetIsLeft = !targetIsLeft;
+            }
+            return targetIsLeft ? "LEFT" : "RIGHT";
+        } else {
+            return random.nextBoolean() ? "LEFT" : "RIGHT";
+        }
+    }
+
+    private void sendTarget(String direction) {
+        currentTarget = direction;
+        boolean isLeft = "LEFT".equals(direction);
+        tvTargetDir.setText(isLeft ? "◀ 左" : "右 ▶");
+        tvTargetDir.setTextColor(ContextCompat.getColor(requireContext(),
+                isLeft ? R.color.direction_left : R.color.direction_right));
+        TcpServerManager.getInstance().sendToPatient("TARGET," + direction);
+    }
+
     private void startInference() {
         if (isInferencing) return;
         isInferencing = true;
-        lastResult = null;
+        currentTarget = null;
+        targetIsLeft = true;
+        cycleCount = 0;
         CommandSender.getInstance().setModeInfer();
         CommandSender.getInstance().startTest();
         btnStartInfer.setEnabled(false);
         btnStopInfer.setEnabled(true);
         tvDirection.setText("← →");
         tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));
+        tvTargetDir.setText("--");
         tvConfidence.setText("置信度: --");
         tvScores.setText("L:-- R:--");
-        updateVerifyButtons();
+
+        String target = generateNextTarget();
+        sendTarget(target);
     }
 
     private void stopInference() {
         isInferencing = false;
-        lastResult = null;
+        currentTarget = null;
+        if (nextTargetRunnable != null) {
+            targetHandler.removeCallbacks(nextTargetRunnable);
+            nextTargetRunnable = null;
+        }
         CommandSender.getInstance().sendCommand("STOP");
         btnStartInfer.setEnabled(true);
         btnStopInfer.setEnabled(false);
         tvDirection.setText("← →");
         tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));
-        updateVerifyButtons();
-    }
-
-    private void verifyResult(String groundTruth) {
-        if (lastResult == null) return;
-        lastResult.groundTruth = groundTruth;
-        lastResult.correct = lastResult.intent.equals(groundTruth);
-        InferenceRecordStore.addRecord(requireContext(), lastResult);
-        lastResult = null;
-        refreshStats();
-        updateVerifyButtons();
-    }
-
-    private void skipVerification() {
-        if (lastResult == null) return;
-        InferenceRecordStore.addRecord(requireContext(), lastResult);
-        lastResult = null;
-        refreshStats();
-        updateVerifyButtons();
-    }
-
-    private void updateVerifyButtons() {
-        boolean hasResult = lastResult != null;
-        btnVerifyLeft.setEnabled(hasResult);
-        btnVerifyRight.setEnabled(hasResult);
-        btnVerifySkip.setEnabled(hasResult);
+        tvTargetDir.setText("--");
     }
 
     private void refreshStats() {
@@ -228,6 +279,10 @@ public class InferenceFragment extends Fragment implements DataListener {
     public void onDestroyView() {
         super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);
+        if (nextTargetRunnable != null) {
+            targetHandler.removeCallbacks(nextTargetRunnable);
+            nextTargetRunnable = null;
+        }
     }
 
     @Override
@@ -240,7 +295,12 @@ public class InferenceFragment extends Fragment implements DataListener {
         rec.scoreLeft = result.getScoreLeft();
         rec.scoreRight = result.getScoreRight();
         rec.confidence = result.getConfidence();
-        lastResult = rec;
+        if (currentTarget != null) {
+            rec.groundTruth = currentTarget;
+            rec.correct = currentTarget.equals(result.getIntent());
+        }
+        InferenceRecordStore.addRecord(requireContext(), rec);
+        refreshStats();
 
         String intent = result.getIntent();
         if ("LEFT".equals(intent)) {
@@ -252,7 +312,16 @@ public class InferenceFragment extends Fragment implements DataListener {
         }
         tvConfidence.setText(String.format(Locale.getDefault(), "置信度: %.1f%%", result.getConfidence() * 100));
         tvScores.setText(String.format(Locale.getDefault(), "L:%.3f R:%.3f", result.getScoreLeft(), result.getScoreRight()));
-        updateVerifyButtons();
+
+        if (isInferencing) {
+            if (nextTargetRunnable != null) targetHandler.removeCallbacks(nextTargetRunnable);
+            nextTargetRunnable = () -> {
+                if (!isInferencing) return;
+                String target = generateNextTarget();
+                sendTarget(target);
+            };
+            targetHandler.postDelayed(nextTargetRunnable, RESULT_TO_NEXT_TARGET_MS);
+        }
     }
 
     @Override

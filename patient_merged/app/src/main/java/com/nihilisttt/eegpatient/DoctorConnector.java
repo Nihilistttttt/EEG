@@ -109,6 +109,7 @@ public class DoctorConnector {
         default void onSsvepStart(int freqIndex) {}
         default void onSsvepStop() {}
         default void onSsvepResult(PatientSsvepResult result) {}
+        default void onTargetDirection(String direction) {}
     }
 
     private DoctorConnector() {}
@@ -762,6 +763,18 @@ public class DoctorConnector {
                 }
                 if (mode == 2) emitPageSwitch(3);
             } catch (NumberFormatException ignored) {}
+            return;
+        }
+
+        if (line.startsWith("TARGET,")) {
+            String dir = line.substring("TARGET,".length()).trim();
+            if ("LEFT".equals(dir) || "RIGHT".equals(dir)) {
+                Log.i(TAG, ">>> D2P TARGET," + dir);
+                for (DataListener listener : listeners) {
+                    try { listener.onTargetDirection(dir); }
+                    catch (Exception e) { Log.w(TAG, "onTargetDirection listener error: " + e.getMessage()); }
+                }
+            }
             return;
         }
 

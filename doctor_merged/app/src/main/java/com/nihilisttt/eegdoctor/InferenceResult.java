@@ -59,9 +59,9 @@ public class InferenceResult {
                     case "dt_ms": r.setDtMs(Integer.parseInt(val)); break;
                     case "win_rows": r.setWinRows(Integer.parseInt(val)); break;
                     case "INTENT": r.setIntent(val); break;
-                    case "S_LEFT": r.setScoreLeft(Float.parseFloat(val)); break;
-                    case "S_RIGHT": r.setScoreRight(Float.parseFloat(val)); break;
-                    case "CONF": r.setConfidence(Float.parseFloat(val)); break;
+                    case "S_LEFT": r.setScoreLeft(Float.parseFloat(val) / 10000.0f); break;
+                    case "S_RIGHT": r.setScoreRight(Float.parseFloat(val) / 10000.0f); break;
+                    case "CONF": r.setConfidence(Float.parseFloat(val) / 10000.0f); break;
                     case "trained": r.setTrained(!val.equals("0")); break;
                 }
             } catch (NumberFormatException ignored) {}

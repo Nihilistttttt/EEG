@@ -1,6 +1,8 @@
 package com.nihilisttt.eegpatient;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -12,7 +14,16 @@ import androidx.fragment.app.Fragment;
 
 public class InferenceFragment extends Fragment implements DoctorConnector.DataListener {
 
-    private TextView tvDirection;
+    private static final int HIDE_DELAY_MS = 1500;
+    private static final int COLOR_CORRECT = 0xFF00C853;
+    private static final int COLOR_WRONG = 0xFFFF1744;
+    private static final int COLOR_DIM = 0xFFFFFFFF;
+
+    private TextView tvTarget;
+    private TextView tvResult;
+    private Handler handler = new Handler(Looper.getMainLooper());
+    private String currentTarget = null;
+    private Runnable hideRunnable = null;
 
     @Nullable
     @Override
@@ -20,8 +31,8 @@ public class InferenceFragment extends Fragment implements DoctorConnector.DataL
                              @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
         View root = inflater.inflate(R.layout.fragment_inference, container, false);
-        tvDirection = root.findViewById(R.id.tv_direction);
-        tvDirection.setText("← →");
+        tvTarget = root.findViewById(R.id.tv_target);
+        tvResult = root.findViewById(R.id.tv_result);
         return root;
     }
 
@@ -36,20 +47,48 @@ public class InferenceFragment extends Fragment implements DoctorConnector.DataL
     public void onDestroyView() {
         super.onDestroyView();
         DoctorConnector.getInstance().removeListener(this);
+        if (hideRunnable != null) handler.removeCallbacks(hideRunnable);
+    }
+
+    @Override
+    public void onTargetDirection(String direction) {
+        if (getActivity() == null || tvTarget == null) return;
+        getActivity().runOnUiThread(() -> {
+            currentTarget = direction;
+            boolean isLeft = "LEFT".equals(direction);
+            tvTarget.setText(isLeft ? "◀" : "▶");
+            tvTarget.setTextColor(COLOR_DIM);
+            tvResult.setText("--");
+            tvResult.setTextColor(COLOR_DIM);
+        });
     }
 
     @Override
     public void onInferenceResult(InferenceResult result) {
-        if (getActivity() == null || tvDirection == null) return;
+        if (getActivity() == null || tvResult == null) return;
         getActivity().runOnUiThread(() -> {
             String intent = result.getIntent();
-            if ("LEFT".equals(intent)) {
-                tvDirection.setText("←");
-                tvDirection.setTextColor(0xFF1565C0);
-            } else if ("RIGHT".equals(intent)) {
-                tvDirection.setText("→");
-                tvDirection.setTextColor(0xFFE65100);
+            boolean isLeft = "LEFT".equals(intent);
+            tvResult.setText(isLeft ? "◀" : "▶");
+
+            if (currentTarget != null) {
+                boolean correct = currentTarget.equals(intent);
+                tvResult.setTextColor(correct ? COLOR_CORRECT : COLOR_WRONG);
+                tvTarget.setTextColor(correct ? COLOR_CORRECT : COLOR_WRONG);
+            } else {
+                tvResult.setTextColor(COLOR_DIM);
             }
+
+            if (hideRunnable != null) handler.removeCallbacks(hideRunnable);
+            hideRunnable = () -> {
+                tvTarget.setText("--");
+                tvTarget.setTextColor(COLOR_DIM);
+                tvResult.setText("--");
+                tvResult.setTextColor(COLOR_DIM);
+                currentTarget = null;
+                hideRunnable = null;
+            };
+            handler.postDelayed(hideRunnable, HIDE_DELAY_MS);
         });
     }
 

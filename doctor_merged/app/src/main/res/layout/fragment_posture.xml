@@ -9,81 +9,77 @@
 
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="wrap_content"
         app:cardElevation="2dp"
         app:cardCornerRadius="12dp"
         app:cardBackgroundColor="@color/surface_low">
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:gravity="center">
+            android:gravity="center"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="当前姿态"
+                android:textSize="14sp"
+                android:textColor="@color/text_secondary" />
 
             <TextView
                 android:id="@+id/tv_posture_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="未知"
-                android:textSize="48sp"
+                android:textSize="36sp"
                 android:textStyle="bold"
                 android:textColor="@color/text_secondary" />
 
             <TextView
-                android:id="@+id/tv_posture_detail"
+                android:id="@+id/tv_turn_count"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="等待数据..."
-                android:textSize="16sp"
-                android:textColor="@color/text_secondary"
-                android:paddingTop="12dp" />
-
-            <TextView
-                android:id="@+id/tv_turn_alert"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textSize="16sp"
-                android:textColor="@color/accent_warning"
-                android:paddingTop="8dp" />
-
-            <TextView
-                android:id="@+id/tv_fall_alert"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textSize="16sp"
-                android:textColor="@color/accent_error"
-                android:paddingTop="4dp" />
+                android:layout_marginTop="4dp"
+                android:text="翻身: 0"
+                android:textSize="14sp"
+                android:textColor="@color/text_secondary" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <LinearLayout
-        android:layout_width="match_parent"
+    <TextView
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingTop="12dp"
-        android:gravity="center">
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="4dp"
+        android:text="事件日志"
+        android:textSize="14sp"
+        android:textColor="@color/text_secondary" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_posture_on"
-            android:layout_width="0dp"
-            android:layout_height="56dp"
-            android:layout_weight="1"
-            android:layout_marginEnd="4dp"
-            android:text="开启监护"
-            android:textSize="16sp" />
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        app:cardElevation="2dp"
+        app:cardCornerRadius="12dp"
+        app:cardBackgroundColor="@color/surface_low">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_posture_off"
-            android:layout_width="0dp"
-            android:layout_height="56dp"
-            android:layout_weight="1"
-            android:layout_marginStart="4dp"
-            android:text="关闭监护"
-            android:textSize="16sp"
-            android:enabled="false" />
-    </LinearLayout>
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true">
+
+            <TextView
+                android:id="@+id/tv_event_log"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="12dp"
+                android:textSize="13sp"
+                android:fontFamily="monospace"
+                android:textColor="@color/text_primary"
+                android:lineSpacingExtra="4dp" />
+        </ScrollView>
+    </com.google.android.material.card.MaterialCardView>
 
 </LinearLayout>

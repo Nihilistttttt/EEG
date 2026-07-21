@@ -158,17 +158,17 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         boolean patientDataConn = tcpServer.isPatientDataConnected();
         boolean patientControlConn = tcpServer.isPatientControlConnected();
         StringBuilder sb = new StringBuilder();
-        if (!devConn) sb.append("采集未连接");
-        if (!patientDataConn) {
-            if (sb.length() > 0) sb.append(" ");
-            sb.append("患者数据未连接");
+        if (devConn) sb.append("采集");
+        if (patientDataConn) {
+            if (sb.length() > 0) sb.append("+");
+            sb.append("患者数据");
         }
-        if (!patientControlConn) {
-            if (sb.length() > 0) sb.append(" ");
-            sb.append("患者控制未连接");
+        if (patientControlConn) {
+            if (sb.length() > 0) sb.append("+");
+            sb.append("患者控制");
         }
-        if (devConn && patientDataConn && patientControlConn) sb.append("已连接");
-        if (tvBar != null) tvBar.setText(sb.toString());
+        String text = sb.length() > 0 ? sb.toString() : "无连接";
+        if (tvBar != null) tvBar.setText(text);
         if (dot != null) {
             int color;
             if (devConn && patientDataConn && patientControlConn) {
@@ -241,24 +241,30 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
     @Override
     public void onPostureState(String posture, int turnCount) {
         runOnUiThread(() -> {
-            if (tvBarPosture != null)
+            if (tvBarPosture != null) {
                 tvBarPosture.setText("姿态:" + postureToChinese(posture) + " 翻身:" + turnCount);
+                tvBarPosture.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+            }
         });
     }
 
     @Override
     public void onTurnEvent(String from, String to) {
         runOnUiThread(() -> {
-            if (tvBarPosture != null)
-                tvBarPosture.setText(postureToChinese(from) + "→" + postureToChinese(to));
+            if (tvBarPosture != null) {
+                tvBarPosture.setText("姿态:" + postureToChinese(to) + " 翻身:" + PostureFragment.getSharedTurnCount());
+                tvBarPosture.setTextColor(ContextCompat.getColor(this, R.color.accent_info));
+            }
         });
     }
 
     @Override
     public void onFallEvent() {
         runOnUiThread(() -> {
-            if (tvBarPosture != null)
-                tvBarPosture.setText("跌倒!");
+            if (tvBarPosture != null) {
+                tvBarPosture.setText("⚠ 坠床!");
+                tvBarPosture.setTextColor(ContextCompat.getColor(this, R.color.accent_error));
+            }
             showSafetyAlertDialog("坠床警报", "患者可能发生坠床，请立即查看！", true);
         });
     }
@@ -266,8 +272,10 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
     @Override
     public void onNoTurnAlert(long durationMin) {
         runOnUiThread(() -> {
-            if (tvBarPosture != null)
+            if (tvBarPosture != null) {
                 tvBarPosture.setText("未翻身:" + durationMin + "分钟");
+                tvBarPosture.setTextColor(ContextCompat.getColor(this, R.color.accent_warning));
+            }
             showSafetyAlertDialog("久未翻身", "患者已 " + durationMin + " 分钟未翻身，请协助翻身。", false);
         });
     }

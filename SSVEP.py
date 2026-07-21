@@ -26,6 +26,7 @@ ESCAPE_XOR = 0x20
 CMD_RAW_WAVE = 0x04
 CMD_FILT_WAVE = 0x10
 CMD_BASELINE_WAVE = 0x11
+ANALYSIS_CMD = CMD_RAW_WAVE
 
 CH_OZ = 0
 CH_O1 = 1
@@ -37,6 +38,11 @@ CH_C3 = 6
 CH_C4 = 7
 
 SSVEP_CHANNEL = CH_O1
+
+CHANNEL_NAMES = {
+    CH_OZ: "Oz", CH_O1: "O1", CH_F3: "F3", CH_F4: "F4",
+    CH_CP3: "CP3", CH_CP4: "CP4", CH_C3: "C3", CH_C4: "C4",
+}
 
 # ============================================================
 # 自动获取默认网关
@@ -197,13 +203,13 @@ def make_fbcca_weights(num_banks):
     return np.array(weights, dtype=float)
 
 
-def generate_reference_signals(freq, sample_rate, n_samples, n_harmonics, band_low, band_high):
+def generate_reference_signals(freq, sample_rate, n_samples, n_harmonics):
     t = np.arange(n_samples) / sample_rate
     refs = []
     nyquist = sample_rate / 2.0
     for h in range(1, n_harmonics + 1):
         harmonic_freq = h * freq
-        if harmonic_freq < band_low or harmonic_freq > band_high or harmonic_freq >= nyquist:
+        if harmonic_freq >= nyquist:
             continue
         refs.append(np.sin(2 * np.pi * harmonic_freq * t))
         refs.append(np.cos(2 * np.pi * harmonic_freq * t))
@@ -212,18 +218,16 @@ def generate_reference_signals(freq, sample_rate, n_samples, n_harmonics, band_l
     return np.array(refs, dtype=float)
 
 
-def get_reference_signals_cached(freq, sample_rate, n_samples, n_harmonics, band_low, band_high):
+def get_reference_signals_cached(freq, sample_rate, n_samples, n_harmonics):
     key = (
         round(float(freq), 6),
         round(float(sample_rate), 6),
         int(n_samples),
         int(n_harmonics),
-        round(float(band_low), 6),
-        round(float(band_high), 6),
     )
     if key in REFERENCE_CACHE:
         return REFERENCE_CACHE[key]
-    reference = generate_reference_signals(freq, sample_rate, n_samples, n_harmonics, band_low, band_high)
+    reference = generate_reference_signals(freq, sample_rate, n_samples, n_harmonics)
     REFERENCE_CACHE[key] = reference
     return reference
 
@@ -396,8 +400,7 @@ def fbcca_predict(eeg_data, target_freqs, sample_rate, n_harmonics, filter_banks
                     sample_rate=sample_rate,
                     n_samples=n_samples,
                     n_harmonics=n_harmonics,
-                    band_low=low_freq,
-                    band_high=high_freq
+
                 )
                 if reference is None:
                     rho = 0.0
@@ -505,13 +508,13 @@ class FrameParser:
     def _process(self):
         cmd = self.payload[0]
         data = self.payload[1:]
-        if cmd in (CMD_RAW_WAVE, CMD_FILT_WAVE, CMD_BASELINE_WAVE):
+        if cmd == ANALYSIS_CMD:
             if len(data) == 5:
                 ch = data[0]
                 val = struct.unpack('<f', data[1:5])[0]
                 if ch == SSVEP_CHANNEL:
                     self.data_queue.put(val * 1000.0)
-            elif len(data) == 9:
+            elif len(data) == 10:
                 chA = data[0]
                 chB = data[1]
                 valA, valB = struct.unpack('<ff', data[2:10])
@@ -520,11 +523,11 @@ class FrameParser:
                 elif chB == SSVEP_CHANNEL:
                     self.data_queue.put(valB * 1000.0)
             elif len(data) == 8:
-                valA, valB = struct.unpack('<ff', data[0:8])
-                if SSVEP_CHANNEL == CH_O1:
-                    self.data_queue.put(valB * 1000.0)
-                else:
-                    self.data_queue.put(valA * 1000.0)
+                val_oz, val_o1 = struct.unpack('<ff', data[0:8])
+                if SSVEP_CHANNEL == CH_OZ:
+                    self.data_queue.put(val_oz * 1000.0)
+                elif SSVEP_CHANNEL == CH_O1:
+                    self.data_queue.put(val_o1 * 1000.0)
 
 
 class DataReceiver(threading.Thread):
@@ -538,6 +541,7 @@ class DataReceiver(threading.Thread):
 
     def run(self):
         while self.running:
+            sock = None
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(1.0)
@@ -633,7 +637,7 @@ def integrated_window(host=None, port=FORWARD_PORT):
     if host is None:
         host = get_default_gateway()
     print(f"无线数据接收目标: {host}:{port}")
-    data_queue = queue.Queue()
+    data_queue = queue.Queue(maxsize=2000)
     receiver = DataReceiver(host, port, data_queue)
     receiver.start()
 
@@ -788,12 +792,32 @@ def integrated_window(host=None, port=FORWARD_PORT):
                 elif event.key == pygame.K_UP:
                     current_freq_index = (current_freq_index - 1) % len(TARGET_FREQS)
                     current_stim_freq = TARGET_FREQS[current_freq_index]
+                    for buf in fbcca_buffers:
+                        buf.clear()
+                    fbcca_since_last_update = 0
+                    current_fbcca_result = None
+                    current_raw_fbcca_result = None
+                    current_fbcca_scores = {}
+                    current_fbcca_ratio = 0.0
+                    current_fbcca_best_score = 0.0
+                    current_fbcca_margin = 0.0
                     VOTE_HISTORY.clear()
+                    start_time = time.perf_counter()
                     print(f"Stim frequency changed to {current_stim_freq} Hz")
                 elif event.key == pygame.K_DOWN:
                     current_freq_index = (current_freq_index + 1) % len(TARGET_FREQS)
                     current_stim_freq = TARGET_FREQS[current_freq_index]
+                    for buf in fbcca_buffers:
+                        buf.clear()
+                    fbcca_since_last_update = 0
+                    current_fbcca_result = None
+                    current_raw_fbcca_result = None
+                    current_fbcca_scores = {}
+                    current_fbcca_ratio = 0.0
+                    current_fbcca_best_score = 0.0
+                    current_fbcca_margin = 0.0
                     VOTE_HISTORY.clear()
+                    start_time = time.perf_counter()
                     print(f"Stim frequency changed to {current_stim_freq} Hz")
 
         # 从无线队列中取出所有波形数据并处理
@@ -855,7 +879,7 @@ def integrated_window(host=None, port=FORWARD_PORT):
             details = [
                 f"比值: {current_fbcca_ratio:.2f}   差值: {current_fbcca_margin:.4f}",
                 f"最高分: {current_fbcca_best_score:.4f}",
-                f"使用通道: O1 (ch{SSVEP_CHANNEL})",
+                f"使用通道: {CHANNEL_NAMES.get(SSVEP_CHANNEL, '?')} (ch{SSVEP_CHANNEL})",
             ]
             score_str = "各频得分: " + " | ".join(f"{f:.2f}:{current_fbcca_scores.get(f,0):.4f}" for f in TARGET_FREQS)
             details.append(score_str)

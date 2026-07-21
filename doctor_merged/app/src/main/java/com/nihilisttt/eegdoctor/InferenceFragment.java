@@ -172,9 +172,9 @@ public class InferenceFragment extends Fragment implements DataListener {
             String ts = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
                     .format(new java.util.Date());
             File file = new File(dir, "inference_" + ts + ".csv");
-            FileOutputStream fos = new FileOutputStream(file);
-            fos.write(csv.getBytes("UTF-8"));
-            fos.close();
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write(csv.getBytes("UTF-8"));
+            }
 
             Intent share = new Intent(Intent.ACTION_SEND);
             share.setType("text/csv");

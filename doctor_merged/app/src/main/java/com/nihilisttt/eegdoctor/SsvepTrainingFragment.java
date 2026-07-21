@@ -302,8 +302,8 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         String cmd = String.format(Locale.US,
                 "DISPLAY_CFG,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
                 EegChannels.CH_O1, EegChannels.WAVE_TYPE_FILT,
-                EegChannels.CH_O1, EegChannels.WAVE_TYPE_FILT,
-                EegChannels.SPEC_TYPE_RAW, EegChannels.SPEC_TYPE_TIME_FILT,
+                EegChannels.CH_OZ, EegChannels.WAVE_TYPE_FILT,
+                EegChannels.SPEC_TYPE_RAW, EegChannels.SPEC_TYPE_RAW,
                 0, EegChannels.WAVE_TYPE_NONE, 0, EegChannels.WAVE_TYPE_NONE,
                 EegChannels.SPEC_TYPE_NONE, EegChannels.SPEC_TYPE_NONE);
         TcpServerManager.getInstance().sendToDevice(cmd);
@@ -327,9 +327,12 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
     @Override
     public void onSpectrumData(int cmd, float[] mags) {
         int ch = EegChannels.spectrumCmdToChannel(cmd);
-        if (ch < 0) return;
-        if (ch == EegChannels.CH_O1 && spectrumO1 != null) spectrumO1.updateSpectrum(mags);
-        if (ch == EegChannels.CH_OZ && spectrumOZ != null) spectrumOZ.updateSpectrum(mags);
+        int specType = EegChannels.spectrumCmdToType(cmd);
+        if (ch < 0 || specType < 0) return;
+        if (ch == EegChannels.CH_O1 && specType == EegChannels.SPEC_TYPE_RAW && spectrumO1 != null)
+            spectrumO1.updateSpectrum(mags);
+        if (ch == EegChannels.CH_OZ && specType == EegChannels.SPEC_TYPE_RAW && spectrumOZ != null)
+            spectrumOZ.updateSpectrum(mags);
     }
 
     private void showYRangeDialog() {

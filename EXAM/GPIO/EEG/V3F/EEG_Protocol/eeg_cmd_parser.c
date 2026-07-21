@@ -259,6 +259,7 @@ void Parse_CommandEx(const char *cmd, const char *source)
             if (vals[11] >= 0 && vals[11] <= 2 || vals[11] == SPEC_TYPE_NONE) g_display_config.spec_type[3] = (uint8_t)vals[11];
         }
 
+        EEG_FFT_ResetSendState();
         RESP("DISPLAY_CFG_OK,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\r\n",
              (unsigned)g_display_config.wave_ch[0],
              (unsigned)g_display_config.wave_type[0],

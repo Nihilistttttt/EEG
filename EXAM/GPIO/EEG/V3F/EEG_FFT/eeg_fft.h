@@ -30,10 +30,10 @@ typedef struct {
     float CH1[FFT_SIZE];
     float CH2[FFT_SIZE];
     float CH3[FFT_SIZE];
-    float CH4[FFT_SIZE];  // ÐÂÔö CP3
-    float CH5[FFT_SIZE];  // ÐÂÔö CP4
-    float CH6[FFT_SIZE];  // ÐÂÔö C3
-    float CH7[FFT_SIZE];  // ÐÂÔö C4
+    float CH4[FFT_SIZE];  // ï¿½ï¿½ï¿½ï¿½ CP3
+    float CH5[FFT_SIZE];  // ï¿½ï¿½ï¿½ï¿½ CP4
+    float CH6[FFT_SIZE];  // ï¿½ï¿½ï¿½ï¿½ C3
+    float CH7[FFT_SIZE];  // ï¿½ï¿½ï¿½ï¿½ C4
     int WriteIdx;
 } RingBuffer_t;
 
@@ -54,10 +54,10 @@ typedef struct {
     float CH1Mags[FFT_SIZE / 2 + 1];
     float CH2Mags[FFT_SIZE / 2 + 1];
     float CH3Mags[FFT_SIZE / 2 + 1];
-    float CH4Mags[FFT_SIZE / 2 + 1];  // ÐÂÔö
-    float CH5Mags[FFT_SIZE / 2 + 1];  // ÐÂÔö
-    float CH6Mags[FFT_SIZE / 2 + 1];  // ÐÂÔö
-    float CH7Mags[FFT_SIZE / 2 + 1];  // ÐÂÔö
+    float CH4Mags[FFT_SIZE / 2 + 1];  // ï¿½ï¿½ï¿½ï¿½
+    float CH5Mags[FFT_SIZE / 2 + 1];  // ï¿½ï¿½ï¿½ï¿½
+    float CH6Mags[FFT_SIZE / 2 + 1];  // ï¿½ï¿½ï¿½ï¿½
+    float CH7Mags[FFT_SIZE / 2 + 1];  // ï¿½ï¿½ï¿½ï¿½
     uint8_t SpectrumHeights[FFT_SIZE / 2 + 1];
 } FFT_Data_t;
 
@@ -97,6 +97,7 @@ uint8_t Process_FFT_Step(void);
 void Process_FFT(void);
 void Update_Waveform(float new_val);
 void EEG_FFT_ResetInferState(void);
+void EEG_FFT_ResetSendState(void);
 
 float *RingBuffer_GetChannel(RingBuffer_t *rb, uint8_t ch);
 float *FFT_Data_GetMags(FFT_Data_t *data, uint8_t ch);

@@ -32,7 +32,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Oz / 通道0 频谱"
+            android:text="Oz 频谱"
             android:textColor="@color/text_secondary"
             android:textStyle="bold"
             android:padding="6dp" />

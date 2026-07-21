@@ -32,8 +32,8 @@ public class FocusChartView extends View {
     private int writeIdx = 0;
     private int pointCount = 0;
 
-    private Paint focusPaint, focusGlowPaint;
-    private Paint relaxPaint, relaxGlowPaint;
+    private Paint focusPaint, focusGlowPaint, focusFillPaint;
+    private Paint relaxPaint, relaxGlowPaint, relaxFillPaint;
     private Lock lock = new ReentrantLock();
 
     private Paint axisPaint, gridPaint, textPaint;
@@ -88,6 +88,16 @@ public class FocusChartView extends View {
         relaxGlowPaint.setAntiAlias(true);
         relaxGlowPaint.setAlpha(35);
         relaxGlowPaint.setStrokeJoin(Paint.Join.ROUND);
+
+        focusFillPaint = new Paint();
+        focusFillPaint.setColor(focusClr);
+        focusFillPaint.setStyle(Paint.Style.FILL);
+        focusFillPaint.setAntiAlias(true);
+
+        relaxFillPaint = new Paint();
+        relaxFillPaint.setColor(relaxClr);
+        relaxFillPaint.setStyle(Paint.Style.FILL);
+        relaxFillPaint.setAntiAlias(true);
 
         axisPaint = new Paint();
         axisPaint.setColor(axisColor);
@@ -211,26 +221,12 @@ public class FocusChartView extends View {
             float windowEnd = latestTime;
             float windowLen = mXMax;
 
-            if (relaxVisible) {
-                Path relaxPath = new Path();
-                boolean first = true;
-                for (int i = 0; i < pointCount; i++) {
-                    int idx = (writeIdx - pointCount + i + MAX_POINTS) % MAX_POINTS;
-                    float val = relaxBuffer[idx];
-                    float t = i / SAMPLE_RATE;
-                    if (t >= windowStart && t <= windowEnd) {
-                        float x = left + ((t - windowStart) / windowLen) * (right - left);
-                        float y = bottom - (val - yMin) * yScale;
-                        if (first) { relaxPath.moveTo(x, y); first = false; }
-                        else { relaxPath.lineTo(x, y); }
-                    } else { first = true; }
-                }
-                canvas.drawPath(relaxPath, relaxGlowPaint);
-                canvas.drawPath(relaxPath, relaxPaint);
-            }
+            Path focusPath = null;
+            Path relaxPath = null;
+            float firstX = 0, lastFocusX = 0, lastRelaxX = 0;
 
             if (focusVisible) {
-                Path focusPath = new Path();
+                focusPath = new Path();
                 boolean first = true;
                 for (int i = 0; i < pointCount; i++) {
                     int idx = (writeIdx - pointCount + i + MAX_POINTS) % MAX_POINTS;
@@ -239,12 +235,82 @@ public class FocusChartView extends View {
                     if (t >= windowStart && t <= windowEnd) {
                         float x = left + ((t - windowStart) / windowLen) * (right - left);
                         float y = bottom - (val - yMin) * yScale;
-                        if (first) { focusPath.moveTo(x, y); first = false; }
+                        if (first) { focusPath.moveTo(x, y); firstX = x; first = false; }
                         else { focusPath.lineTo(x, y); }
+                        lastFocusX = x;
                     } else { first = true; }
                 }
-                canvas.drawPath(focusPath, focusGlowPaint);
-                canvas.drawPath(focusPath, focusPaint);
+            }
+
+            if (relaxVisible) {
+                relaxPath = new Path();
+                boolean first = true;
+                for (int i = 0; i < pointCount; i++) {
+                    int idx = (writeIdx - pointCount + i + MAX_POINTS) % MAX_POINTS;
+                    float val = relaxBuffer[idx];
+                    float t = i / SAMPLE_RATE;
+                    if (t >= windowStart && t <= windowEnd) {
+                        float x = left + ((t - windowStart) / windowLen) * (right - left);
+                        float y = bottom - (val - yMin) * yScale;
+                        if (first) { relaxPath.moveTo(x, y); firstX = x; first = false; }
+                        else { relaxPath.lineTo(x, y); }
+                        lastRelaxX = x;
+                    } else { first = true; }
+                }
+            }
+
+            float focusAvg = 0, relaxAvg = 0;
+            int winCount = 0;
+            for (int i = 0; i < pointCount; i++) {
+                int idx = (writeIdx - pointCount + i + MAX_POINTS) % MAX_POINTS;
+                float t = i / SAMPLE_RATE;
+                if (t >= windowStart && t <= windowEnd) {
+                    focusAvg += focusBuffer[idx];
+                    relaxAvg += relaxBuffer[idx];
+                    winCount++;
+                }
+            }
+            if (winCount > 0) { focusAvg /= winCount; relaxAvg /= winCount; }
+            boolean focusOnTop = focusAvg < relaxAvg;
+
+            if (focusOnTop) {
+                if (relaxPath != null) {
+                    Path fillPath = new Path(relaxPath);
+                    fillPath.lineTo(lastRelaxX, bottom);
+                    fillPath.lineTo(firstX, bottom);
+                    fillPath.close();
+                    canvas.drawPath(fillPath, relaxFillPaint);
+                    canvas.drawPath(relaxPath, relaxGlowPaint);
+                    canvas.drawPath(relaxPath, relaxPaint);
+                }
+                if (focusPath != null) {
+                    Path fillPath = new Path(focusPath);
+                    fillPath.lineTo(lastFocusX, bottom);
+                    fillPath.lineTo(firstX, bottom);
+                    fillPath.close();
+                    canvas.drawPath(fillPath, focusFillPaint);
+                    canvas.drawPath(focusPath, focusGlowPaint);
+                    canvas.drawPath(focusPath, focusPaint);
+                }
+            } else {
+                if (focusPath != null) {
+                    Path fillPath = new Path(focusPath);
+                    fillPath.lineTo(lastFocusX, bottom);
+                    fillPath.lineTo(firstX, bottom);
+                    fillPath.close();
+                    canvas.drawPath(fillPath, focusFillPaint);
+                    canvas.drawPath(focusPath, focusGlowPaint);
+                    canvas.drawPath(focusPath, focusPaint);
+                }
+                if (relaxPath != null) {
+                    Path fillPath = new Path(relaxPath);
+                    fillPath.lineTo(lastRelaxX, bottom);
+                    fillPath.lineTo(firstX, bottom);
+                    fillPath.close();
+                    canvas.drawPath(fillPath, relaxFillPaint);
+                    canvas.drawPath(relaxPath, relaxGlowPaint);
+                    canvas.drawPath(relaxPath, relaxPaint);
+                }
             }
         }
         lock.unlock();

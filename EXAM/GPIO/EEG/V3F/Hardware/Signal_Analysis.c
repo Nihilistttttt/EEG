@@ -13,7 +13,7 @@
 #include "ADS1299.h"
 
 #include "hardware.h"
-
+#include "W25Q64.h"
 #ifdef HAS_ICM42605
 #include "ICM42605.h"
 #include "Timer_1ms.h"
@@ -63,8 +63,20 @@ void Signal_Analysis_Start (void) {
     // Serial_Printf (SERIAL_PORT_DEBUG, "ADS1299_Init start\r\n");
     uint8_t id = ADS1299_Init();
     Serial_Printf (SERIAL_PORT_DEBUG, "ADS1299_Init done, id=%d\r\n", id);
-    OLED_ShowString(SPI,2,0,"ADS1299 id = ");
-    OLED_ShowNum(SPI,2,13,id,2);
+    OLED_ShowString(SPI,3,0,"ADS1299 id = ");
+    OLED_ShowNum(SPI,3,13,id,2);
+
+    
+    W25Q64_Init();   // 不再需要 Flash
+    uint8_t mid;
+    uint16_t did;
+    W25Q64_ReadID(&mid, &did);
+
+    OLED_ShowString(SPI, 1, 0, "MID:");
+    OLED_ShowNum(SPI, 1, 4, mid, 2);    // 如 "0xEF"
+    OLED_ShowString(SPI, 2, 0, "DID:");
+    OLED_ShowNum(SPI, 2, 4, did, 4);    // 如 "0x4018"
+
 #if AB_EXTRACT_PRINT_ENABLE
     Serial_Printf (DIR_TEXT_PORT, "ABCFG,fs=%d,fft=%d,step=%d,alpha=8-13Hz,beta=13-30Hz,drift_k=9960/10000,notch=%d,detrend=%d,power_scale=1e15,pct_scale=10000,db_scale=100\r\n",
                    (int)SAMPLE_RATE, FFT_SIZE, STEP_SIZE, AB_REALTIME_NOTCH_ENABLE, AB_FFT_DETREND_ENABLE);

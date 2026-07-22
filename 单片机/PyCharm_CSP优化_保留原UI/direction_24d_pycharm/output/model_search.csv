@@ -1,2 +1,0 @@
-﻿model,solver,shrinkage,model_feature_dim,trial_cv_balanced_accuracy,trial_cv_pred_right_ratio,tn,fp,fn,tp
-spatial_narrow14_shrinkage_lda,lsqr,auto,14,0.6197404035433071,0.4666666666666667,83,44,53,75

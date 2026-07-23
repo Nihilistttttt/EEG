@@ -32,8 +32,8 @@ static void loadWifiConfig() {
         wifiCfg.count = 1;
         wifiCfg.active_idx = 0;
         memset(wifiCfg.profiles, 0, sizeof(wifiCfg.profiles));
-        strncpy(wifiCfg.profiles[0].ssid, "testttt", 32);
-        strncpy(wifiCfg.profiles[0].password, "12345678", 63);
+        strncpy(wifiCfg.profiles[0].ssid, "jianxin", 32);
+        strncpy(wifiCfg.profiles[0].password, "123456789", 63);
         wifiCfg.profiles[0].valid = 1;
         wifiCfg.profiles[0].is_default = 1;
         wifiCfgDirty = true;

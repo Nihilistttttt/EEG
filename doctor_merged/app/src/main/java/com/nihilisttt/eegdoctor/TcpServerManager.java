@@ -47,6 +47,7 @@ public class TcpServerManager {
     private final UdpSender udpSender = new UdpSender();
     private ServerSocket forwardServerSocket;
     private TcpForwardManager forwardManager;
+    private CloudForwardClient cloudForwardClient = new CloudForwardClient();
 
 
     private ServerSocket doctorToPatientServerSocket;
@@ -242,6 +243,8 @@ public class TcpServerManager {
                 if (running) Log.e("UDP", "Discovery server error", e);
             }
         }).start();
+
+        cloudForwardClient.start();
     }
 
     public void stop() {
@@ -261,6 +264,7 @@ public class TcpServerManager {
         }
         stopPatientControlHeartbeat();
         if (forwardManager != null) forwardManager.stopAll();
+        cloudForwardClient.stop();
 
         udpSender.release();
         stopHeartbeat();
@@ -920,6 +924,10 @@ public class TcpServerManager {
                     forwardManager.broadcast(buf, len);
                 }
 
+                if (cloudForwardClient != null) {
+                    cloudForwardClient.forward(buf, len);
+                }
+
 
                 byte[] poolBuf = bufferPool.poll();
                 if (poolBuf == null) {
@@ -1351,5 +1359,25 @@ public class TcpServerManager {
                 TcpServerManager.this.sendToPatient(line);
             }
         }
+    }
+
+    public void setCloudForwardEnabled(boolean enabled) {
+        if (cloudForwardClient != null) {
+            cloudForwardClient.setEnabled(enabled);
+        }
+    }
+
+    public void setCloudForwardAddress(String ip, int port) {
+        if (cloudForwardClient != null) {
+            cloudForwardClient.setServerAddress(ip, port);
+        }
+    }
+
+    public boolean isCloudForwardConnected() {
+        return cloudForwardClient != null && cloudForwardClient.isConnected();
+    }
+
+    public boolean isCloudForwardEnabled() {
+        return cloudForwardClient != null && cloudForwardClient.isEnabled();
     }
 }

@@ -235,7 +235,7 @@ n_v5p_x=sg7_x+50; n_v5p_y=n_ipc_y+NH+NGAP_Y
 node(n_v5p_x,n_v5p_y,NW,NH,['V5F Preprocess','ProcessPreprocess()','Drift+Notch+Bandpass'],'white',C_ORANGE)
 
 n_v5f_x=sg7_x+50; n_v5f_y=n_v5p_y+NH+NGAP_Y
-node(n_v5f_x,n_v5f_y,NW,NH,['V5F FFT+Feature','ComputeFFTFeature()','24-dim LogRatio'],'white',C_ORANGE)
+node(n_v5f_x,n_v5f_y,NW,NH,['V5F Goertzel+Feature','ComputeFFTFeature()','14-dim SpatialNarrow (24 pad)'],'white',C_ORANGE)
 
 n_v5c_x=sg7_x+50; n_v5c_y=n_v5f_y+NH+NGAP_Y
 node(n_v5c_x,n_v5c_y,NW,NH,['FFT24/CSP Classifier','FFTClassifierRightProb()','CSPRightProbability()'],'white',C_ORANGE)
@@ -432,14 +432,11 @@ notes=[
     ('C3=0.13  C4=0.13', FT_SPEC, C_BLUE),
     ('OZ=0  O1=0 (SSVEP only)', FT_SPEC, C_BLUE),
     ('', FT_SMALL, C_DARK),
-    ('V5F Feature (24-dim)', FT_SUBG, C_NAVY),
-    ('LogRatio(CP3/CP4) x {mu,beta,theta,total}', FT_SPEC, C_ORANGE),
-    ('LogRatio(C3/C4) x {mu,beta,theta,total}', FT_SPEC, C_ORANGE),
-    ('LogRatio(mu/total) x {CP3,CP4,C3,C4}', FT_SPEC, C_ORANGE),
-    ('LogRatio(beta/total) x {CP3,CP4,C3,C4}', FT_SPEC, C_ORANGE),
-    ('LogRatio(beta/mu) x {CP3,CP4,C3,C4}', FT_SPEC, C_ORANGE),
-    ('LogRatio(CP3/C3) x {mu,beta}', FT_SPEC, C_ORANGE),
-    ('LogRatio(CP4/C4) x {mu,beta}', FT_SPEC, C_ORANGE),
+    ('V5F Feature (14-dim effective)', FT_SUBG, C_NAVY),
+    ('Goertzel 7 narrow-band bins', FT_SPEC, C_ORANGE),
+    ('Laplacian: (CP3-C3)/(CP4-C4) x 7', FT_SPEC, C_ORANGE),
+    ('Hemisphere: (CP3+C3)/(CP4+C4) x 7', FT_SPEC, C_ORANGE),
+    ('Protocol: 24-dim (last 10 = 0)', FT_SPEC, C_ORANGE),
     ('', FT_SMALL, C_DARK),
     ('Channel Map (8ch)', FT_SUBG, C_NAVY),
     ('raw_vals[0]=OZ  [1]=O1', FT_SPEC, C_BLUE),
@@ -449,7 +446,7 @@ notes=[
     ('', FT_SMALL, C_DARK),
     ('V5F Filter vs V3F', FT_SUBG, C_NAVY),
     ('Drift+Notch: same algo, same params', FT_SPEC, C_ORANGE),
-    ('V5F FFT24 bandpass: 8Hz HP (2-sec)', FT_SPEC, C_ORANGE),
+    ('V5F FFT24 bandpass: 2-section IIR', FT_SPEC, C_ORANGE),
     ('V5F CSP bandpass: 2-40Hz (same as V3F)', FT_SPEC, C_ORANGE),
     ('V3F bandpass: 2-40Hz (4-sec Butterworth)', FT_SPEC, C_BLUE),
     ('', FT_SMALL, C_DARK),

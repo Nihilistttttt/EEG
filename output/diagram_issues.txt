@@ -1,23 +1,40 @@
 框图与项目实际状态不对应清单
 ==============================
 
-概念性错误
-----------
+概念性错误（描述不准确）
+----------------------
 [✓] V5F Collect Output放在V5F subgraph内 → 已移至sg8"V3F Collect Output"
-[✓] Command Dispatch里写了IPCDIAG — 已移除，改为MODE/TRIAL/STOP/DISPLAY_CFG/MODEL,SET
+[✓] Command Dispatch里写了IPCDIAG — 已移除
 [✓] V3F subgraph标题"时域滤波"太窄 → 改为"V3F 主核 (100MHz)"
+[✓] V5F FFT+Feature → 实际用Goertzel算法，非FFT → 改为"V5F Goertzel+Feature"
+[✓] 24-dim LogRatio → 实际14维有效(7 Laplacian+7半球)，24是协议维度后10维填0 → 改为"14-dim SpatialNarrow (24 pad)"
+[ ] V5F Preprocess单路 → 实际双路: 2-section BP→FFT24特征 | 4-section BP(=V3F)→CSP特征
+[ ] "4-vote Decision" → 实际双层决策: V5F内部Fusion(FFT24:2窗平均/CSP:EMA 0.60+4窗) + V3F外部4-row counting
+[ ] V5F仅用4ch(CP3/CP4/C3/C4)做方向推理，非8ch — 框图未标注V5F通道数
 
 缺失的数据流/功能
 ------------------
-[✓] Python→MCU命令回传路径缺失 — 41003标签改为"41003 CMD↔Data"
+[✓] Python→MCU命令回传路径缺失 — 41003标签改为"41003 CMD<->Data"
 [✓] V5F WFI休眠未体现 — IPC节点+WFI标注已添加
 [✓] V3F本地推理缺失 — 已添加V3F Local Infer节点+Band Power虚线箭头
+[ ] Patient Monitor事件 — Posture→TURN_EVENT/FALL_EVENT/NO_TURN_ALERT，有独立Retry
+[ ] SSVEP训练流 — Doctor→Patient(41004): SSVEP,START/STOP，Patient回STIM_STARTED
+[ ] 41005 UDP发现 — Patient广播EEG_DOCTOR_DISCOVERY，Doctor回复IP
+[ ] 双Ring Buffer — RingBuf(notch后→FFT/方向特征) + RingBufFiltered(BP后→CSP采集)
+[ ] CSP Stream Protocol — CSP_BEGIN→CSP数据帧×256→CSP_END，独立于DIRCSV
+[ ] V5F Result Fusion — V5F内部FFT24(2窗)和CSP(EMA 0.60+4窗)的融合决策
+[ ] W25Q64 SPI Flash — 模型/配置存储
+[ ] OLED — V3F本地状态显示
 
 次要问题
 --------
 [✓] Result Output里写Retry_Store() — 改为"0~10000 integer"
 [✓] Patient App写41005 — 改为仅"41004"
-[✓] ESP8266写"TCP Server" — 改为"WiFi Bridge" / "TCP ↔ UART"
+[✓] ESP8266写"TCP Server" — 改为"WiFi Bridge" / "TCP <-> UART"
+[ ] 命令集不完整 — 缺MODEL,GET/STATUS/IPCDIAG/POSTURE/ACK
+[ ] ESP8266 V2帧WiFi配置下行(0xF0命令)未体现
+[ ] Retry/Ack可靠性层(300ms重试×10次)未体现
+[ ] PING/PONG心跳+状态快照恢复未体现
 
 已修复
 ------
@@ -28,3 +45,7 @@
 [✓] 帧协议 → V3F帧协议
 [✓] 垂直箭头位置对齐间隔中点/等分点
 [✓] 4-vote与Collect位置交换
+[✓] V5F FFT→Goertzel + 24-dim→14-dim SpatialNarrow
+[✓] 所有↔替换为<->
+[✓] RESULT右边等分: 4-vote入1/3, merge出2/3
+[✓] 虚线箭头Z形路由经sg3左边距避开标签

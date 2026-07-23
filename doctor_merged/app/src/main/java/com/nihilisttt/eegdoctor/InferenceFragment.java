@@ -186,7 +186,7 @@ public class InferenceFragment extends Fragment implements DataListener {
             nextTargetRunnable = null;
         }
         CommandSender.getInstance().sendCommand("STOP");
-        btnStartInfer.setEnabled(true);
+        TcpServerManager.getInstance().sendToPatient("TRAIN_STOP");
         btnStopInfer.setEnabled(false);
         tvDirection.setText("← →");
         tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));

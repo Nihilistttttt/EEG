@@ -112,7 +112,10 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
         waitingReadyTrain = false;
         currentState = STATE_IDLE;
         handler.removeCallbacksAndMessages(null);
-        if (wasActive) CommandSender.getInstance().sendCommand("STOP");
+        if (wasActive) {
+            CommandSender.getInstance().sendCommand("STOP");
+            TcpServerManager.getInstance().sendToPatient("TRAIN_STOP");
+        }
         if (updateUi && getView() != null) {
             btnStartTraining.setEnabled(true);
             btnStopTraining.setEnabled(false);

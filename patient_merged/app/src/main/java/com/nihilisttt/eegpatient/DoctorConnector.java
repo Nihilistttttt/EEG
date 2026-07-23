@@ -105,6 +105,7 @@ public class DoctorConnector {
         default void onSsvepStop() {}
         default void onSsvepResult(PatientSsvepResult result) {}
         default void onTargetDirection(String direction) {}
+        default void onTrainStop() {}
     }
 
     private DoctorConnector() {}
@@ -604,6 +605,15 @@ public class DoctorConnector {
                 catch (Exception e) { Log.w(TAG, "onReadyTrain listener error: " + e.getMessage()); }
             }
             emitPageSwitch(2);
+            return;
+        }
+
+        if (line.equals("TRAIN_STOP")) {
+            Log.i(TAG, ">>> D2P TRAIN_STOP");
+            for (DataListener listener : listeners) {
+                try { listener.onTrainStop(); }
+                catch (Exception e) { Log.w(TAG, "onTrainStop listener error: " + e.getMessage()); }
+            }
             return;
         }
 

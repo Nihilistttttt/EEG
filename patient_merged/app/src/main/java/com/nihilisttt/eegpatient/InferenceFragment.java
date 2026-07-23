@@ -92,6 +92,22 @@ public class InferenceFragment extends Fragment implements DoctorConnector.DataL
         });
     }
 
+    @Override
+    public void onTrainStop() {
+        if (getActivity() == null || tvTarget == null) return;
+        getActivity().runOnUiThread(() -> {
+            currentTarget = null;
+            if (hideRunnable != null) {
+                handler.removeCallbacks(hideRunnable);
+                hideRunnable = null;
+            }
+            tvTarget.setText("--");
+            tvTarget.setTextColor(COLOR_DIM);
+            tvResult.setText("--");
+            tvResult.setTextColor(COLOR_DIM);
+        });
+    }
+
     @Override public void onWaveData(int cmd, float ch0, float ch1) {}
     @Override public void onEegFrame(EegFrame frame) {}
     @Override public void onIpcDiag(IpcDiagInfo diag) {}

@@ -34,10 +34,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TcpServerManager {
     private static final int TCP_PORT = 41002;
     private static final int FORWARD_PORT = 41003;
-    private static final int PATIENT_DATA_PORT = 41004;
-    private static final int PATIENT_CMD_PORT = 41005;
-    private static final int DOCTOR_TO_PATIENT_PORT = 41006;
-    private static final int DISCOVERY_PORT = 41007;
+    private static final int DOCTOR_TO_PATIENT_PORT = 41004;
+    private static final int DISCOVERY_PORT = 41005;
     private static final long PATIENT_HEARTBEAT_INTERVAL_MS = 2000L;
     private static final long PATIENT_HEARTBEAT_TIMEOUT_MS = 7000L;
     private static final TcpServerManager INSTANCE = new TcpServerManager();
@@ -49,9 +47,8 @@ public class TcpServerManager {
     private final UdpSender udpSender = new UdpSender();
     private ServerSocket forwardServerSocket;
     private TcpForwardManager forwardManager;
-    private ServerSocket patientDataServerSocket;
-    private TcpForwardManager patientDataManager;
-    private ServerSocket patientCmdServerSocket;
+
+
     private ServerSocket doctorToPatientServerSocket;
     private Socket deviceClient;
     private Socket doctorToPatientClient;
@@ -107,7 +104,7 @@ public class TcpServerManager {
 
     /**
      * 患者端是否已具备可用的医生->患者控制通道。
-     * 不能再用 41004 数据通道代替控制通道，否则会出现“显示已连接但收不到 SSVEP 指令”。
+
      */
     public boolean isPatientConnected() {
         return isPatientControlConnected();
@@ -129,9 +126,6 @@ public class TcpServerManager {
                 && System.currentTimeMillis() - lastPong <= PATIENT_HEARTBEAT_TIMEOUT_MS;
     }
 
-    public boolean isPatientDataConnected() {
-        return patientDataManager != null && patientDataManager.hasClients();
-    }
 
     public static TcpServerManager getInstance() { return INSTANCE; }
 
@@ -179,32 +173,7 @@ public class TcpServerManager {
             } catch (Exception e) { Log.e("TCP", "Forward server error", e); }
         }).start();
 
-        // 启动患者端数据转发服务器
-        patientDataManager = new TcpForwardManager();
-        new Thread(() -> {
-            try {
-                patientDataServerSocket = new ServerSocket(PATIENT_DATA_PORT);
-                Log.i("TCP", "Patient data server started on port " + PATIENT_DATA_PORT);
-                while (running) {
-                    Socket pClient = patientDataServerSocket.accept();
-                    Log.i("TCP", "Patient data client connected: " + pClient.getRemoteSocketAddress());
-                    patientDataManager.addClient(pClient);
-                }
-            } catch (Exception e) { Log.e("TCP", "Patient data server error", e); }
-        }).start();
 
-        // 启动患者端命令接收服务器
-        new Thread(() -> {
-            try {
-                patientCmdServerSocket = new ServerSocket(PATIENT_CMD_PORT);
-                Log.i("TCP", "Patient cmd server started on port " + PATIENT_CMD_PORT);
-                while (running) {
-                    Socket cmdClient = patientCmdServerSocket.accept();
-                    Log.i("TCP", "Patient cmd client connected: " + cmdClient.getRemoteSocketAddress());
-                    new Thread(() -> handlePatientCommand(cmdClient)).start();
-                }
-            } catch (Exception e) { Log.e("TCP", "Patient cmd server error", e); }
-        }).start();
 
         // 启动医生端→患者端专用控制通道服务器。
         // 患者端连接后必须先发送 PATIENT_READY，医生端回 CONTROL_READY，
@@ -279,8 +248,7 @@ public class TcpServerManager {
         running = false;
         try { if (serverSocket != null) serverSocket.close(); } catch (Exception ignored) {}
         try { if (forwardServerSocket != null) forwardServerSocket.close(); } catch (Exception ignored) {}
-        try { if (patientDataServerSocket != null) patientDataServerSocket.close(); } catch (Exception ignored) {}
-        try { if (patientCmdServerSocket != null) patientCmdServerSocket.close(); } catch (Exception ignored) {}
+
         try { if (doctorToPatientServerSocket != null) doctorToPatientServerSocket.close(); } catch (Exception ignored) {}
         try { if (discoverySocket != null) discoverySocket.close(); } catch (Exception ignored) {}
         try { if (deviceClient != null) deviceClient.close(); } catch (Exception ignored) {}
@@ -293,7 +261,7 @@ public class TcpServerManager {
         }
         stopPatientControlHeartbeat();
         if (forwardManager != null) forwardManager.stopAll();
-        if (patientDataManager != null) patientDataManager.stopAll();
+
         udpSender.release();
         stopHeartbeat();
     }
@@ -486,13 +454,7 @@ public class TcpServerManager {
         return FORWARD_PORT;
     }
 
-    public int getPatientDataPort() {
-        return PATIENT_DATA_PORT;
-    }
 
-    public int getPatientCmdPort() {
-        return PATIENT_CMD_PORT;
-    }
 
     public void sendToDevice(String command) {
         if (deviceClient == null || deviceClient.isClosed() || !deviceClient.isConnected()) {
@@ -584,8 +546,8 @@ public class TcpServerManager {
     }
 
     /**
-     * 页面和 SSVEP 控制命令只允许走 41006。
-     * 41004 保持纯数据通道，避免文本命令插入二进制脑电帧后无法解析。
+     * 页面和 SSVEP 控制命令只允许走 41004。
+
      *
      * 该方法只负责将命令加入专用后台发送队列，不在调用线程执行网络 I/O。
      * 因此可以安全地从 Activity/Fragment 的主线程调用。
@@ -985,21 +947,6 @@ public class TcpServerManager {
         }
     }
 
-    private void handlePatientCommand(Socket cmdClient) {
-        try (InputStream in = cmdClient.getInputStream()) {
-            byte[] buf = new byte[256];
-            int len;
-            while ((len = in.read(buf)) != -1) {
-                String cmd = new String(buf, 0, len, "UTF-8").trim();
-                Log.i("TCP", "Patient command received: " + cmd);
-                sendToDevice(cmd);
-            }
-        } catch (Exception e) {
-            Log.e("TCP", "Patient cmd client error", e);
-        } finally {
-            try { cmdClient.close(); } catch (Exception ignored) {}
-        }
-    }
 
     // ---------- 转发管理器（负责广播原始数据）----------
     private class TcpForwardManager {

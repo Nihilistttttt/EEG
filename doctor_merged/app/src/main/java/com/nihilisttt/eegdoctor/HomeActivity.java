@@ -52,6 +52,6 @@ public class HomeActivity extends AppCompatActivity implements TcpServerManager.
 
     @Override
     public void onPatientConnected(boolean connected) {
-        // State is restored by TcpServerManager after the 41006 handshake.
+        // State is restored by TcpServerManager after the 41004 handshake.
     }
 }

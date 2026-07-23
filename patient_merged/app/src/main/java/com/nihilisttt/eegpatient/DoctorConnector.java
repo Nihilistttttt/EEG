@@ -5,7 +5,7 @@ import android.os.Looper;
 import android.util.Log;
 
 import java.io.BufferedReader;
-import java.io.InputStream;
+
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.DatagramPacket;
@@ -14,8 +14,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -28,24 +27,22 @@ import java.util.concurrent.atomic.AtomicLong;
  * 热点部署方式：医生端开启热点并作为 TCP 服务端，患者端连接医生热点后作为 TCP 客户端。
  *
  * 通道职责：
- * 41004：医生端 -> 患者端，原始脑电数据；
- * 41005：患者端 -> 医生端，患者端命令；
- * 41006：医生端 -> 患者端，页面及 SSVEP 控制指令；
- * 41007：UDP 自动发现。
+
+ * 41004：医生端 -> 患者端，页面及 SSVEP 控制指令；
+ * 41005：UDP 自动发现。
  *
  * v0.6.0：
- * 1. 41006 使用 CONTROL_READY 双向握手；
+ * 1. 41004 使用 CONTROL_READY 双向握手；
  * 2. 医生端每 2 秒发送 PING，患者端返回 PONG；
- * 3. 控制线程为永久监督线程，数据连接恢复后会自动重新建立 41006；
+ * 3. 控制线程为永久监督线程，连接恢复后会自动重新建立 41004；
  * 4. 使用连接代次和 Socket 身份校验，旧线程不能覆盖新连接状态。
  */
 public class DoctorConnector {
     private static final String TAG = "PATIENT";
 
-    private static final int DATA_PORT = 41004;
-    private static final int CMD_PORT = 41005;
-    private static final int D2P_CMD_PORT = 41006;
-    private static final int DISCOVERY_PORT = 41007;
+
+    private static final int D2P_CMD_PORT = 41004;
+    private static final int DISCOVERY_PORT = 41005;
 
     private static final int DISCOVERY_TIMEOUT_MS = 5000;
     private static final int CONNECT_TIMEOUT_MS = 4000;
@@ -69,22 +66,20 @@ public class DoctorConnector {
 
     private volatile String doctorIp;
 
-    private Socket dataSocket;
-    private Socket cmdSocket;
+
     private Socket d2pSocket;
-    private OutputStream cmdOutput;
 
     private volatile boolean sessionActive;
     private volatile boolean autoConnecting;
 
-    private volatile boolean dataConnected;
-    private volatile boolean commandConnected;
+
+
     private volatile boolean controlConnected;
     private volatile long currentControlGeneration;
     private volatile long lastControlRxAt;
 
     private volatile boolean lastReportedConnected;
-    private volatile boolean lastReportedDataConnected;
+
     private volatile boolean lastReportedControlConnected;
 
     /** 缓存医生端当前页面及 SSVEP 状态，解决 Fragment 晚注册导致的事件丢失。 */
@@ -132,21 +127,13 @@ public class DoctorConnector {
         if (listener != null) listeners.remove(listener);
     }
 
-    /** 完整连接：数据通道已连接，并且 41006 已完成双向握手。 */
+    /** 完整连接：41004 已完成双向握手。 */
     public boolean isConnected() {
-        return dataConnected && controlConnected;
-    }
-
-    public boolean isDataConnected() {
-        return dataConnected;
+        return controlConnected;
     }
 
     public boolean isControlConnected() {
         return controlConnected;
-    }
-
-    public boolean isCommandConnected() {
-        return commandConnected;
     }
 
     public boolean isSsvepActive() {
@@ -170,13 +157,11 @@ public class DoctorConnector {
 
         new Thread(() -> {
             while (autoConnecting) {
-                if (!dataConnected) {
+                if (doctorIp == null || doctorIp.isEmpty()) {
                     String ip = discoverDoctorIp();
                     if (ip != null && !ip.trim().isEmpty()) {
                         doctorIp = ip.trim();
                         Log.i(TAG, "autoConnect: found doctor hotspot host at " + doctorIp);
-                        doConnectDataSession();
-                        Log.w(TAG, "autoConnect: data session ended, retrying");
                     } else {
                         Log.w(TAG, "autoConnect: discovery failed, retrying");
                     }
@@ -281,47 +266,9 @@ public class DoctorConnector {
         return socket;
     }
 
-    /** 建立 41005、41004；41006 由永久控制监督线程独立维护。 */
-    private void doConnectDataSession() {
-        if (doctorIp == null || doctorIp.isEmpty()) return;
-
-        Socket newCmdSocket = null;
-        Socket newDataSocket = null;
-        try {
-            newCmdSocket = connectSocket(doctorIp, CMD_PORT);
-            newDataSocket = connectSocket(doctorIp, DATA_PORT);
-
-            synchronized (socketLock) {
-                cmdSocket = newCmdSocket;
-                dataSocket = newDataSocket;
-                cmdOutput = newCmdSocket.getOutputStream();
-            }
-
-            commandConnected = true;
-            dataConnected = true;
-            sessionActive = true;
-            Log.i(TAG, "CMD socket OK: " + doctorIp + ":" + CMD_PORT);
-            Log.i(TAG, "DATA socket OK: " + doctorIp + ":" + DATA_PORT);
-            updateReportedConnectionState();
-
-            InputStream input = newDataSocket.getInputStream();
-            FrameParser parser = new FrameParser();
-            byte[] buf = new byte[1024];
-            int len;
-            while (autoConnecting && sessionActive && (len = input.read(buf)) != -1) {
-                for (int i = 0; i < len; i++) parser.parse(buf[i] & 0xFF);
-            }
-            Log.w(TAG, "DATA connection closed by doctor");
-        } catch (Exception e) {
-            Log.e(TAG, "data session error: " + e.getClass().getSimpleName() + ": " + e.getMessage());
-        } finally {
-            endDataSession(newDataSocket, newCmdSocket);
-        }
-    }
-
     /**
-     * 永久 41006 监督线程。它不会因一次控制连接失败而永久退出；
-     * 只要患者仍在自动连接模式且 41004 已恢复，就会持续重连 41006。
+     * 永久 41004 监督线程。它不会因一次控制连接失败而永久退出；
+     * 只要患者仍在自动连接模式且 doctorIp 已知，就会持续重连 41004。
      */
     private void startControlSupervisor() {
         if (!controlSupervisorRunning.compareAndSet(false, true)) return;
@@ -329,7 +276,7 @@ public class DoctorConnector {
         new Thread(() -> {
             try {
                 while (autoConnecting) {
-                    if (!dataConnected || doctorIp == null || doctorIp.isEmpty()) {
+                    if (doctorIp == null || doctorIp.isEmpty()) {
                         sleepQuietly(300);
                         continue;
                     }
@@ -351,7 +298,7 @@ public class DoctorConnector {
             socket.setSoTimeout(CONTROL_READ_TIMEOUT_MS);
 
             synchronized (socketLock) {
-                if (!autoConnecting || !dataConnected) {
+                if (!autoConnecting) {
                     closeQuietly(socket);
                     return;
                 }
@@ -368,7 +315,7 @@ public class DoctorConnector {
 
             BufferedReader reader = new BufferedReader(
                     new InputStreamReader(socket.getInputStream(), "UTF-8"));
-            while (autoConnecting && dataConnected && isCurrentControlSession(socket, generation)) {
+            while (autoConnecting && isCurrentControlSession(socket, generation)) {
                 String line;
                 try {
                     line = reader.readLine();
@@ -387,7 +334,7 @@ public class DoctorConnector {
                 parseD2pCommand(line, socket, generation);
             }
         } catch (Exception e) {
-            if (autoConnecting && dataConnected) {
+            if (autoConnecting) {
                 Log.w(TAG, "D2P session error generation=" + generation + ": "
                         + e.getClass().getSimpleName() + ": " + e.getMessage());
             }
@@ -457,47 +404,9 @@ public class DoctorConnector {
         sessionActive = false;
         invalidateCurrentControlSession("full disconnect");
 
-        Socket localData;
-        Socket localCmd;
-        synchronized (socketLock) {
-            localData = dataSocket;
-            localCmd = cmdSocket;
-            dataSocket = null;
-            cmdSocket = null;
-            cmdOutput = null;
-        }
-        closeQuietly(localData);
-        closeQuietly(localCmd);
-
-        dataConnected = false;
-        commandConnected = false;
         updateReportedConnectionState();
     }
 
-    private void endDataSession(Socket expectedData, Socket expectedCmd) {
-        sessionActive = false;
-
-        boolean clearData = false;
-        synchronized (socketLock) {
-            if (dataSocket == expectedData) {
-                dataSocket = null;
-                clearData = true;
-            }
-            if (cmdSocket == expectedCmd) {
-                cmdSocket = null;
-                cmdOutput = null;
-            }
-        }
-        closeQuietly(expectedData);
-        closeQuietly(expectedCmd);
-
-        if (clearData) {
-            dataConnected = false;
-            commandConnected = false;
-            invalidateCurrentControlSession("data channel ended");
-            updateReportedConnectionState();
-        }
-    }
 
     private void closeQuietly(Socket socket) {
         if (socket == null) return;
@@ -512,26 +421,7 @@ public class DoctorConnector {
         }
     }
 
-    public boolean sendCommand(String cmd) {
-        if (cmd == null || cmd.trim().isEmpty()) return false;
-        OutputStream output;
-        synchronized (socketLock) {
-            output = cmdOutput;
-        }
-        if (output == null || !commandConnected) return false;
-
-        try {
-            output.write((cmd.trim() + "\n").getBytes("UTF-8"));
-            output.flush();
-            return true;
-        } catch (Exception e) {
-            commandConnected = false;
-            Log.e(TAG, "sendCommand failed: " + e.getMessage());
-            return false;
-        }
-    }
-
-    /** Send a patient feedback message over the bidirectional 41006 control socket. */
+    /** Send a patient feedback message over the bidirectional 41004 control socket. */
     public boolean sendControlMessage(String line) {
         if (line == null || line.trim().isEmpty() || !controlConnected) return false;
         final Socket socket;
@@ -563,22 +453,19 @@ public class DoctorConnector {
 
     private void updateReportedConnectionState() {
         boolean ready = isConnected();
-        boolean data = dataConnected;
         boolean control = controlConnected;
         if (ready == lastReportedConnected
-                && data == lastReportedDataConnected
                 && control == lastReportedControlConnected) {
             return;
         }
         lastReportedConnected = ready;
-        lastReportedDataConnected = data;
         lastReportedControlConnected = control;
         notifyConnectionChanged(ready);
     }
 
     private void notifyConnectionChanged(boolean connected) {
         Log.i(TAG, "notifyConnectionChanged: " + connected
-                + ", data=" + dataConnected
+
                 + ", control=" + controlConnected
                 + ", listeners=" + listeners.size());
         for (DataListener listener : listeners) {
@@ -805,142 +692,5 @@ public class DoctorConnector {
         dispatchPageSwitch(page, "DATA_EVENT");
     }
 
-    /** 41004 只解析数据和下位机状态，不再承担 PAGE/SSVEP 控制。 */
-    private class FrameParser {
-        private static final int STATE_HEADER = 0;
-        private static final int STATE_PAYLOAD = 1;
-        private static final int STATE_ESCAPE = 2;
 
-        private int state = STATE_HEADER;
-        private final byte[] payload = new byte[1500];
-        private int payloadLen;
-        private final StringBuilder textLineBuf = new StringBuilder(512);
-
-        void parse(int rawByte) {
-            switch (state) {
-                case STATE_HEADER:
-                    if (rawByte == 0x7E) {
-                        state = STATE_PAYLOAD;
-                        payloadLen = 0;
-                        textLineBuf.setLength(0);
-                    } else if (rawByte == '\n' || rawByte == '\r') {
-                        if (textLineBuf.length() > 0) {
-                            parseTextLine(textLineBuf.toString().trim());
-                            textLineBuf.setLength(0);
-                        }
-                    } else if (rawByte >= 0x20 && rawByte < 0x7F) {
-                        if (textLineBuf.length() < 4096) {
-                            textLineBuf.append((char) rawByte);
-                        } else {
-                            textLineBuf.setLength(0);
-                        }
-                    }
-                    break;
-
-                case STATE_PAYLOAD:
-                    if (rawByte == 0x7D) {
-                        state = STATE_ESCAPE;
-                    } else if (rawByte == 0x7E) {
-                        if (payloadLen >= 1) parseBinaryFrame();
-                        payloadLen = 0;
-                        textLineBuf.setLength(0);
-                        state = STATE_HEADER;
-                    } else if (payloadLen < payload.length) {
-                        payload[payloadLen++] = (byte) rawByte;
-                    } else {
-                        payloadLen = 0;
-                        state = STATE_HEADER;
-                    }
-                    break;
-
-                case STATE_ESCAPE:
-                    if (payloadLen < payload.length) {
-                        payload[payloadLen++] = (byte) (rawByte ^ 0x20);
-                        state = STATE_PAYLOAD;
-                    } else {
-                        payloadLen = 0;
-                        state = STATE_HEADER;
-                    }
-                    break;
-
-                default:
-                    state = STATE_HEADER;
-                    payloadLen = 0;
-                    break;
-            }
-        }
-
-        private void parseBinaryFrame() {
-            int cmd = payload[0] & 0xFF;
-            int loadLen = payloadLen - 1;
-
-            if ((cmd == EegChannels.CMD_WAVE_RAW || cmd == EegChannels.CMD_WAVE_FILT) && loadLen == 8) {
-                ByteBuffer buf = ByteBuffer.wrap(payload, 1, 8).order(ByteOrder.LITTLE_ENDIAN);
-                float ch0 = buf.getFloat();
-                float ch1 = buf.getFloat();
-                for (DataListener listener : listeners) {
-                    listener.onWaveData(cmd, ch0, ch1);
-                }
-            } else if (cmd == 0x05 && loadLen == 18) {
-                ByteBuffer buf = ByteBuffer.wrap(payload, 1, 16).order(ByteOrder.LITTLE_ENDIAN);
-                float a0 = buf.getFloat();
-                float a1 = buf.getFloat();
-                float e0 = buf.getFloat();
-                float e1 = buf.getFloat();
-                int trend = payload[17] & 0xFF;
-                int instant = payload[18] & 0xFF;
-                for (DataListener listener : listeners) {
-                    listener.onFocusData(a0, a1, e0, e1, trend, instant);
-                }
-            }
-        }
-
-        private void parseTextLine(String line) {
-            if (line.isEmpty()) return;
-            Log.d(TAG, "DATA RECV: [" + line + "]");
-
-            if (line.startsWith("DIRCSV,")) {
-                EegFrame frame = EegFrame.fromDirCsv(line);
-                if (frame != null) {
-                    for (DataListener listener : listeners) listener.onEegFrame(frame);
-                }
-            } else if (line.startsWith("RESULT,")) {
-                InferenceResult result = InferenceResult.fromResultLine(line);
-                if (result != null) {
-                    for (DataListener listener : listeners) listener.onInferenceResult(result);
-                }
-                emitPageSwitch(3);
-            } else if (line.startsWith("IPCDIAG,")) {
-                IpcDiagInfo diag = IpcDiagInfo.fromLine(line);
-                if (diag != null) {
-                    for (DataListener listener : listeners) listener.onIpcDiag(diag);
-                }
-            } else if (line.startsWith("TASK,")) {
-                if (line.startsWith("TASK,DONE") || line.startsWith("TASK,STOPPED")) {
-                    for (DataListener listener : listeners) listener.onTaskDone();
-                } else {
-                    java.util.regex.Matcher matcher = java.util.regex.Pattern
-                            .compile("TASK,(LEFT|RIGHT),start")
-                            .matcher(line);
-                    if (matcher.matches()) {
-                        for (DataListener listener : listeners) {
-                            listener.onTaskStart(matcher.group(1));
-                        }
-                        emitPageSwitch(2);
-                    }
-                }
-            } else if (line.equals("READY_TRAIN")) {
-                for (DataListener listener : listeners) listener.onReadyTrain();
-                emitPageSwitch(2);
-            } else if (line.equals("READY_TEST")) {
-                for (DataListener listener : listeners) listener.onReadyTest();
-            } else if (line.startsWith("MODE_SET_OK,")) {
-                try {
-                    int mode = Integer.parseInt(line.substring("MODE_SET_OK,".length()).trim());
-                    for (DataListener listener : listeners) listener.onModeSetOk(mode);
-                    if (mode == 2) emitPageSwitch(3);
-                } catch (NumberFormatException ignored) {}
-            }
-        }
-    }
 }

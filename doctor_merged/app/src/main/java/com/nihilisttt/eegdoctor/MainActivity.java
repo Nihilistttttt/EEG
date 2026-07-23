@@ -106,7 +106,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         tvBarPosture = findViewById(R.id.tv_bar_posture);
         DataDispatcher.getInstance().addListener(this);
 
-        // sendToPatient also records the desired page while 41006 is offline;
+        // sendToPatient also records the desired page while 41004 is offline;
         // the handshake snapshot will replay it after reconnect.
         TcpServerManager.getInstance().sendToPatient("PAGE," + viewPager.getCurrentItem());
     }
@@ -147,7 +147,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
 
     @Override
     public void onPatientConnected(boolean connected) {
-        // 41006 handshake already sends the complete page and SSVEP state snapshot.
+        // 41004 handshake already sends the complete page and SSVEP state snapshot.
         runOnUiThread(this::updateStatusBar);
     }
 
@@ -155,14 +155,9 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         TextView tvBar = findViewById(R.id.tv_status_bar);
         View dot = findViewById(R.id.status_indicator);
         boolean devConn = tcpServer.isDeviceConnected();
-        boolean patientDataConn = tcpServer.isPatientDataConnected();
         boolean patientControlConn = tcpServer.isPatientControlConnected();
         StringBuilder sb = new StringBuilder();
         if (devConn) sb.append("采集");
-        if (patientDataConn) {
-            if (sb.length() > 0) sb.append("+");
-            sb.append("患者数据");
-        }
         if (patientControlConn) {
             if (sb.length() > 0) sb.append("+");
             sb.append("患者控制");
@@ -171,9 +166,9 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         if (tvBar != null) tvBar.setText(text);
         if (dot != null) {
             int color;
-            if (devConn && patientDataConn && patientControlConn) {
+            if (devConn && patientControlConn) {
                 color = ContextCompat.getColor(this, R.color.accent_success);
-            } else if (devConn || patientDataConn || patientControlConn) {
+            } else if (devConn || patientControlConn) {
                 color = ContextCompat.getColor(this, R.color.accent_warning);
             } else {
                 color = ContextCompat.getColor(this, R.color.accent_error);

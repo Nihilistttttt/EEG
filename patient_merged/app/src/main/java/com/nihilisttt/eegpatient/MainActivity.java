@@ -68,19 +68,15 @@ public class MainActivity extends AppCompatActivity implements DoctorConnector.D
 
     private void updateConnectionState(boolean conn) {
         if (statusDot == null || tvConnection == null) return;
-        if (conn) {
-            statusDot.setBackgroundColor(0xFF00C853);
-            tvConnection.setText("数据与控制通道已连接");
-            tvConnection.setTextColor(0xFF00C853);
-        } else {
-            statusDot.setBackgroundColor(0xFFFF5252);
-            if (DoctorConnector.getInstance().isDataConnected()) {
-                tvConnection.setText("数据已连接，等待控制通道");
-            } else {
-                tvConnection.setText("未连接");
-            }
-            tvConnection.setTextColor(0xFF607D8B);
-        }
+         if (conn) {
+             statusDot.setBackgroundColor(0xFF00C853);
+             tvConnection.setText("控制通道已连接");
+             tvConnection.setTextColor(0xFF00C853);
+         } else {
+             statusDot.setBackgroundColor(0xFFFF5252);
+             tvConnection.setText("未连接");
+             tvConnection.setTextColor(0xFF607D8B);
+         }
     }
 
     @Override

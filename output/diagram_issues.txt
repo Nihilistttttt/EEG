@@ -1,0 +1,30 @@
+框图与项目实际状态不对应清单
+==============================
+
+概念性错误
+----------
+[✓] V5F Collect Output放在V5F subgraph内 → 已移至sg8"V3F Collect Output"
+[✓] Command Dispatch里写了IPCDIAG — 已移除，改为MODE/TRIAL/STOP/DISPLAY_CFG/MODEL,SET
+[✓] V3F subgraph标题"时域滤波"太窄 → 改为"V3F 主核 (100MHz)"
+
+缺失的数据流/功能
+------------------
+[✓] Python→MCU命令回传路径缺失 — 41003标签改为"41003 CMD↔Data"
+[✓] V5F WFI休眠未体现 — IPC节点+WFI标注已添加
+[✓] V3F本地推理缺失 — 已添加V3F Local Infer节点+Band Power虚线箭头
+
+次要问题
+--------
+[✓] Result Output里写Retry_Store() — 改为"0~10000 integer"
+[✓] Patient App写41005 — 改为仅"41004"
+[✓] ESP8266写"TCP Server" — 改为"WiFi Bridge" / "TCP ↔ UART"
+
+已修复
+------
+[✓] DataDispatcher → TcpServerManager
+[✓] Python单向箭头 → 双向
+[✓] g_v5f_active箭头从Command Dispatch底部出发（标签改为CMD→V5F）
+[✓] V5F Collect Output移至sg8并添加DIRCSV→merge lane箭头
+[✓] 帧协议 → V3F帧协议
+[✓] 垂直箭头位置对齐间隔中点/等分点
+[✓] 4-vote与Collect位置交换

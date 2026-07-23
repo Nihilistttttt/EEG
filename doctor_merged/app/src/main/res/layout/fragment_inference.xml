@@ -25,105 +25,109 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:gravity="center">
-
-                <TextView
-                    android:id="@+id/tv_direction"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="← →"
-                    android:textSize="72sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/text_secondary" />
-
-                <TextView
-                    android:id="@+id/tv_target_dir"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="目标: --"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/text_secondary" />
-
-                <TextView
-                    android:id="@+id/tv_confidence"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="置信度: --"
-                    android:textSize="13sp"
-                    android:textColor="@color/text_secondary" />
-
-                <TextView
-                    android:id="@+id/tv_scores"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="L:-- R:--"
-                    android:textSize="11sp"
-                    android:textColor="@color/text_secondary" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
 
                 <LinearLayout
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginTop="8dp"
-                    android:paddingHorizontal="16dp">
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center">
 
                     <TextView
+                        android:id="@+id/tv_direction"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="目标模式: "
-                        android:textSize="12sp"
+                        android:text="← →"
+                        android:textSize="56sp"
+                        android:textStyle="bold"
                         android:textColor="@color/text_secondary" />
-
-                    <Spinner
-                        android:id="@+id/spinner_target_mode"
-                        android:layout_width="wrap_content"
-                        android:layout_height="32dp" />
 
                     <TextView
+                        android:id="@+id/tv_target_dir"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        android:text="持续: "
-                        android:textSize="12sp"
+                        android:layout_marginTop="2dp"
+                        android:text="目标: --"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
                         android:textColor="@color/text_secondary" />
 
-                    <Spinner
-                        android:id="@+id/spinner_target_sec"
+                    <TextView
+                        android:id="@+id/tv_confidence"
                         android:layout_width="wrap_content"
-                        android:layout_height="32dp" />
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="置信度: --"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_secondary" />
+
+                    <TextView
+                        android:id="@+id/tv_scores"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="L:-- R:--"
+                        android:textSize="11sp"
+                        android:textColor="@color/text_secondary" />
+
                 </LinearLayout>
 
                 <LinearLayout
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center"
-                    android:layout_marginTop="12dp"
-                    android:paddingHorizontal="16dp">
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:paddingEnd="12dp">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="目标: "
+                            android:textSize="12sp"
+                            android:textColor="@color/text_secondary" />
+
+                        <Spinner
+                            android:id="@+id/spinner_target_mode"
+                            android:layout_width="wrap_content"
+                            android:layout_height="32dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:text="次: "
+                            android:textSize="12sp"
+                            android:textColor="@color/text_secondary" />
+
+                        <Spinner
+                            android:id="@+id/spinner_target_sec"
+                            android:layout_width="wrap_content"
+                            android:layout_height="32dp" />
+                    </LinearLayout>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_start_infer"
                         style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-                        android:layout_width="0dp"
+                        android:layout_width="100dp"
                         android:layout_height="44dp"
-                        android:layout_weight="1"
-                        android:layout_marginEnd="4dp"
+                        android:layout_marginTop="4dp"
                         android:text="开始推理"
                         android:textSize="13sp" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_stop_infer"
                         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:layout_width="0dp"
+                        android:layout_width="100dp"
                         android:layout_height="44dp"
-                        android:layout_weight="1"
-                        android:layout_marginStart="4dp"
+                        android:layout_marginTop="6dp"
                         android:text="停止"
                         android:textSize="13sp"
                         android:enabled="false" />

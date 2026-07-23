@@ -20,6 +20,8 @@ void DualCore_IPC_NotifyFromV3F(void);
 void DualCore_IPC_SendFrameFromV3F(const uint8_t *frame, uint16_t len);
 void DualCore_IPC_SetModelSelect(uint8_t model_select);
 uint8_t DualCore_IPC_GetModelSelect(void);
+void DualCore_IPC_RequestV5FReset(void);
+uint32_t DualCore_IPC_GetLastV5FWfiWake(void);
 void DualCore_V5F_MainLoopProcess(void);
 
 #ifdef __cplusplus

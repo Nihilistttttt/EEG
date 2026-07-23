@@ -66,6 +66,8 @@ static const uint8_t g_v5f_ch_map[DUALCORE_ADS1299_ACTIVE_CH_NUM] = {
 
 #define DUALCORE_FENCE()                __asm volatile ("fence iorw, iorw" ::: "memory")
 
+#define DUALCORE_IPC_CTRL_RESET_DSP     0x01u
+
 typedef struct
 {
     float b0, b1, b2, a1, a2;

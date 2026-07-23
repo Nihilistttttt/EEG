@@ -961,10 +961,18 @@ public class TcpServerManager {
             forwardClients.add(socket);
             try {
                 outputStreams.add(socket.getOutputStream());
-                // 监控客户端断开
                 new Thread(() -> {
                     try {
-                        socket.getInputStream().read(); // 阻塞直到断开
+                        BufferedReader reader = new BufferedReader(
+                                new InputStreamReader(socket.getInputStream(), "UTF-8"));
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            line = line.trim();
+                            if (!line.isEmpty()) {
+                                sendToDevice(line);
+                                Log.i("FWD_CMD", "Python->MCU: " + line);
+                            }
+                        }
                     } catch (IOException ignored) {
                     } finally {
                         removeClient(socket);

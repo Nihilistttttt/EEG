@@ -17,6 +17,7 @@ static volatile uint8_t  g_ipc_v5f_last_frame[DUALCORE_IPC_FRAME_LEN];
 static volatile uint32_t g_ipc_v5f_handler_count = 0;
 static volatile uint8_t  g_ipc_v5f_ack_ready = 0;
 static volatile uint32_t g_ipc_v5f_ack_data = 0;
+volatile uint32_t g_ipc_v5f_wfi_wake_count = 0;
 
 void IPC_CH0_Handler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 
@@ -50,6 +51,11 @@ static void DualCore_V5F_ProcessPreprocess(volatile DualCore_IPC_FrameSlot_t *sl
 {
     uint8_t c;
     uint8_t i;
+
+    if (slot->control_reserved[0] & DUALCORE_IPC_CTRL_RESET_DSP) {
+        DualCore_V5F_DSP_Reset();
+        slot->control_reserved[0] &= ~DUALCORE_IPC_CTRL_RESET_DSP;
+    }
 
     g_ipc_v5f_window_samples++;
     g_v5f_step_count++;
@@ -110,6 +116,8 @@ static void DualCore_V5F_ProcessPreprocess(volatile DualCore_IPC_FrameSlot_t *sl
     slot->v5f_score_right = g_ipc_v5f_score_right;
     slot->v5f_confidence = g_ipc_v5f_confidence;
     slot->v5f_infer_count = g_ipc_v5f_infer_count;
+    slot->control_reserved[1] = 0u;
+    slot->control_reserved[2] = (uint8_t)(g_ipc_v5f_wfi_wake_count & 0xFFu);
 }
 
 void DualCore_V5F_MainLoopProcess(void)
@@ -238,6 +246,7 @@ void IPC_CH0_Handler(void)
 {
     if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit1) != RESET) {
         g_ipc_v5f_handler_count++;
+        g_ipc_v5f_wfi_wake_count++;
         IPC_WriteMSG(IPC_MSG2, g_ipc_v5f_handler_count);
 
         uint32_t addr = IPC_ReadMSG(IPC_MSG0);

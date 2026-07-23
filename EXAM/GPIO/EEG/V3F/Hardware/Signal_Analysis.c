@@ -43,6 +43,7 @@ volatile uint32_t g_icm42605_ms_tick = 0;
 #define AB_FFT_DETREND_ENABLE 1
 
 uint8_t g_eeg_app_mode = EEG_APP_MODE_COLLECT;
+volatile uint8_t g_v5f_active = V5F_ACTIVE_IDLE;
 
 void Signal_Analysis_Start (void) {
     Serial_Init (SERIAL_PORT_DEBUG);
@@ -67,15 +68,15 @@ void Signal_Analysis_Start (void) {
     OLED_ShowNum(SPI,3,13,id,2);
 
     
-    W25Q64_Init();   // ²»ÔÙÐèÒª Flash
+    W25Q64_Init();   // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òª Flash
     uint8_t mid;
     uint16_t did;
     W25Q64_ReadID(&mid, &did);
 
     OLED_ShowString(SPI, 1, 0, "MID:");
-    OLED_ShowNum(SPI, 1, 4, mid, 2);    // Èç "0xEF"
+    OLED_ShowNum(SPI, 1, 4, mid, 2);    // ï¿½ï¿½ "0xEF"
     OLED_ShowString(SPI, 2, 0, "DID:");
-    OLED_ShowNum(SPI, 2, 4, did, 4);    // Èç "0x4018"
+    OLED_ShowNum(SPI, 2, 4, did, 4);    // ï¿½ï¿½ "0x4018"
 
 #if AB_EXTRACT_PRINT_ENABLE
     Serial_Printf (DIR_TEXT_PORT, "ABCFG,fs=%d,fft=%d,step=%d,alpha=8-13Hz,beta=13-30Hz,drift_k=9960/10000,notch=%d,detrend=%d,power_scale=1e15,pct_scale=10000,db_scale=100\r\n",
@@ -162,29 +163,35 @@ void Signal_Analysis_Start (void) {
             ipc_frame_count++;
             if (ipc_frame_count >= DUALCORE_IPC_FRAME_NOTIFY_EVERY_FRAMES) {
                 ipc_frame_count = 0;
-                DualCore_IPC_SendFrameFromV3F (frame_buf, ADS1299_FRAME_BYTE_NUM);
+                if (g_v5f_active != V5F_ACTIVE_IDLE) {
+                    DualCore_IPC_SendFrameFromV3F (frame_buf, ADS1299_FRAME_BYTE_NUM);
+                }
 
                 if (g_ipc_diag_enable) {
                     static uint32_t ipc_diag_count = 0;
                     ipc_diag_count++;
                     if ((ipc_diag_count % 50u) == 0u) {
                         Serial_Printf (SERIAL_PORT_DEBUG,
-                                       "IPCDIAG,ack=%lu,notify=%lu,ok=%lu,bad=%lu,v5fhb=%lu,ENA=%08lX,STS=%08lX,ISR=%08lX\r\n",
+                                       "IPCDIAG,ack=%lu,notify=%lu,ok=%lu,bad=%lu,v5fhb=%lu,wfi=%lu,v5fact=%u,ENA=%08lX,STS=%08lX,ISR=%08lX\r\n",
                                        (unsigned long)DualCore_IPC_GetAckCount(),
                                        (unsigned long)DualCore_IPC_GetNotifyCount(),
                                        (unsigned long)DualCore_IPC_GetParseOKCount(),
                                        (unsigned long)DualCore_IPC_GetParseBadCount(),
                                        (unsigned long)DualCore_IPC_GetV5FHandlerCount(),
+                                       (unsigned long)DualCore_IPC_GetLastV5FWfiWake(),
+                                       (unsigned)g_v5f_active,
                                        (unsigned long)IPC->ENA,
                                        (unsigned long)IPC->STS,
                                        (unsigned long)IPC->ISR);
                         Serial_Printf (SERIAL_PORT_WIFI,
-                                       "IPCDIAG,ack=%lu,notify=%lu,ok=%lu,bad=%lu,v5fhb=%lu,ENA=%08lX,STS=%08lX,ISR=%08lX\r\n",
+                                       "IPCDIAG,ack=%lu,notify=%lu,ok=%lu,bad=%lu,v5fhb=%lu,wfi=%lu,v5fact=%u,ENA=%08lX,STS=%08lX,ISR=%08lX\r\n",
                                        (unsigned long)DualCore_IPC_GetAckCount(),
                                        (unsigned long)DualCore_IPC_GetNotifyCount(),
                                        (unsigned long)DualCore_IPC_GetParseOKCount(),
                                        (unsigned long)DualCore_IPC_GetParseBadCount(),
                                        (unsigned long)DualCore_IPC_GetV5FHandlerCount(),
+                                       (unsigned long)DualCore_IPC_GetLastV5FWfiWake(),
+                                       (unsigned)g_v5f_active,
                                        (unsigned long)IPC->ENA,
                                        (unsigned long)IPC->STS,
                                        (unsigned long)IPC->ISR);

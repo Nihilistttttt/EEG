@@ -9,6 +9,12 @@
 #define EEG_APP_MODE_INFER          2
 #define EEG_APP_MODE_COLLECT_CSP    3
 
+#define V5F_ACTIVE_IDLE             0
+#define V5F_ACTIVE_COLLECT          1
+#define V5F_ACTIVE_INFER            2
+
+extern volatile uint8_t g_v5f_active;
+
 #define DIR_TEXT_PORT               SERIAL_PORT_WIFI
 
 void Signal_Analysis_Start(void);

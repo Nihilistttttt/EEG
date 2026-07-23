@@ -104,6 +104,8 @@ void Parse_CommandEx(const char *cmd, const char *source)
         g_work_mode = WORK_MODE_TRAIN;
         g_trial_state = TRIAL_IDLE;
         g_paused = 0;
+        g_v5f_active = V5F_ACTIVE_COLLECT;
+        DualCore_IPC_RequestV5FReset();
         Direction_ResetRestBaseline();
         if (g_eeg_app_mode == EEG_APP_MODE_COLLECT_CSP) {
             Direction_CSPStreamReset();
@@ -152,6 +154,12 @@ void Parse_CommandEx(const char *cmd, const char *source)
         int mode = atoi(clean_cmd + 9);
         if (mode == EEG_APP_MODE_COLLECT || mode == EEG_APP_MODE_INFER || mode == EEG_APP_MODE_COLLECT_CSP) {
             g_eeg_app_mode = (uint8_t)mode;
+            if (mode == EEG_APP_MODE_INFER) {
+                g_v5f_active = V5F_ACTIVE_INFER;
+                DualCore_IPC_RequestV5FReset();
+            } else {
+                g_v5f_active = V5F_ACTIVE_IDLE;
+            }
             if (mode == EEG_APP_MODE_COLLECT || mode == EEG_APP_MODE_COLLECT_CSP) {
                 g_ipc_diag_enable = 0;
             }
@@ -189,6 +197,8 @@ void Parse_CommandEx(const char *cmd, const char *source)
         g_trial_state = TRIAL_RUNNING;
         g_trial_row_count = 0;
         g_paused = 0;
+        g_v5f_active = V5F_ACTIVE_COLLECT;
+        DualCore_IPC_RequestV5FReset();
         Direction_ResetTaskZero();
         RESP("TASK,%s,start\r\n", (g_trial_label==DIR_LABEL_LEFT)?"LEFT":"RIGHT");
         return;
@@ -198,6 +208,7 @@ void Parse_CommandEx(const char *cmd, const char *source)
         g_trial_state = TRIAL_IDLE;
         g_paused = 0;
         g_eeg_app_mode = EEG_APP_MODE_COLLECT;
+        g_v5f_active = V5F_ACTIVE_IDLE;
         EEG_FFT_ResetInferState();
         Direction_Infer1sReset();
         Direction_CSPStreamReset();

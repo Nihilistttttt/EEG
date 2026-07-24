@@ -24,28 +24,28 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="WiFi 配置"
+                android:text="华为云转发配置"
                 android:textSize="20sp"
                 android:textColor="@color/brand_primary"
                 android:textStyle="bold"
-                android:paddingBottom="16dp" />
+                android:paddingBottom="8dp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="配置ESP8266连接的WiFi热点（采集端将重启连接）"
+                android:text="将数据转发到ESP8266，再上传华为云IoTDA"
                 android:textSize="12sp"
                 android:textColor="@color/text_secondary"
-                android:paddingBottom="12dp" />
+                android:paddingBottom="16dp" />
 
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="SSID"
+                android:hint="ESP8266 IP地址"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
 
                 <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/et_wifi_ssid"
+                    android:id="@+id/et_cloud_ip"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="text"
@@ -56,14 +56,15 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:hint="密码"
+                android:hint="端口（默认8888）"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
 
                 <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/et_wifi_password"
+                    android:id="@+id/et_cloud_port"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="textPassword"
+                    android:inputType="number"
+                    android:text="8888"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -74,35 +75,65 @@
                 android:orientation="horizontal"
                 android:gravity="end">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_wifi_delete"
-                    style="@style/ControlButton"
+                <TextView
+                    android:id="@+id/tv_cloud_status"
                     android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:text="删除"
-                    android:textColor="@color/accent_error"
-                    android:layout_marginEnd="8dp" />
+                    android:layout_height="wrap_content"
+                    android:text="未启用"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary"
+                    android:layout_marginEnd="16dp"
+                    android:layout_gravity="center_vertical" />
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_wifi_add"
+                    android:id="@+id/btn_cloud_enable"
                     style="@style/ControlButton"
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
-                    android:text="添加/修改" />
+                    android:text="启用转发" />
             </LinearLayout>
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginVertical="16dp"
-                android:background="@color/surface_overlay" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="500dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        app:cardElevation="2dp"
+        app:cardCornerRadius="12dp"
+        app:cardBackgroundColor="@color/surface_low">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="24dp">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="默认WiFi不可删除，确保始终可连接"
-                android:textSize="11sp"
-                android:textColor="@color/text_secondary" />
+                android:text="数据链路说明"
+                android:textSize="16sp"
+                android:textColor="@color/brand_primary"
+                android:textStyle="bold"
+                android:paddingBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="板子(MCU) → Android手机 → ESP8266 → 华为云IoTDA"
+                android:textSize="13sp"
+                android:textColor="@color/text_secondary"
+                android:paddingBottom="4dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1. ESP8266需先烧录LLL1.ino并连接WiFi\n2. 输入ESP8266的IP地址（查看串口输出）\n3. 端口默认8888\n4. 点击启用转发，状态变为已连接即成功"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:lineSpacingExtra="4dp" />
 
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>

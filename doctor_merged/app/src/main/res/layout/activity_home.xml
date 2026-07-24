@@ -563,6 +563,18 @@
                         android:textSize="10sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="120dp"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="120dp"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp" />
         </LinearLayout>
 
         <com.google.android.material.card.MaterialCardView

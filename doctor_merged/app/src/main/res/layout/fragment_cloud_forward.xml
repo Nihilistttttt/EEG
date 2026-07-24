@@ -1,145 +1,119 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="@color/surface_base"
-    android:padding="24dp"
-    android:gravity="center">
+    android:fillViewport="true">
 
-    <com.google.android.material.card.MaterialCardView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardElevation="4dp"
-        app:cardCornerRadius="12dp"
-        app:strokeWidth="1dp"
-        app:strokeColor="#E0E0E0"
-        app:cardBackgroundColor="@color/surface_low">
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="华为云转发配置"
+            android:textSize="22sp"
+            android:textColor="@color/brand_primary"
+            android:textStyle="bold"
+            android:paddingBottom="4dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="将数据转发到ESP8266，再上传华为云IoTDA"
+            android:textSize="13sp"
+            android:textColor="@color/text_secondary"
+            android:paddingBottom="16dp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="ESP8266 IP地址"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_cloud_ip"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:textSize="14sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="端口（默认8888）"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_cloud_port"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:text="8888"
+                android:textSize="14sp" />
+        </com.google.android.material.textfield.TextInputLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="24dp">
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal"
+            android:gravity="end">
 
             <TextView
+                android:id="@+id/tv_cloud_status"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="华为云转发配置"
-                android:textSize="20sp"
-                android:textColor="@color/brand_primary"
-                android:textStyle="bold"
-                android:paddingBottom="8dp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="将数据转发到ESP8266，再上传华为云IoTDA"
-                android:textSize="12sp"
-                android:textColor="@color/text_secondary"
-                android:paddingBottom="16dp" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="ESP8266 IP地址"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/et_cloud_ip"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="text"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:hint="端口（默认8888）"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/et_cloud_port"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="number"
-                    android:text="8888"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:orientation="horizontal"
-                android:gravity="end">
-
-                <TextView
-                    android:id="@+id/tv_cloud_status"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="未启用"
-                    android:textSize="12sp"
-                    android:textColor="@color/text_secondary"
-                    android:layout_marginEnd="16dp"
-                    android:layout_gravity="center_vertical" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_cloud_enable"
-                    style="@style/ControlButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:text="启用转发" />
-            </LinearLayout>
-
-        </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
-
-    <com.google.android.material.card.MaterialCardView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        app:cardElevation="4dp"
-        app:cardCornerRadius="12dp"
-        app:strokeWidth="1dp"
-        app:strokeColor="#E0E0E0"
-        app:cardBackgroundColor="@color/surface_low">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="24dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="数据链路说明"
-                android:textSize="16sp"
-                android:textColor="@color/brand_primary"
-                android:textStyle="bold"
-                android:paddingBottom="8dp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="板子(MCU) → Android手机 → ESP8266 → 华为云IoTDA"
+                android:text="未启用"
                 android:textSize="13sp"
                 android:textColor="@color/text_secondary"
-                android:paddingBottom="4dp" />
+                android:layout_marginEnd="16dp"
+                android:layout_gravity="center_vertical" />
 
-            <TextView
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_cloud_enable"
+                style="@style/ControlButton"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="1. ESP8266需先烧录LLL1.ino并连接WiFi\n2. 输入ESP8266的IP地址（查看串口输出）\n3. 端口默认8888\n4. 点击启用转发，状态变为已连接即成功"
-                android:textSize="12sp"
-                android:textColor="@color/text_secondary"
-                android:lineSpacingExtra="4dp" />
-
+                android:layout_height="44dp"
+                android:text="启用转发" />
         </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
 
-</LinearLayout>
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="20dp"
+            android:background="@color/surface_overlay" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="数据链路说明"
+            android:textSize="17sp"
+            android:textColor="@color/brand_primary"
+            android:textStyle="bold"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="板子(MCU) → Android手机 → ESP8266 → 华为云IoTDA"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1. ESP8266需先烧录LLL1.ino并连接WiFi\n2. 输入ESP8266的IP地址（查看串口输出）\n3. 端口默认8888\n4. 点击启用转发，状态变为已连接即成功"
+            android:textSize="13sp"
+            android:textColor="@color/text_secondary"
+            android:lineSpacingExtra="4dp" />
+
+    </LinearLayout>
+</ScrollView>

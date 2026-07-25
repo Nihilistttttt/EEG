@@ -41,8 +41,8 @@ public class SpectrumCompareFragment extends Fragment implements DataListener {
     private float specXMin = 0f;
     private float specXMax = 125f;
 
-    private int[] ch = {4, 4, 5, 5};
-    private int[] specType = {0, 2, 0, 2};
+    private int[] ch = {6, 7, 4, 5};
+    private int[] specType = {0, 0, 0, 0};
     private boolean isPaused = false;
 
     @Nullable
@@ -52,9 +52,9 @@ public class SpectrumCompareFragment extends Fragment implements DataListener {
                              @Nullable Bundle savedInstanceState) {
         View root = inflater.inflate(R.layout.fragment_spectrum_compare, container, false);
 
-        ch[0] = SettingsStore.getScChA(requireContext(), 4);
-        ch[1] = SettingsStore.getScChA(requireContext(), 4);
-        ch[2] = SettingsStore.getScChB(requireContext(), 5);
+        ch[0] = SettingsStore.getScChA(requireContext(), 6);
+        ch[1] = SettingsStore.getScChA(requireContext(), 7);
+        ch[2] = SettingsStore.getScChB(requireContext(), 4);
         ch[3] = SettingsStore.getScChB(requireContext(), 5);
 
         LinearLayout grid = root.findViewById(R.id.grid_container);

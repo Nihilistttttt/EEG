@@ -1,0 +1,175 @@
+EEG项目更新记录
+================
+最后更新: 2026-07-26
+
+================================================================================
+2026-07-26  (未提交)  框图布局优化+Android默认通道/SSVEP改进+V5F_CH_C4修正
+================================================================================
+
+更新内容:
+1. gen_diagram.py框图布局优化:
+   - sg2/sg3/sg4/sg8子图高度缩放(底余量统一30px)
+   - sg6(医患终端)从sg5右侧移至sg5下方，41002箭头改为L形双向
+   - sg7/sg8上移125px(y=870→745)，sg7更名"V5F MI推理"，sg8更名"V3F 决策与输出"
+   - 删除右侧纯文字备注(Focus Weights/Channel Map等7组)
+   - 画布从4200x2100缩至2700x1400，背景改为透明
+   - Ring Buffer双箭头改为等分点(1/3→FFT, 2/3→IPC)
+   - ESP8266底边2箭头等分(1/3→CMD, 2/3→41002)
+   - CMD箭头改为5段Z形路由避开sg6
+2. Android默认通道与显示类型修改:
+   - MonitorFragment: 默认CP3(上)/CP4(下)，原始波形+原始频谱
+   - WaveCompareFragment: 默认C3/C4/CP3/CP4，原始波形
+   - SpectrumCompareFragment: 默认C3/C4/CP3/CP4，原始频谱
+3. SSVEP界面改进:
+   - Y轴默认500uV(原5mV)，X轴默认0-30Hz(原0-45Hz)
+   - 运行中可直接切换频率(原需先暂停)，自动重新prepareSession+下发SSVEP,START
+4. dualcore_ipc_shared.h: V5F_CH_C4从0修正为1，与ADS1299.h中ADS1299_EEG_CH_C4=1一致
+
+意义和必要性:
+- 1: 框图子图边距过大浪费空间，sg6移到sg5下方更符合数据流方向(ESP8266→Doctor)，
+  删除右侧备注避免信息冗余(已融入节点描述)，画布缩小减少空白
+- 2: CP3/CP4是运动想象核心通道，作为默认显示更符合项目定位；
+  原始波形/频谱是调试基础，滤波版本应在确认原始数据正确后再切换
+- 3: SSVEP频谱Y轴500uV更符合脑电信号幅度量级(原5mV过大)，
+  X轴0-30Hz覆盖SSVEP目标频率范围(11-17Hz)，运行中切换频率提升测试效率
+- 4: F4/C4物理通道交换后C4=ch1(非ch0)，V5F_CH_C4=0会导致V5F读取F4数据而非C4
+
+对整体项目的新理解:
+- 框图布局应服务于数据流阅读逻辑，而非简单从左到右平铺
+- Android默认值应面向最常用场景(MI用CP3/CP4/SSVEP用O1)，而非通用(F3/F4)
+- SSVEP测试流程中频率切换是高频操作，强制暂停再切换降低测试效率
+
+================================================================================
+2026-07-24  (未提交)  V5F双路预处理+双层决策框图重构
+================================================================================
+
+更新内容:
+1. sg7从4节点单列线性链重构为5节点双路布局:
+   - IPC Shared Memory (共享)
+   - Drift + Notch (共享，从原Preprocess拆出)
+   - 2-sec BP → Goertzel (FFT24路径，橙色)
+   - 4-sec BP → CSP (CSP路径，青色)
+   - FFT24/CSP + Fusion (合并分类器+Result Fusion)
+2. sg7内部新增4条分支/合并箭头:
+   - Drift+Notch→Goertzel (直接垂直，1/3出)
+   - Drift+Notch→CSP (Z形绕行Goertzel，右边际，2/3出)
+   - Goertzel→Classifier (Z形绕行CSP，左边际，1/3入)
+   - CSP→Classifier (直接垂直，2/3入)
+3. sg8 "4-vote Decision"→"V3F 4-row Decision"(DIR_DECISION_ROWS=4)
+4. Classifier节点增加Result Fusion描述: "FFT24: 2-win / CSP: EMA+4-win"
+5. 右侧注释"V5F Filter vs V3F"→"V5F Dual-Path Preprocess"，列出双路细节
+6. 跨子图箭头变量名更新: n_v5c→n_class, n_v5f→n_fft_path
+
+意义和必要性:
+- 1-2: V5F DSP有两条独立预处理路径(dualcore_v5f_dsp.c:53-72):
+  g_v5f_bandpass_coeff(2-section)→g_v5f_ring→Goertzel特征
+  g_v5f_csp_bandpass_coeff(4-section=V3F)→g_v5f_csp_ring→CSP特征
+  原框图"V5F Preprocess(Drift+Notch+Bandpass)"暗示单路带通，与实际双路不符
+- 3-4: V5F内部有Result Fusion机制(FFT24: 2窗直接平均, CSP: EMA α=0.60+4窗历史)，
+  V3F外部还有DIR_DECISION_ROWS=4的计数决策，原"4-vote Decision"未区分两层
+- 5: 右侧注释需与节点描述同步更新
+
+对整体项目的新理解:
+- V5F双路预处理共享Drift+Notch，但带通滤波器完全不同:
+  FFT24路径用2-section(系数b0=0.936...)，CSP路径用4-section(与V3F完全一致)
+- 两条路径写入不同的ring buffer(g_v5f_ring vs g_v5f_csp_ring)，
+  Goertzel和CSP特征提取各自独立，最终由RunClassifier()按model_select选择
+- Result Fusion是V5F内部的时域平滑，与V3F的4-row counting是两个不同层级的决策
+
+================================================================================
+2026-07-24  c65df0c  V5F Goertzel修正+规范性要求文档+diagram_issues补充
+================================================================================
+
+更新内容:
+1. gen_diagram.py: V5F节点名"V5F FFT+Feature"→"V5F Goertzel+Feature"
+2. gen_diagram.py: 节点第三行"24-dim LogRatio"→"14-dim SpatialNarrow (24 pad)"
+3. gen_diagram.py: 右侧注释V5F Feature描述从7行LogRatio分解改为5行Goertzel+Laplacian+Hemisphere
+4. gen_diagram.py: V5F FFT24 bandpass注释"8Hz HP (2-sec)"→"2-section IIR"
+5. 新增规范性要求.txt: 8大类规范(Git/代码修改/分析要求/MCU/Android/框图/文档/交互)
+6. diagram_issues.txt: 补充新发现项(双路预处理/双层决策/PM事件/SSVEP/UDP发现等)
+
+意义和必要性:
+- 1-4: 框图节点描述与代码实际不符是概念性错误。V5F DSP模块使用Goertzel算法逐bin计算功率(dualcore_v5f_dsp.c:474-528)，不是FFT。函数名ComputeFFTFeature()虽含"FFT"但实现全用Goertzel，框图应反映实际算法而非误导性函数名。14维有效特征(7 Laplacian+7 Hemisphere)后10维填0构成24维协议维度，写"24-dim"会误导为24维均有效。
+- 5: 项目已迭代多次，缺乏统一规范导致反复出现同类问题(如↔不显示、箭头重叠、擅自推送)。规范性要求.txt将散落在对话中的约定固化为可引用文档。
+- 6: 框图与项目一致性审查发现大量缺失/不准确项，需系统记录避免遗漏。
+
+对整体项目的新理解:
+- V5F DSP架构比之前理解的更复杂: 双路独立预处理(2-section BP→FFT24特征 | 4-section BP→CSP特征)，而非单路带通
+- V5F特征提取基于4通道(CP3/CP4/C3/C4)的Laplacian导联(CP3-C3, CP4-C4)和半球功率，不是全8通道
+- V5F内部有Result Fusion机制(FFT24: 2窗平均, CSP: EMA 0.60+4窗历史)，与V3F外部4-row counting构成双层决策
+- 函数命名可能误导: ComputeFFTFeature()实际用Goertzel，需以实现为准而非命名
+
+================================================================================
+2026-07-24  1c9a0b5  框图v8-修复6项与项目实际状态不对应问题
+================================================================================
+
+更新内容:
+1. 41003标签改为"41003 CMD<->Data"体现双向命令+数据流
+2. IPC节点+WFI标注体现V5F休眠机制(g_v5f_active=IDLE时V5F进入__WFI())
+3. sg8新增V3F Local Infer节点+Band Power虚线箭头(替代推理路径)
+4. RESULT Output去掉Retry_Store()改为"0~10000 integer"
+5. Patient App端口从"41004/41005"改为仅"41004"
+6. ESP8266描述从"WiFi Transparent/TCP Server + UART"改为"WiFi Bridge/TCP <-> UART"
+7. 所有↔替换为<->确保ASCII可显示
+8. RESULT右边等分: 4-vote入1/3, merge出2/3
+9. 虚线箭头Z形路由经sg3左边距(x=1000)避开标签
+10. 新增dashed_larrow函数
+11. 新增arrow_rules.txt(10条箭头规则)和diagram_issues.txt(问题清单)
+
+意义和必要性:
+- 1: 41003端口已实现双向(TcpForwardManager)，但框图只标"41003"无法体现Python可回传命令
+- 2: V5F WFI休眠是重要功耗优化机制，g_v5f_active三态(IDLE/COLLECT/INFER)控制V3F是否发IPC帧
+- 3: eeg_direction_infer.c存在V3F本地推理路径(V3F_LOCAL_INFER_ENABLE)，框图完全缺失
+- 4: Retry_Store()是TCP ACK重试，按规范不应作为技术亮点，且描述不准确
+- 5: 41005只是UDP发现通道，不是Patient App的数据通道
+- 6: "TCP Server"描述不准确，ESP8266实际做WiFi-UART双向桥接
+- 7: ↔在FT_ARROW字体下不渲染，必须用ASCII替代
+- 8-9: 遵循箭头规则: 等分点+H/V路由+标签不挡箭头
+
+对整体项目的新理解:
+- V3F本地推理(eeg_direction_infer.c)是独立于V5F的替代路径，使用theta/alpha/beta band power作为输入，与V5F的Goertzel特征提取完全不同
+- V5F休眠机制: V3F不发帧时V5F自然休眠(__WFI)，IPC_CH0中断唤醒，g_v5f_active控制是否发IPC帧
+- ESP8266角色是透明桥接(TCP<->UART)，不做协议解析，所有帧处理在V3F和Android端完成
+
+================================================================================
+2026-07-23  4c16a55  医生端停止训练时发TRAIN_STOP给患者端
+================================================================================
+
+更新内容:
+1. 医生端MiTrainingFragment/TrainingFragment/InferenceFragment停止时发TRAIN_STOP
+2. 患者端DoctorConnector解析TRAIN_STOP命令，DataListener新增onTrainStop回调
+3. 患者端MiTrainingFragment/InferenceFragment处理onTrainStop重置UI
+
+意义和必要性:
+- 根因: TASK,STOPPED被转发给患者端后与TASK,DONE同等处理，导致患者端进入休息阶段无法退出
+- 修复: 医生端主动停止时额外发TRAIN_STOP，患者端收到后重置状态，后续TASK,STOPPED被忽略
+
+对整体项目的新理解:
+- 患者端状态机(MiTrainingFragment)有STATE_IDLE/REST/TRIAL_ACTIVE/MODEL_TRAINING四态，但所有状态转换由医生端命令驱动
+- TASK,STOPPED和TASK,DONE被同等处理是bug根因，说明患者端缺少对"正常完成"和"异常停止"的区分
+- 医生端是控制中枢，患者端是受控端，所有关键状态转换应由医生端显式驱动
+
+================================================================================
+2026-07-22  600b10b  V5F WFI休眠+g_v5f_active三态+推理界面布局优化+框图v6+双向转发
+================================================================================
+
+更新内容:
+1. V5F main循环加__WFI()，IPC中断唤醒，STOP后自动休眠
+2. g_v5f_active三态: IDLE/COLLECT/INFER，控制V3F是否发IPC帧
+3. IPC slot control_reserved[0]传DSP重置信号，[2]传WFI唤醒计数
+4. MODE,TRAIN/TRIAL开始时激活V5F+请求DSP重置，STOP时去激活
+5. TcpForwardManager改为双向: Python通过41003发命令→Doctor转发MCU
+6. 推理界面spinners移到按钮列顶部，与开始/停止平行
+7. 框图v6: Frame Protocol独立列+三路合并箭头+箭头规则修复
+8. exercise_Data_无线.py CMD_PORT改为41003
+
+意义和必要性:
+- 1-4: V5F在IDLE模式下持续处理IPC帧浪费功耗，WFI休眠+三态控制实现按需唤醒
+- 5: Python训练脚本需要通过Doctor向MCU发命令(如MODE,TRAIN)，原41003只转发MCU数据到Python
+- 6: 推理界面布局优化，spinners与按钮平行更符合操作流程
+- 7-8: 框图重构为更准确的系统架构表示
+
+对整体项目的新理解:
+- V5F休眠不是简单的sleep，而是__WFI()等待IPC中断，V3F通过g_v5f_active控制是否发帧来间接控制V5F唤醒
+- IPC slot的control_reserved字段可用于V3F→V5F传递控制信号(DSP重置、唤醒计数)，无需额外通信通道
+- Python与MCU的命令通道必须经过Doctor中转(41003→41002)，不能直连MCU

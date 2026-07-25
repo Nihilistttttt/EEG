@@ -8,8 +8,8 @@ EEG System Block Diagram v6
 """
 from PIL import Image, ImageDraw, ImageFont
 
-W, H = 4200, 2100
-img = Image.new('RGB', (W, H), '#FAFAFA')
+W, H = 2700, 1400
+img = Image.new('RGBA', (W, H), (0,0,0,0))
 draw = ImageDraw.Draw(img)
 
 fp = 'C:/Windows/Fonts/msyh.ttc'
@@ -33,7 +33,7 @@ def subgraph(x,y,w,h,title,color=BG_GRAY,outline=C_GRAY):
     rrect(x,y,x+w,y+h,fill=color,outline=outline,lw=2,r=14)
     bbox=draw.textbbox((0,0),title,font=FT_SUBG)
     tw=bbox[2]-bbox[0]+20; th=bbox[3]-bbox[1]+10
-    rrect(x+12,y-th//2,x+12+tw,y+th//2,fill='#FAFAFA',outline=outline,lw=1,r=6)
+    rrect(x+12,y-th//2,x+12+tw,y+th//2,fill='white',outline=outline,lw=1,r=6)
     draw.text((x+12+tw//2,y),title,font=FT_SUBG,fill=outline,anchor='mm')
 
 def node(x,y,w,h,lines,fill='white',outline=C_DARK,lw=2):
@@ -116,7 +116,7 @@ node(n_icm_x,n_icm_y,NW,NH,['ICM-42605','6-axis IMU','SPI2'],'white',C_NAVY)
 # ============================================================
 # Subgraph 2: V3F 时域滤波
 # ============================================================
-sg2_x=530; sg2_y=80; sg2_w=380; sg2_h=730
+sg2_x=530; sg2_y=80; sg2_w=380; sg2_h=615
 subgraph(sg2_x,sg2_y,sg2_w,sg2_h,'V3F \u4E3B\u6838 (100MHz)',BG_BLUE,C_BLUE)
 
 n_drift_x=sg2_x+50; n_drift_y=sg2_y+50
@@ -142,7 +142,7 @@ for (y_from, y_to) in [(n_drift_y,n_notch_y),(n_notch_y,n_bp_y),(n_bp_y,n_ring_y
 # ============================================================
 # Subgraph 3: V3F 频域分析
 # ============================================================
-sg3_x=1010; sg3_y=80; sg3_w=380; sg3_h=580
+sg3_x=1010; sg3_y=80; sg3_w=380; sg3_h=495
 subgraph(sg3_x,sg3_y,sg3_w,sg3_h,'V3F 频域分析',BG_GREEN,C_GREEN)
 
 n_fft_x=sg3_x+50; n_fft_y=sg3_y+50
@@ -165,7 +165,7 @@ for (y_from, y_to) in [(n_fft_y,n_band_y),(n_band_y,n_att_y),(n_att_y,n_send_y)]
 # ============================================================
 # Subgraph 4: Frame Protocol (standalone column)
 # ============================================================
-sg4_x=1490; sg4_y=80; sg4_w=380; sg4_h=730
+sg4_x=1490; sg4_y=80; sg4_w=380; sg4_h=505
 subgraph(sg4_x,sg4_y,sg4_w,sg4_h,'V3F\u5E27\u534F\u8BAE',BG_TEAL,C_TEAL)
 
 n_pack_x=sg4_x+50; n_pack_y=sg4_y+50
@@ -197,9 +197,9 @@ n_esp_x=sg5_x+50; n_esp_y=sg5_y+50
 node(n_esp_x,n_esp_y,NW,NH,['ESP8266','WiFi Bridge','TCP <-> UART'],'white',C_TEAL)
 
 # ============================================================
-# Subgraph 6: 医患终端
+# Subgraph 6: 医患终端 (below 数据传输)
 # ============================================================
-sg6_x=2450; sg6_y=80; sg6_w=780; sg6_h=580
+sg6_x=1970; sg6_y=330; sg6_w=660; sg6_h=385
 subgraph(sg6_x,sg6_y,sg6_w,sg6_h,'医患终端',BG_GREEN,C_GREEN)
 
 n_doc_x=sg6_x+30; n_doc_y=sg6_y+50
@@ -223,41 +223,69 @@ h_biarrow(n_dd_x+NW,n_dd_y+NH//2,n_pat_x,n_pat_y+NH//2,C_ORANGE,3)
 label_at((n_dd_x+NW+n_pat_x)//2,n_dd_y+NH//2-20,'41004',C_ORANGE)
 
 # ============================================================
-# Subgraph 7: V5F 方向推理 (below V3F时域)
+# Subgraph 7: V5F MI推理 (below V3F时域)
 # ============================================================
-sg7_x=530; sg7_y=870; sg7_w=380; sg7_h=580
-subgraph(sg7_x,sg7_y,sg7_w,sg7_h,'V5F \u65B9\u5411\u63A8\u7406 (400MHz)',BG_ORANGE,C_ORANGE)
+sg7_x=530; sg7_y=745; sg7_w=380; sg7_h=580
+subgraph(sg7_x,sg7_y,sg7_w,sg7_h,'V5F MI\u63A8\u7406 (400MHz)',BG_ORANGE,C_ORANGE)
+
+NH2=80; NGAP2=20
 
 n_ipc_x=sg7_x+50; n_ipc_y=sg7_y+50
 node(n_ipc_x,n_ipc_y,NW,NH,['IPC Shared Memory','SendFrameFromV3F()','WFI when g_v5f_active=IDLE'],BG_PURPLE,C_PURPLE)
 
-n_v5p_x=sg7_x+50; n_v5p_y=n_ipc_y+NH+NGAP_Y
-node(n_v5p_x,n_v5p_y,NW,NH,['V5F Preprocess','ProcessPreprocess()','Drift+Notch+Bandpass'],'white',C_ORANGE)
+n_v5drift_x=sg7_x+50; n_v5drift_y=n_ipc_y+NH+NGAP2
+node(n_v5drift_x,n_v5drift_y,NW,NH2,['Drift + Notch','RemoveRealtimeDrift()','2-section IIR Notch'],'white',C_ORANGE)
 
-n_v5f_x=sg7_x+50; n_v5f_y=n_v5p_y+NH+NGAP_Y
-node(n_v5f_x,n_v5f_y,NW,NH,['V5F Goertzel+Feature','ComputeFFTFeature()','14-dim SpatialNarrow (24 pad)'],'white',C_ORANGE)
+n_fft_path_x=sg7_x+50; n_fft_path_y=n_v5drift_y+NH2+NGAP2
+node(n_fft_path_x,n_fft_path_y,NW,NH2,['2-sec BP \u2192 Goertzel','ComputeFFTFeature()','14-dim SpatialNarrow (24 pad)'],'white',C_ORANGE)
 
-n_v5c_x=sg7_x+50; n_v5c_y=n_v5f_y+NH+NGAP_Y
-node(n_v5c_x,n_v5c_y,NW,NH,['FFT24/CSP Classifier','FFTClassifierRightProb()','CSPRightProbability()'],'white',C_ORANGE)
+n_csp_path_x=sg7_x+50; n_csp_path_y=n_fft_path_y+NH2+NGAP2
+node(n_csp_path_x,n_csp_path_y,NW,NH2,['4-sec BP \u2192 CSP','CSPRightProbability()','4-dim log-variance'],BG_TEAL,C_TEAL)
 
-for (y_from, y_to) in [(n_ipc_y,n_v5p_y),(n_v5p_y,n_v5f_y),(n_v5f_y,n_v5c_y)]:
-    cx=sg7_x+50+NW//2
-    draw.line([(cx,y_from+NH),(cx,y_to)],fill=C_ORANGE,width=2)
-    draw.polygon([(cx,y_to),(cx-5,y_to-10),(cx+5,y_to-10)],fill=C_ORANGE)
+n_class_x=sg7_x+50; n_class_y=n_csp_path_y+NH2+NGAP2
+node(n_class_x,n_class_y,NW,NH2,['FFT24/CSP + Fusion','Model select + Result Fusion','FFT24: 2-win / CSP: EMA+4-win'],'white',C_ORANGE)
 
-draw.text((sg7_x+50+NW//2,n_v5c_y+NH+15),'WFI when g_v5f_active=IDLE',font=FT_SMALL,fill=C_ORANGE,anchor='mt')
+# IPC -> Drift+Notch (vertical)
+draw.line([(sg7_x+50+NW//2,n_ipc_y+NH),(sg7_x+50+NW//2,n_v5drift_y)],fill=C_ORANGE,width=2)
+draw.polygon([(sg7_x+50+NW//2,n_v5drift_y),(sg7_x+50+NW//2-5,n_v5drift_y-10),(sg7_x+50+NW//2+5,n_v5drift_y-10)],fill=C_ORANGE)
+
+# Drift+Notch -> 2-sec BP+Goertzel (direct vertical, midpoint)
+draw.line([(n_v5drift_x+NW//2,n_v5drift_y+NH2),(n_fft_path_x+NW//2,n_fft_path_y)],fill=C_ORANGE,width=2)
+draw.polygon([(n_fft_path_x+NW//2,n_fft_path_y),(n_fft_path_x+NW//2-5,n_fft_path_y-10),(n_fft_path_x+NW//2+5,n_fft_path_y-10)],fill=C_ORANGE)
+
+# Drift+Notch -> 4-sec BP+CSP (Z-shape around Goertzel, via right margin)
+#     Exits Drift+Notch right midpoint, enters CSP right midpoint
+branch_route_x=n_v5drift_x+NW+20
+larrow([(n_v5drift_x+NW,n_v5drift_y+NH2//2),
+        (branch_route_x,n_v5drift_y+NH2//2),
+        (branch_route_x,n_csp_path_y+NH2//2),
+        (n_csp_path_x+NW,n_csp_path_y+NH2//2)],C_TEAL,2)
+
+# 2-sec BP+Goertzel -> Classifier (Z-shape around CSP, via left margin)
+#     Exits Goertzel left midpoint, enters Classifier left midpoint
+merge_route_x=sg7_x+10
+larrow([(n_fft_path_x,n_fft_path_y+NH2//2),
+        (merge_route_x,n_fft_path_y+NH2//2),
+        (merge_route_x,n_class_y+NH2//2),
+        (n_class_x,n_class_y+NH2//2)],C_ORANGE,2)
+
+# 4-sec BP+CSP -> Classifier (direct vertical, midpoint)
+draw.line([(n_csp_path_x+NW//2,n_csp_path_y+NH2),(n_class_x+NW//2,n_class_y)],fill=C_TEAL,width=2)
+draw.polygon([(n_class_x+NW//2,n_class_y),(n_class_x+NW//2-5,n_class_y-10),(n_class_x+NW//2+5,n_class_y-10)],fill=C_TEAL)
+
+draw.text((sg7_x+50+NW//2,n_class_y+NH2+15),'WFI when g_v5f_active=IDLE',font=FT_SMALL,fill=C_ORANGE,anchor='mt')
 
 # ============================================================
-# Subgraph 8: 结果输出 (below V3F频域)
+# Subgraph 8: 决策与输出 (below V3F频域)
 # ============================================================
-sg8_x=1010; sg8_y=870; sg8_w=380; sg8_h=580
-subgraph(sg8_x,sg8_y,sg8_w,sg8_h,'V3F \u7ED3\u679C\u8F93\u51FA',BG_ORANGE,C_ORANGE)
+sg8_x=1010; sg8_y=745; sg8_w=380; sg8_h=495
+subgraph(sg8_x,sg8_y,sg8_w,sg8_h,'V3F \u51B3\u7B56\u4E0E\u8F93\u51FA',BG_ORANGE,C_ORANGE)
 
 n_collect_x=sg8_x+50; n_collect_y=sg8_y+50
 node(n_collect_x,n_collect_y,NW,NH,['V3F Collect Output','AutoCollectProcess()','CopyLastV5FFeature()\u2192DIRCSV'],BG_TEAL,C_TEAL)
 
 n_vote_x=sg8_x+50; n_vote_y=n_collect_y+NH+NGAP_Y
-node(n_vote_x,n_vote_y,NW,NH,['4-vote Decision','2s window','4 consecutive inferences'],'white',C_ORANGE)
+node(n_vote_x,n_vote_y,NW,NH,['V3F 4-row Decision','DIR_DECISION_ROWS=4','consecutive inference counting'],'white',C_ORANGE)
 
 n_local_x=sg8_x+50; n_local_y=n_vote_y+NH+NGAP_Y
 node(n_local_x,n_local_y,NW,NH,['V3F Local Infer','Direction_Model_Infer()','V3F_LOCAL_INFER_ENABLE'],BG_GREEN,C_GREEN)
@@ -302,41 +330,43 @@ larrow([(n_icm_x+NW, n_icm_y+NH//2),
 label_at(icm_route_x-30, (n_icm_y+NH//2+n_posture_y+NH//2)//2, 'SPI2', C_GREEN)
 
 # 3. RingBuf -> FFT (L-shape: right, up, right)
-#    Exits RingBuf right midpoint, enters FFT left midpoint
+#    Exits RingBuf right 1/3, enters FFT left midpoint
 ring_route_x = (sg2_x + sg2_w + sg3_x) // 2
-larrow([(n_ring_x+NW, n_ring_y+NH//2),
-        (ring_route_x, n_ring_y+NH//2),
+ring_ry1 = n_ring_y + NH // 3
+larrow([(n_ring_x+NW, ring_ry1),
+        (ring_route_x, ring_ry1),
         (ring_route_x, n_fft_y+NH//2),
         (n_fft_x, n_fft_y+NH//2)], C_GREEN, 3)
-label_at(ring_route_x-35, (n_ring_y+NH//2+n_fft_y+NH//2)//2, '256 samples', C_GREEN)
+label_at(ring_route_x-35, (ring_ry1+n_fft_y+NH//2)//2, '256 samples', C_GREEN)
 
 # 4. RingBuf -> IPC (U-shape: right, down, left — enters IPC right 1/3)
 #    Two arrows enter IPC right side: this at 1/3, g_v5f_active at 2/3
+#    Exits RingBuf right 2/3
 ipc_ry1 = n_ipc_y + NH // 3
-larrow([(n_ring_x+NW, n_ring_y+NH//2),
-        (ring_route_x, n_ring_y+NH//2),
+ring_ry2 = n_ring_y + 2 * NH // 3
+larrow([(n_ring_x+NW, ring_ry2),
+        (ring_route_x, ring_ry2),
         (ring_route_x, ipc_ry1),
         (n_ipc_x+NW, ipc_ry1)], C_PURPLE, 3)
-label_at(ring_route_x-35, (n_ring_y+NH//2+ipc_ry1)//2, 'IPC raw frame', C_PURPLE)
+label_at(ring_route_x-35, (ring_ry2+ipc_ry1)//2, 'IPC raw frame', C_PURPLE)
 
 # 5. V5F Classifier -> 4-vote Decision (Z-shape: right, up, right)
-#    Exits V5F right midpoint, enters 4-vote left midpoint
-#    Use different x from arrow 4 to avoid corner collision
+#    Exits V5F Classifier right midpoint, enters 4-vote left midpoint
 v5f_route_x = sg7_x + sg7_w + (sg8_x - sg7_x - sg7_w) * 2 // 4
-larrow([(n_v5c_x+NW, n_v5c_y+NH//2),
-        (v5f_route_x, n_v5c_y+NH//2),
+larrow([(n_class_x+NW, n_class_y+NH2//2),
+        (v5f_route_x, n_class_y+NH2//2),
         (v5f_route_x, n_vote_y+NH//2),
         (n_vote_x, n_vote_y+NH//2)], C_ORANGE, 3)
-label_at(v5f_route_x+35, (n_v5c_y+NH//2+n_vote_y+NH//2)//2, 'IPC slot', C_ORANGE)
+label_at(v5f_route_x+35, (n_class_y+NH2//2+n_vote_y+NH//2)//2, 'IPC slot', C_ORANGE)
 
-# 5b. V5F FFT+Feature -> V3F Collect Output (feature readback via IPC)
+# 5b. V5F Goertzel+Feature -> V3F Collect Output (feature readback via IPC)
 #     Z-shape: right, up, right (shortest path)
 feat_route_x = sg7_x + sg7_w + (sg8_x - sg7_x - sg7_w) * 1 // 4
-larrow([(n_v5f_x+NW, n_v5f_y+NH//2),
-        (feat_route_x, n_v5f_y+NH//2),
+larrow([(n_fft_path_x+NW, n_fft_path_y+NH2//2),
+        (feat_route_x, n_fft_path_y+NH2//2),
         (feat_route_x, n_collect_y+NH//2),
         (n_collect_x, n_collect_y+NH//2)], C_TEAL, 2)
-label_at(feat_route_x-40, (n_v5f_y+NH//2+n_collect_y+NH//2)//2, 'IPC feature', C_TEAL)
+label_at(feat_route_x-40, (n_fft_path_y+NH2//2+n_collect_y+NH//2)//2-25, 'IPC feature', C_TEAL)
 
 # 6. Three data sources merge vertically at merge lane, then single arrow to Pack Frame
 merge_x = sg3_x + sg3_w + (sg4_x - sg3_x - sg3_w) * 2 // 3
@@ -374,9 +404,16 @@ label_at((n_collect_x+NW+merge_x)//2, n_collect_y+NH//2+20, 'DIRCSV', C_TEAL)
 h_arrow(n_pack_x+NW, pack_cy, n_esp_x, n_esp_y+NH//2, C_TEAL, 3)
 label_at((n_pack_x+NW+n_esp_x)//2, pack_cy-18, 'UART', C_TEAL)
 
-# 8. ESP8266 <-> Doctor (41002 TCP, horizontal bidirectional)
-h_biarrow(n_esp_x+NW, n_esp_y+NH//2, n_doc_x, n_doc_y+NH//2, C_GREEN, 3)
-label_at((n_esp_x+NW+n_doc_x)//2, n_esp_y+NH//2-18, '41002 TCP', C_GREEN)
+# 8. ESP8266 <-> Doctor (41002 TCP, L-shape bidirectional)
+#    ESP8266 bottom has 2 arrows: 41002 at 2/3, CMD at 1/3
+esp_41002_x = n_esp_x + 2 * NW // 3
+esp_cmd_x = n_esp_x + NW // 3
+doc_top_mx = n_doc_x + NW // 2
+esp_doc_route_y = n_esp_y + NH + (n_doc_y - n_esp_y - NH) // 2
+draw.line([(esp_41002_x, n_esp_y+NH), (esp_41002_x, esp_doc_route_y), (doc_top_mx, esp_doc_route_y), (doc_top_mx, n_doc_y)], fill=C_GREEN, width=3)
+draw.polygon([(doc_top_mx, n_doc_y), (doc_top_mx-6, n_doc_y-12), (doc_top_mx+6, n_doc_y-12)], fill=C_GREEN)
+draw.polygon([(esp_41002_x, n_esp_y+NH), (esp_41002_x-6, n_esp_y+NH+12), (esp_41002_x+6, n_esp_y+NH+12)], fill=C_GREEN)
+label_at((esp_41002_x+doc_top_mx)//2, esp_doc_route_y-18, '41002 TCP', C_GREEN)
 
 # 9. DataDispatcher <-> Python (41003 bidirectional, vertical)
 draw.line([(n_dd_x+NW//2, n_dd_y+NH), (n_dd_x+NW//2, n_py_y)], fill=C_PURPLE, width=2)
@@ -384,12 +421,16 @@ draw.polygon([(n_dd_x+NW//2, n_py_y), (n_dd_x+NW//2-5, n_py_y-10), (n_dd_x+NW//2
 draw.polygon([(n_dd_x+NW//2, n_dd_y+NH), (n_dd_x+NW//2-5, n_dd_y+NH+10), (n_dd_x+NW//2+5, n_dd_y+NH+10)], fill=C_PURPLE)
 label_at(n_dd_x+NW//2+100, (n_dd_y+NH+n_py_y)//2, '41003 CMD<->Data', C_PURPLE)
 
-# 10. ESP8266 -> Parse Frame (command path: down from bottom midpoint, left into right midpoint)
-#     Left-going arrow enters Parse Frame from right side
-larrow([(n_esp_x+NW//2, n_esp_y+NH),
-        (n_esp_x+NW//2, n_parse_y+NH//2),
+# 10. ESP8266 -> Parse Frame (CMD: down, left above sg6, down, left into right midpoint)
+#     Routes above sg6 to avoid crossing it
+cmd_route_y = sg5_y + sg5_h + 15
+cmd_route_x = n_parse_x + NW + 20
+larrow([(esp_cmd_x, n_esp_y+NH),
+        (esp_cmd_x, cmd_route_y),
+        (cmd_route_x, cmd_route_y),
+        (cmd_route_x, n_parse_y+NH//2),
         (n_parse_x+NW, n_parse_y+NH//2)], C_ORANGE, 3)
-label_at(n_esp_x+NW//2+35, (n_esp_y+NH+n_parse_y+NH//2)//2, 'CMD', C_ORANGE)
+label_at((esp_cmd_x+cmd_route_x)//2, cmd_route_y-18, 'CMD', C_ORANGE)
 
 # 11. Command Dispatch -> Send Data (L-shape: left, then into Send Data right 2/3)
 #     Left-going arrow enters Send Data from right side
@@ -421,55 +462,6 @@ dashed_larrow([(n_band_x,n_band_y+NH//2),
                (n_local_x,local_entry_y)],C_GREEN,2)
 label_at(alt_route_x,local_entry_y-18,'\u03B8/\u03B1/\u03B2 alt',C_GREEN)
 
-# ============================================================
-# Right margin: Key specs
-# ============================================================
-note_x=sg6_x+sg6_w+40; note_y=870
-notes=[
-    ('Focus Weights (6ch)', FT_SUBG, C_NAVY),
-    ('F3=0.18  F4=0.18', FT_SPEC, C_BLUE),
-    ('CP3=0.19  CP4=0.19', FT_SPEC, C_BLUE),
-    ('C3=0.13  C4=0.13', FT_SPEC, C_BLUE),
-    ('OZ=0  O1=0 (SSVEP only)', FT_SPEC, C_BLUE),
-    ('', FT_SMALL, C_DARK),
-    ('V5F Feature (14-dim effective)', FT_SUBG, C_NAVY),
-    ('Goertzel 7 narrow-band bins', FT_SPEC, C_ORANGE),
-    ('Laplacian: (CP3-C3)/(CP4-C4) x 7', FT_SPEC, C_ORANGE),
-    ('Hemisphere: (CP3+C3)/(CP4+C4) x 7', FT_SPEC, C_ORANGE),
-    ('Protocol: 24-dim (last 10 = 0)', FT_SPEC, C_ORANGE),
-    ('', FT_SMALL, C_DARK),
-    ('Channel Map (8ch)', FT_SUBG, C_NAVY),
-    ('raw_vals[0]=OZ  [1]=O1', FT_SPEC, C_BLUE),
-    ('raw_vals[2]=F3  [3]=F4', FT_SPEC, C_BLUE),
-    ('raw_vals[4]=CP3 [5]=CP4', FT_SPEC, C_BLUE),
-    ('raw_vals[6]=C3  [7]=C4', FT_SPEC, C_BLUE),
-    ('', FT_SMALL, C_DARK),
-    ('V5F Filter vs V3F', FT_SUBG, C_NAVY),
-    ('Drift+Notch: same algo, same params', FT_SPEC, C_ORANGE),
-    ('V5F FFT24 bandpass: 2-section IIR', FT_SPEC, C_ORANGE),
-    ('V5F CSP bandpass: 2-40Hz (same as V3F)', FT_SPEC, C_ORANGE),
-    ('V3F bandpass: 2-40Hz (4-sec Butterworth)', FT_SPEC, C_BLUE),
-    ('', FT_SMALL, C_DARK),
-    ('V3F Local Infer (alt)', FT_SUBG, C_NAVY),
-    ('Direction_Model_Infer() on V3F', FT_SPEC, C_GREEN),
-    ('Input: theta/alpha/beta band power', FT_SPEC, C_GREEN),
-    ('Guard: V3F_LOCAL_INFER_ENABLE', FT_SPEC, C_GREEN),
-    ('', FT_SMALL, C_DARK),
-    ('Port Map', FT_SUBG, C_NAVY),
-    ('41002: MCU <-> Doctor (TCP)', FT_SPEC, C_TEAL),
-    ('41003: Doctor <-> Python (TCP)', FT_SPEC, C_TEAL),
-    ('41004: Doctor <-> Patient (TCP)', FT_SPEC, C_ORANGE),
-    ('41005: Patient -> Doctor (UDP)', FT_SPEC, C_GRAY),
-    ('', FT_SMALL, C_DARK),
-    ('Frame Protocol', FT_SUBG, C_NAVY),
-    ('CMD_RAW/FILT/BASELINE_WAVE', FT_SPEC, C_TEAL),
-    ('CMD_*_SPECTRUM_CH0/1', FT_SPEC, C_TEAL),
-    ('CMD_FOCUS: attn,relax,ema,trend', FT_SPEC, C_TEAL),
-    ('RESULT: INTENT,S_LEFT,S_RIGHT,CONF', FT_SPEC, C_TEAL),
-    ('POSTURE: posture,gravity,conf', FT_SPEC, C_TEAL),
-]
-for i,(text,font,color) in enumerate(notes):
-    draw.text((note_x,note_y+i*28),text,font=font,fill=color,anchor='lt')
 
 out = r'D:\Libraries\Projects\EEG\output\system_block_diagram.png'
 img.save(out)

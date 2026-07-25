@@ -61,9 +61,9 @@ public class MonitorFragment extends Fragment implements DataListener {
     private static final String[] WAVE_TYPE_NAMES = EegChannels.WAVE_TYPE_NAMES;
     private static final String[] SPEC_TYPE_NAMES = EegChannels.SPEC_TYPE_NAMES;
 
-    private int[] waveCh = {2, 2};
-    private int[] waveType = {0, 1};
-    private int[] specType = {0, 2};
+    private int[] waveCh = {4, 5};
+    private int[] waveType = {0, 0};
+    private int[] specType = {0, 0};
     private int[] waveMode = {0, 0};
 
 
@@ -76,12 +76,12 @@ public class MonitorFragment extends Fragment implements DataListener {
     }
 
     private void loadDisplayConfigFromStore() {
-        waveCh[0] = SettingsStore.getWaveChA(requireContext(), 2);
-        waveCh[1] = SettingsStore.getWaveChB(requireContext(), 2);
+        waveCh[0] = SettingsStore.getWaveChA(requireContext(), 4);
+        waveCh[1] = SettingsStore.getWaveChB(requireContext(), 5);
         waveType[0] = SettingsStore.getWaveTypeA(requireContext(), 0);
-        waveType[1] = SettingsStore.getWaveTypeB(requireContext(), 1);
+        waveType[1] = SettingsStore.getWaveTypeB(requireContext(), 0);
         specType[0] = SettingsStore.getSpecTypeA(requireContext(), 0);
-        specType[1] = SettingsStore.getSpecTypeB(requireContext(), 2);
+        specType[1] = SettingsStore.getSpecTypeB(requireContext(), 0);
         waveMode[0] = SettingsStore.getWaveModeA(requireContext(), 0);
         waveMode[1] = SettingsStore.getWaveModeB(requireContext(), 0);
     }

@@ -17,12 +17,12 @@
  * ring[0] = CP3 (ch_data[5]), ring[1] = CP4 (ch_data[2])
  * ring[2] = C3  (ch_data[6]), ring[3] = C4  (ch_data[0])
  * Laplacian: left=CP3-C3, right=CP4-C4
- * Note: F4/C4 physical channels swapped (C4=ch0, F4=ch1)
+ * Note: F4/C4 physical channels swapped (C4=ch1, F4=ch0)
  */
 #define V5F_CH_CP3   5u
 #define V5F_CH_CP4   2u
 #define V5F_CH_C3    6u
-#define V5F_CH_C4    0u
+#define V5F_CH_C4   1u
 static const uint8_t g_v5f_ch_map[DUALCORE_ADS1299_ACTIVE_CH_NUM] = {
     V5F_CH_CP3, V5F_CH_CP4, V5F_CH_C3, V5F_CH_C4
 };

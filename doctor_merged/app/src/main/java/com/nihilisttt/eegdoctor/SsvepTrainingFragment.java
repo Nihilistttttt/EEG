@@ -54,10 +54,10 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
 
     private int selectedFreqIndex = -1;
     private boolean ssvepRunning;
-    private float specYVal = 5f;
-    private String specYUnit = "mV";
+    private float specYVal = 500f;
+    private String specYUnit = "uV";
     private float specXMin = 0f;
-    private float specXMax = 45f;
+    private float specXMax = 30f;
 
     @Nullable
     @Override
@@ -116,10 +116,17 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
     }
 
     private void selectFreq(int index) {
-        if (ssvepRunning) return;
         selectedFreqIndex = index;
         tvSelectedFreq.setText("当前目标: " + DIRECTIONS[index] + " / " + FREQ_LABELS[index]);
         updateFreqButtons();
+        if (ssvepRunning) {
+            SsvepAnalysisManager analysis = SsvepAnalysisManager.getInstance();
+            analysis.prepareSession(index);
+            TcpServerManager server = TcpServerManager.getInstance();
+            server.setSsvepActive(true, index);
+            server.sendToPatientAsync("SSVEP,START," + index, null);
+            CommandSender.getInstance().ssvepStart();
+        }
     }
 
     private void updateFreqButtons() {
@@ -218,10 +225,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         btnStart.setEnabled(!running);
         btnSelfTest.setEnabled(!running);
         btnStop.setEnabled(running);
-        btnFreq11.setEnabled(!running);
-        btnFreq13.setEnabled(!running);
-        btnFreq15.setEnabled(!running);
-        btnFreq17.setEnabled(!running);
+
     }
 
     private void setStatus(String message, boolean error) {

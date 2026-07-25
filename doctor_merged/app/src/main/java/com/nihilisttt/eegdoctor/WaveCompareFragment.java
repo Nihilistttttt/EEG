@@ -51,8 +51,8 @@ public class WaveCompareFragment extends Fragment implements DataListener {
     private String currentStepUnit = DEFAULT_STEP_UNIT;
     private float currentXMax = DEFAULT_X_MAX;
 
-    private int[] ch = {4, 4, 5, 5};
-    private int[] waveType = {0, 1, 0, 1};
+    private int[] ch = {6, 7, 4, 5};
+    private int[] waveType = {0, 0, 0, 0};
     private boolean isPaused = false;
 
     @Nullable
@@ -62,9 +62,9 @@ public class WaveCompareFragment extends Fragment implements DataListener {
                              @Nullable Bundle savedInstanceState) {
         View root = inflater.inflate(R.layout.fragment_wave_compare, container, false);
 
-        ch[0] = SettingsStore.getWcChA(requireContext(), 4);
-        ch[1] = SettingsStore.getWcChA(requireContext(), 4);
-        ch[2] = SettingsStore.getWcChB(requireContext(), 5);
+        ch[0] = SettingsStore.getWcChA(requireContext(), 6);
+        ch[1] = SettingsStore.getWcChA(requireContext(), 7);
+        ch[2] = SettingsStore.getWcChB(requireContext(), 4);
         ch[3] = SettingsStore.getWcChB(requireContext(), 5);
 
         LinearLayout grid = root.findViewById(R.id.grid_container);

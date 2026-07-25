@@ -1,0 +1,1585 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeuroWave 医生端</title>
+<style>
+:root {
+  --brand-primary: #1A73E8;
+  --brand-primary-variant: #0D47A1;
+  --accent-success: #00C853;
+  --accent-warning: #FFB300;
+  --accent-error: #FF5252;
+  --accent-info: #40C4FF;
+  --surface-base: #F0F2F5;
+  --surface-low: #FFFFFF;
+  --surface-mid: #F5F7FA;
+  --surface-high: #E8ECF0;
+  --surface-overlay: #C8CED4;
+  --wave-ch0: #1565C0;
+  --wave-ch1: #E65100;
+  --wave-filtered: #2E7D32;
+  --spectrum-bar-start: #4527A0;
+  --spectrum-bar-end: #1A73E8;
+  --focus-line: #F57F17;
+  --grid-line: #E0E4E8;
+  --axis-line: #90A4AE;
+  --text-primary: #1A1A2E;
+  --text-secondary: #607D8B;
+  --text-on-surface: #37474F;
+  --direction-left: #1565C0;
+  --direction-right: #E65100;
+  --training-rest: #607D8B;
+  --training-active: #00C853;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--surface-base); color: var(--text-primary); overflow: hidden; height: 100vh; }
+#app { display: flex; height: 100vh; flex-direction: column; }
+#topBar { height: 36px; background: var(--surface-mid); display: flex; align-items: center; padding: 0 12px; gap: 8px; border-bottom: 1px solid var(--surface-overlay); flex-shrink: 0; font-size: 11px; }
+#topBar .logo { font-weight: 700; color: var(--brand-primary); font-size: 13px; }
+#topBar .sep { width: 1px; height: 18px; background: var(--surface-overlay); }
+#topBar .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-error); }
+#topBar .status-dot.on { background: var(--accent-success); }
+#topBar .bar-label { color: var(--text-secondary); font-size: 10px; }
+#topBar .bar-value { font-weight: 600; font-size: 11px; }
+#topBar .spacer { flex: 1; }
+#mainArea { display: flex; flex: 1; overflow: hidden; }
+#sidebar { width: 180px; background: var(--surface-low); border-right: 1px solid var(--surface-overlay); overflow-y: auto; flex-shrink: 0; }
+#sidebar .nav-item { padding: 10px 16px; cursor: pointer; font-size: 13px; color: var(--text-secondary); border-left: 3px solid transparent; transition: all .15s; display: flex; align-items: center; gap: 8px; }
+#sidebar .nav-item:hover { background: var(--surface-mid); }
+#sidebar .nav-item.active { color: var(--brand-primary); background: var(--surface-mid); border-left-color: var(--brand-primary); font-weight: 600; }
+#sidebar .nav-item .nav-dot { width: 6px; height: 6px; border-radius: 50%; }
+#content { flex: 1; overflow-y: auto; padding: 16px; }
+.page { display: none; }
+.page.active { display: block; }
+.card { background: var(--surface-low); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 16px; margin-bottom: 12px; }
+.card-title { font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary); }
+.card-subtitle { font-size: 11px; color: var(--text-secondary); }
+.btn { padding: 8px 18px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 500; transition: all .15s; }
+.btn-primary { background: var(--brand-primary); color: #fff; }
+.btn-primary:hover { background: var(--brand-primary-variant); }
+.btn-success { background: var(--accent-success); color: #fff; }
+.btn-error { background: var(--accent-error); color: #fff; }
+.btn-outline { background: transparent; border: 1px solid var(--surface-overlay); color: var(--text-on-surface); }
+.btn-outline:hover { background: var(--surface-mid); }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.input-field { width: 100%; padding: 8px 12px; border: 1px solid var(--surface-overlay); border-radius: 6px; font-size: 13px; outline: none; transition: border-color .15s; }
+.input-field:focus { border-color: var(--brand-primary); }
+.input-group { margin-bottom: 12px; }
+.input-group label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 500; }
+.control-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface-mid); border-radius: 8px; flex-wrap: wrap; }
+.control-label { font-size: 12px; color: var(--text-on-surface); }
+.control-value { font-size: 12px; font-weight: 600; color: var(--brand-primary); cursor: pointer; padding: 2px 8px; background: var(--surface-low); border-radius: 4px; }
+
+/* Home page */
+.home-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.home-card { background: var(--surface-low); border-radius: 12px; padding: 16px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.08); border: 2px solid transparent; transition: all .2s; position: relative; overflow: hidden; }
+.home-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+.home-card .card-stripe { position: absolute; top: 0; left: 0; right: 0; height: 4px; }
+.home-card .card-name { font-size: 15px; font-weight: 600; margin-top: 8px; }
+.home-card .card-desc { font-size: 10px; color: var(--text-secondary); margin-top: 4px; }
+.home-info { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); padding: 12px 16px; background: var(--surface-low); border-radius: 8px; }
+
+/* Monitor page */
+.monitor-grid { display: grid; grid-template-columns: 3fr 1fr; gap: 8px; margin-bottom: 8px; }
+.monitor-row { display: contents; }
+.ch-card { background: var(--surface-low); border-radius: 8px; overflow: hidden; }
+.ch-header { display: flex; align-items: center; gap: 6px; padding: 4px 8px; font-size: 11px; }
+.ch-dot { width: 8px; height: 8px; border-radius: 50%; }
+.ch-name { font-weight: 600; }
+.ch-quality { flex: 1; height: 3px; background: var(--surface-high); border-radius: 2px; overflow: hidden; }
+.ch-quality-fill { height: 100%; background: var(--accent-success); border-radius: 2px; width: 80%; }
+.spec-header { display: flex; align-items: center; gap: 6px; padding: 4px 8px; font-size: 11px; }
+canvas { display: block; width: 100%; }
+
+/* Focus page */
+.focus-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.focus-toggle { padding: 6px 16px; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; font-weight: 600; }
+.focus-toggle.active { color: #fff; }
+
+/* Compare pages */
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.compare-card { background: var(--surface-low); border-radius: 8px; overflow: hidden; }
+
+/* SSVEP page */
+.ssvep-layout { display: grid; grid-template-columns: 1fr 1.2fr; gap: 12px; }
+.freq-btn { padding: 10px 20px; border: 2px solid var(--surface-overlay); border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; background: var(--surface-low); transition: all .15s; }
+.freq-btn:hover { border-color: var(--brand-primary); }
+.freq-btn.active { border-color: var(--brand-primary); background: var(--brand-primary); color: #fff; }
+
+/* MI training page */
+.mi-direction { font-size: 80px; font-weight: 700; text-align: center; padding: 30px 0; }
+.mi-prompt { text-align: center; font-size: 18px; color: var(--text-secondary); }
+.mi-progress { width: 100%; max-width: 400px; height: 16px; background: var(--surface-high); border-radius: 8px; margin: 16px auto; overflow: hidden; }
+.mi-progress-fill { height: 100%; background: var(--brand-primary); border-radius: 8px; transition: width .3s; width: 0%; }
+.mi-trial-count { text-align: center; font-size: 14px; color: var(--text-secondary); margin-top: 8px; }
+.mi-buttons { display: flex; justify-content: center; gap: 16px; margin-top: 20px; }
+
+/* Inference page */
+.infer-layout { display: grid; grid-template-columns: 1fr 200px; gap: 12px; }
+.infer-direction { font-size: 56px; font-weight: 700; text-align: center; padding: 20px 0; }
+.infer-stat { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--surface-high); }
+.infer-stat .val { font-weight: 600; }
+.infer-records { max-height: 200px; overflow-y: auto; }
+.infer-record { display: flex; justify-content: space-between; padding: 6px 8px; font-size: 12px; border-bottom: 1px solid var(--surface-high); }
+
+/* Posture page */
+.posture-status { font-size: 36px; font-weight: 700; text-align: center; padding: 20px; }
+.posture-icon { font-size: 48px; text-align: center; }
+.posture-log { max-height: 300px; overflow-y: auto; font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; }
+.posture-log .alert { color: var(--accent-error); font-weight: 600; }
+.posture-log .entry { padding: 3px 0; border-bottom: 1px solid var(--surface-high); }
+
+/* Config page */
+.config-card { max-width: 500px; margin: 0 auto; }
+.wifi-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: var(--surface-mid); border-radius: 6px; margin-bottom: 6px; font-size: 13px; }
+
+/* Cloud forward page */
+.cloud-card { max-width: 500px; margin: 0 auto; }
+.chain-step { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 13px; }
+.chain-arrow { color: var(--brand-primary); font-weight: 700; }
+.chain-box { padding: 6px 12px; background: var(--surface-mid); border-radius: 6px; font-weight: 500; }
+
+/* Dialog overlay */
+.dialog-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.4); z-index: 1000; justify-content: center; align-items: center; }
+.dialog-overlay.show { display: flex; }
+.dialog { background: var(--surface-low); border-radius: 12px; padding: 20px; min-width: 400px; max-width: 600px; max-height: 80vh; overflow-y: auto; }
+.dialog-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+select { padding: 6px 10px; border: 1px solid var(--surface-overlay); border-radius: 4px; font-size: 12px; outline: none; background: var(--surface-low); }
+
+/* Data verify page */
+.verify-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.verify-stat-card { background: var(--surface-low); border-radius: 8px; padding: 10px 14px; border-left: 3px solid var(--brand-primary); }
+.verify-stat-card .stat-label { font-size: 11px; color: var(--text-secondary); }
+.verify-stat-card .stat-value { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+.verify-log { background: #1E1E2E; color: #D4D4D4; font-family: 'Consolas','Courier New',monospace; font-size: 12px; border-radius: 8px; padding: 12px; max-height: 400px; overflow-y: auto; line-height: 1.6; }
+.verify-log .log-wave { color: #4EC9B0; }
+.verify-log .log-focus { color: #F57F17; }
+.verify-log .log-spectrum { color: #C586C0; }
+.verify-log .log-text { color: #CE9178; }
+.verify-log .log-raw { color: #569CD6; }
+.verify-log .log-time { color: #6A9955; }
+.verify-filter { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.verify-filter .filter-btn { padding: 4px 10px; border: 1px solid var(--surface-overlay); border-radius: 4px; font-size: 11px; cursor: pointer; background: var(--surface-low); }
+.verify-filter .filter-btn.active { background: var(--brand-primary); color: #fff; border-color: var(--brand-primary); }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topBar">
+    <span class="logo">NeuroWave</span>
+    <div class="sep"></div>
+    <span class="bar-label">专注</span><span class="bar-value" id="barFocus">--</span>
+    <span class="bar-label">放松</span><span class="bar-value" id="barRelax">--</span>
+    <span class="bar-label">瞬时</span><span class="bar-value" id="barInstant">--</span>
+    <span class="bar-label">趋势</span><span class="bar-value" id="barTrend">--</span>
+    <div class="sep"></div>
+    <span class="bar-label">姿态</span><span class="bar-value" id="barPosture">--</span>
+    <div class="spacer"></div>
+    <div class="status-dot" id="statusDot"></div>
+    <span class="bar-value" id="statusText">未连接</span>
+  </div>
+  <div id="mainArea">
+    <nav id="sidebar">
+      <div class="nav-item active" data-page="home"><div class="nav-dot" style="background:var(--brand-primary)"></div>首页</div>
+      <div class="nav-item" data-page="monitor"><div class="nav-dot" style="background:var(--brand-primary)"></div>脑电监测</div>
+      <div class="nav-item" data-page="focus"><div class="nav-dot" style="background:var(--focus-line)"></div>专注度</div>
+      <div class="nav-item" data-page="wave-compare"><div class="nav-dot" style="background:var(--wave-ch0)"></div>波形对比</div>
+      <div class="nav-item" data-page="spectrum-compare"><div class="nav-dot" style="background:var(--spectrum-bar-start)"></div>频谱对比</div>
+      <div class="nav-item" data-page="ssvep"><div class="nav-dot" style="background:var(--accent-success)"></div>SSVEP训练</div>
+      <div class="nav-item" data-page="mi"><div class="nav-dot" style="background:var(--direction-right)"></div>MI训练</div>
+      <div class="nav-item" data-page="inference"><div class="nav-dot" style="background:var(--direction-left)"></div>方向识别</div>
+      <div class="nav-item" data-page="posture"><div class="nav-dot" style="background:var(--accent-error)"></div>姿态监护</div>
+      <div class="nav-item" data-page="config"><div class="nav-dot" style="background:var(--text-secondary)"></div>系统配置</div>
+      <div class="nav-item" data-page="cloud"><div class="nav-dot" style="background:var(--brand-primary)"></div>华为云转发</div>
+      <div class="nav-item" data-page="verify"><div class="nav-dot" style="background:#4EC9B0"></div>数据验证</div>
+    </nav>
+    <div id="content">
+      <!-- Home -->
+      <div id="page-home" class="page active">
+        <div style="text-align:center;margin-bottom:20px">
+          <div style="font-size:24px;font-weight:700;color:var(--brand-primary)">NeuroWave 医生</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">专业脑电监测与诊断系统</div>
+        </div>
+        <div class="card" style="max-width:500px;margin:0 auto 16px;border:2px solid var(--brand-primary)">
+          <div class="card-title" style="color:var(--brand-primary)">设备连接</div>
+          <div class="input-group"><label>ESP8266 IP地址</label><input class="input-field" id="homeIp" value="192.168.192.172"></div>
+          <div class="input-group"><label>端口</label><input class="input-field" id="homePort" value="8888"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <div class="status-dot" id="homeStatusDot"></div>
+            <span id="homeStatusText" style="font-size:13px;color:var(--text-secondary)">未连接</span>
+          </div>
+          <button class="btn btn-primary" id="btnHomeConnect" onclick="toggleHomeConnect()" style="width:100%">连接设备</button>
+        </div>
+        <div class="home-grid">
+          <div class="home-card" data-page="monitor"><div class="card-stripe" style="background:var(--brand-primary)"></div><div class="card-name">脑电监测</div><div class="card-desc">实时8通道波形与频谱</div></div>
+          <div class="home-card" data-page="focus"><div class="card-stripe" style="background:var(--focus-line)"></div><div class="card-name">专注度分析</div><div class="card-desc">专注度与放松度趋势</div></div>
+          <div class="home-card" data-page="wave-compare"><div class="card-stripe" style="background:var(--wave-ch0)"></div><div class="card-name">波形对比</div><div class="card-desc">多通道波形叠加对比</div></div>
+          <div class="home-card" data-page="spectrum-compare"><div class="card-stripe" style="background:var(--spectrum-bar-start)"></div><div class="card-name">频谱对比</div><div class="card-desc">多通道频谱叠加对比</div></div>
+          <div class="home-card" data-page="ssvep"><div class="card-stripe" style="background:var(--accent-success)"></div><div class="card-name">SSVEP训练</div><div class="card-desc">稳态视觉诱发电位</div></div>
+          <div class="home-card" data-page="inference"><div class="card-stripe" style="background:var(--direction-left)"></div><div class="card-name">方向推理</div><div class="card-desc">运动想象方向识别</div></div>
+          <div class="home-card" data-page="mi"><div class="card-stripe" style="background:var(--direction-right)"></div><div class="card-name">MI训练</div><div class="card-desc">运动想象训练</div></div>
+          <div class="home-card" data-page="posture"><div class="card-stripe" style="background:var(--accent-error)"></div><div class="card-name">姿态监护</div><div class="card-desc">体位监测与翻身提醒</div></div>
+          <div class="home-card" data-page="config"><div class="card-stripe" style="background:var(--text-secondary)"></div><div class="card-name">系统配置</div><div class="card-desc">WiFi与设备配置</div></div>
+          <div class="home-card" data-page="cloud"><div class="card-stripe" style="background:var(--brand-primary)"></div><div class="card-name">华为云转发</div><div class="card-desc">IoTDA数据上云</div></div>
+          <div class="home-card" data-page="verify"><div class="card-stripe" style="background:#4EC9B0"></div><div class="card-name">数据验证</div><div class="card-desc">验证华为云数据正确性</div></div>
+        </div>
+        <div class="home-info">
+          <span>采集设备: CH32H417 8通道</span>
+          <span>采样率: 250 Hz</span>
+          <span>频谱分辨率: 0.98 Hz</span>
+        </div>
+      </div>
+
+      <!-- Monitor -->
+      <div id="page-monitor" class="page">
+        <div class="control-bar" style="margin-bottom:8px">
+          <span class="control-label">模式</span>
+          <select id="monMode" onchange="buildMonitorUI()">
+            <option value="dual">双通道</option>
+            <option value="all8">8通道</option>
+          </select>
+          <span class="control-label">X轴</span><span class="control-value" id="monXRange">2.05 s</span>
+          <span class="control-label">波形</span><span class="control-value" id="monWaveRange">500uV</span>
+          <span class="control-label">频谱</span><span class="control-value" id="monSpecRange">500 uV</span>
+          <span class="control-value" id="monSpecXRange">0-125 Hz</span>
+          <div style="flex:1"></div>
+          <button class="btn btn-outline btn-sm" onclick="showDisplayCfg()">通道</button>
+          <button class="btn btn-outline btn-sm" id="btnPause" onclick="togglePause()">暂停</button>
+          <button class="btn btn-outline btn-sm" onclick="sendCommand('MODE,SET,1')">采集</button>
+          <button class="btn btn-outline btn-sm" onclick="sendCommand('MODE,TRAIN')">训练</button>
+        </div>
+        <div id="monitorContainer"></div>
+      </div>
+
+      <!-- Focus -->
+      <div id="page-focus" class="page">
+        <div class="focus-toolbar">
+          <button class="focus-toggle active" id="toggleFocus0" style="background:var(--focus-line)" onclick="toggleFocusLine('focus0')">专注度A</button>
+          <button class="focus-toggle active" id="toggleFocus1" style="background:#E65100" onclick="toggleFocusLine('focus1')">专注度B</button>
+          <button class="focus-toggle active" id="toggleRelax0" style="background:var(--accent-info)" onclick="toggleFocusLine('relax0')">放松度A</button>
+          <button class="focus-toggle active" id="toggleRelax1" style="background:#9C27B0" onclick="toggleFocusLine('relax1')">放松度B</button>
+          <span class="control-label" style="margin-left:12px">X轴</span><span class="control-value" id="focusXRange">50 s</span>
+        </div>
+        <div class="card" style="padding:8px">
+          <canvas id="focusCanvas" height="300"></canvas>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          <div class="card" style="text-align:center;padding:12px">
+            <div style="font-size:11px;color:var(--text-secondary)">通道A 专注度</div>
+            <div style="font-size:28px;font-weight:700;color:var(--focus-line)" id="focusVal0">--</div>
+            <div style="font-size:11px;color:var(--text-secondary)">放松度</div>
+            <div style="font-size:18px;font-weight:600;color:var(--accent-info)" id="relaxVal0">--</div>
+          </div>
+          <div class="card" style="text-align:center;padding:12px">
+            <div style="font-size:11px;color:var(--text-secondary)">通道B 专注度</div>
+            <div style="font-size:28px;font-weight:700;color:#E65100" id="focusVal1">--</div>
+            <div style="font-size:11px;color:var(--text-secondary)">放松度</div>
+            <div style="font-size:18px;font-weight:600;color:#9C27B0" id="relaxVal1">--</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wave Compare -->
+      <div id="page-wave-compare" class="page">
+        <div class="control-bar" style="margin-bottom:8px">
+          <span class="control-label">A通道</span>
+          <select id="wcChA" onchange="updateWcCfg()">
+            <option value="0">OZ</option><option value="1">O1</option><option value="2">F3</option><option value="3">F4</option><option value="4" selected>CP3</option><option value="5">CP4</option><option value="6">C3</option><option value="7">C4</option>
+          </select>
+          <span class="control-label">B通道</span>
+          <select id="wcChB" onchange="updateWcCfg()">
+            <option value="0">OZ</option><option value="1">O1</option><option value="2">F3</option><option value="3">F4</option><option value="4">CP3</option><option value="5" selected>CP4</option><option value="6">C3</option><option value="7">C4</option>
+          </select>
+          <span class="control-label">X轴</span><span class="control-value" id="wcXRange">2.05 s</span>
+          <span class="control-label">波形</span><span class="control-value" id="wcWaveRange">500uV</span>
+          <div style="flex:1"></div>
+          <button class="btn btn-outline btn-sm" id="btnWcPause" onclick="toggleWcPause()">暂停</button>
+        </div>
+        <div class="compare-grid">
+          <div class="compare-card"><div class="ch-header"><div class="ch-dot" style="background:var(--wave-ch0)"></div><span class="ch-name" id="wcLabel0">CP3 原始</span></div><canvas id="wc0" height="120"></canvas></div>
+          <div class="compare-card"><div class="ch-header"><div class="ch-dot" style="background:var(--wave-filtered)"></div><span class="ch-name" id="wcLabel1">CP3 滤波</span></div><canvas id="wc1" height="120"></canvas></div>
+          <div class="compare-card"><div class="ch-header"><div class="ch-dot" style="background:var(--wave-ch1)"></div><span class="ch-name" id="wcLabel2">CP4 原始</span></div><canvas id="wc2" height="120"></canvas></div>
+          <div class="compare-card"><div class="ch-header"><div class="ch-dot" style="background:var(--accent-info)"></div><span class="ch-name" id="wcLabel3">CP4 滤波</span></div><canvas id="wc3" height="120"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Spectrum Compare -->
+      <div id="page-spectrum-compare" class="page">
+        <div class="control-bar" style="margin-bottom:8px">
+          <span class="control-label">A通道</span>
+          <select id="scChA" onchange="updateScCfg()">
+            <option value="0">OZ</option><option value="1">O1</option><option value="2">F3</option><option value="3">F4</option><option value="4" selected>CP3</option><option value="5">CP4</option><option value="6">C3</option><option value="7">C4</option>
+          </select>
+          <span class="control-label">B通道</span>
+          <select id="scChB" onchange="updateScCfg()">
+            <option value="0">OZ</option><option value="1">O1</option><option value="2">F3</option><option value="3">F4</option><option value="4">CP3</option><option value="5" selected>CP4</option><option value="6">C3</option><option value="7">C4</option>
+          </select>
+          <span class="control-label">Y轴</span><span class="control-value" id="scYRange">5 mV</span>
+          <span class="control-label">Hz</span><span class="control-value" id="scXRange">0-125</span>
+          <div style="flex:1"></div>
+          <button class="btn btn-outline btn-sm" id="btnScPause" onclick="toggleScPause()">暂停</button>
+        </div>
+        <div class="compare-grid">
+          <div class="compare-card"><div class="ch-header"><div class="ch-dot" style="background:var(--spectrum-bar-start)"></div><span class="ch-name" id="scLabel0">CP3 原始频谱</span></div><canvas id="sc0" height="120"></canvas></div>
+          <div class="compare-card"><div class="ch-header"><div class="ch-dot" style="background:var(--spectrum-bar-end)"></div><span class="ch-name" id="scLabel1">CP3 时域滤波频谱</span></div><canvas id="sc1" height="120"></canvas></div>
+          <div class="compare-card"><div class="ch-header"><div class="ch-dot" style="background:var(--accent-info)"></div><span class="ch-name" id="scLabel2">CP4 原始频谱</span></div><canvas id="sc2" height="120"></canvas></div>
+          <div class="compare-card"><div class="ch-header"><div class="ch-dot" style="background:var(--accent-warning)"></div><span class="ch-name" id="scLabel3">CP4 时域滤波频谱</span></div><canvas id="sc3" height="120"></canvas></div>
+        </div>
+      </div>
+
+      <!-- SSVEP Training -->
+      <div id="page-ssvep" class="page">
+        <div class="ssvep-layout">
+          <div>
+            <div class="control-bar" style="margin-bottom:6px">
+              <span class="control-label">频谱通道</span>
+              <select id="ssvepChA" onchange="updateSsvepCfg()">
+                <option value="0">OZ</option><option value="1" selected>O1</option><option value="2">F3</option><option value="3">F4</option><option value="4">CP3</option><option value="5">CP4</option><option value="6">C3</option><option value="7">C4</option>
+              </select>
+              <select id="ssvepChB" onchange="updateSsvepCfg()">
+                <option value="0" selected>OZ</option><option value="1">O1</option><option value="2">F3</option><option value="3">F4</option><option value="4">CP3</option><option value="5">CP4</option><option value="6">C3</option><option value="7">C4</option>
+              </select>
+            </div>
+            <div class="card" style="margin-bottom:8px"><div class="ch-header"><div class="ch-dot" style="background:var(--spectrum-bar-start)"></div><span class="ch-name" id="ssvepLabel0">O1 频谱</span></div><canvas id="ssvepSpec0" height="150"></canvas></div>
+            <div class="card"><div class="ch-header"><div class="ch-dot" style="background:var(--spectrum-bar-end)"></div><span class="ch-name" id="ssvepLabel1">Oz 频谱</span></div><canvas id="ssvepSpec1" height="150"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="control-bar" style="margin-bottom:12px">
+              <span class="control-label">Y轴</span><span class="control-value" id="ssvepYRange">5 mV</span>
+              <span class="control-label">X轴</span><span class="control-value" id="ssvepXRange">0-45 Hz</span>
+            </div>
+            <div style="text-align:center;font-size:16px;font-weight:700;margin-bottom:12px" id="ssvepStatus">等待开始</div>
+            <div style="text-align:center;font-size:14px;margin-bottom:12px">目标频率: <span id="ssvepTargetFreq">--</span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+              <button class="freq-btn" data-freq="11" onclick="setSsvepFreq(11)">11Hz (上)</button>
+              <button class="freq-btn" data-freq="13" onclick="setSsvepFreq(13)">13Hz (下)</button>
+              <button class="freq-btn" data-freq="15" onclick="setSsvepFreq(15)">15Hz (左)</button>
+              <button class="freq-btn" data-freq="17" onclick="setSsvepFreq(17)">17Hz (右)</button>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <button class="btn btn-primary btn-sm" style="flex:1" onclick="sendCommand('MODE,SET,1');setTimeout(()=>sendCommand('MODE,TEST'),500)">真实脑电测试</button>
+              <button class="btn btn-outline btn-sm" style="flex:1" onclick="sendCommand('MODE,TRAIN')">无设备算法自测</button>
+            </div>
+            <button class="btn btn-error btn-sm" style="width:100%;margin-bottom:12px" onclick="sendCommand('STOP')">停止</button>
+            <div style="text-align:center;font-size:30px;font-weight:700;margin-bottom:8px" id="ssvepResult">--</div>
+            <div style="font-size:14px;color:var(--text-secondary)" id="ssvepScores"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MI Training -->
+      <div id="page-mi" class="page">
+        <div class="card" style="text-align:center">
+          <div class="mi-direction" id="miDirection" style="color:var(--training-rest)">--</div>
+          <div class="mi-prompt" id="miPrompt">点击开始进行运动想象训练</div>
+          <div class="mi-progress"><div class="mi-progress-fill" id="miProgressFill"></div></div>
+          <div class="mi-trial-count" id="miTrialCount">试次: 0/0</div>
+        </div>
+        <div class="mi-buttons">
+          <button class="btn btn-primary" onclick="startMiTraining()">开始MI训练</button>
+          <button class="btn btn-error" onclick="sendCommand('STOP')">停止</button>
+        </div>
+      </div>
+
+      <!-- Inference -->
+      <div id="page-inference" class="page">
+        <div class="infer-layout">
+          <div class="card">
+            <div class="infer-direction" id="inferDirection" style="color:var(--direction-left)">--</div>
+            <div style="text-align:center;font-size:14px;margin-bottom:8px">目标: <span id="inferTarget" style="font-weight:700">循环</span></div>
+            <div style="text-align:center;font-size:14px">置信度: <span id="inferConf">--</span> | L: <span id="inferScoreL">--</span> R: <span id="inferScoreR">--</span></div>
+            <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
+              <div class="input-group" style="margin:0"><label>目标模式</label><select id="inferMode"><option value="cycle">循环</option><option value="random">随机</option></select></div>
+              <div class="input-group" style="margin:0"><label>次数</label><select id="inferCount"><option value="10">10</option><option value="20">20</option><option value="40">40</option></select></div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
+              <button class="btn btn-primary btn-sm" onclick="startInference()">开始</button>
+              <button class="btn btn-error btn-sm" onclick="sendCommand('STOP')">停止</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title" style="font-size:13px">统计</div>
+            <div class="infer-stat"><span>总推理</span><span class="val" id="inferTotal">0</span></div>
+            <div class="infer-stat"><span>已验证</span><span class="val" id="inferVerified">0</span></div>
+            <div class="infer-stat"><span>达标率</span><span class="val" id="inferAccuracy">--</span></div>
+            <div class="infer-stat"><span>平均置信</span><span class="val" id="inferAvgConf">--</span></div>
+            <div class="infer-stat"><span>左</span><span class="val" id="inferLeftCount">0</span></div>
+            <div class="infer-stat"><span>右</span><span class="val" id="inferRightCount">0</span></div>
+            <div style="margin-top:12px;display:flex;gap:6px">
+              <button class="btn btn-outline btn-sm" style="flex:1" onclick="exportInference()">导出CSV</button>
+              <button class="btn btn-outline btn-sm" style="flex:1" onclick="clearInference()">清除</button>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:8px">
+          <div class="card-title" style="font-size:13px">推理记录</div>
+          <div class="infer-records" id="inferRecords"></div>
+        </div>
+      </div>
+
+      <!-- Posture -->
+      <div id="page-posture" class="page">
+        <div class="card" style="text-align:center">
+          <div style="font-size:14px;color:var(--text-secondary);margin-bottom:4px">当前姿态</div>
+          <div class="posture-icon" id="postureIcon">⬆</div>
+          <div class="posture-status" id="postureStatus" style="color:var(--accent-success)">仰卧</div>
+          <div style="font-size:14px;color:var(--text-secondary)">翻身计数: <span id="postureTurnCount" style="font-weight:600">0</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="font-size:13px">事件日志</div>
+          <div class="posture-log" id="postureLog"></div>
+        </div>
+      </div>
+
+      <!-- Config -->
+      <div id="page-config" class="page">
+        <div class="config-card card">
+          <div class="card-title" style="color:var(--brand-primary);font-size:20px">WiFi 配置</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">配置ESP8266连接的WiFi热点</div>
+          <div id="wifiList"></div>
+          <div style="border-top:1px solid var(--surface-high);margin:12px 0;padding-top:12px">
+            <div class="input-group"><label>SSID</label><input class="input-field" id="wifiSsid" placeholder="WiFi名称"></div>
+            <div class="input-group"><label>密码</label><input class="input-field" id="wifiPass" type="password" placeholder="WiFi密码"></div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary" onclick="addWifi()">添加/修改</button>
+              <button class="btn btn-error" onclick="deleteWifi()">删除</button>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--text-secondary);margin-top:8px">默认WiFi不可删除</div>
+        </div>
+        <div class="config-card card">
+          <div class="card-title" style="color:var(--brand-primary);font-size:18px">命令终端</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">直接向MCU发送文本命令</div>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <input class="input-field" id="cmdInput" placeholder="输入命令，如 MODE,SET,1" style="flex:1" onkeydown="if(event.key==='Enter')sendCustomCmd()">
+            <button class="btn btn-primary" onclick="sendCustomCmd()">发送</button>
+          </div>
+          <div style="font-size:12px;font-weight:600;margin-bottom:8px">快捷命令</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+            <button class="btn btn-outline btn-sm" onclick="sendCommand('MODE,SET,0')">待机</button>
+            <button class="btn btn-outline btn-sm" onclick="sendCommand('MODE,SET,1')">采集模式</button>
+            <button class="btn btn-outline btn-sm" onclick="sendCommand('MODE,SET,2')">推理模式</button>
+            <button class="btn btn-outline btn-sm" onclick="sendCommand('MODE,TRAIN')">开始训练</button>
+            <button class="btn btn-outline btn-sm" onclick="sendCommand('MODE,TEST')">开始测试</button>
+            <button class="btn btn-error btn-sm" onclick="sendCommand('STOP')">停止</button>
+          </div>
+          <div style="font-size:12px;font-weight:600;margin-bottom:8px">DISPLAY_CFG</div>
+          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">格式: DISPLAY_CFG,波形A通道,波形A类型,波形B通道,波形B类型,频谱A,频谱B,...</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+            <button class="btn btn-outline btn-sm" onclick="sendCommand('DISPLAY_CFG,4,4,5,4,36,37,4,4,5,4,36,37')">CP3/CP4 默认</button>
+            <button class="btn btn-outline btn-sm" onclick="sendCommand('DISPLAY_CFG,0,4,1,4,32,33,0,4,1,4,32,33')">OZ/O1 默认</button>
+            <button class="btn btn-outline btn-sm" onclick="sendCommand('DISPLAY_CFG,6,4,7,4,38,39,6,4,7,4,38,39')">C3/C4 默认</button>
+          </div>
+          <div style="font-size:12px;font-weight:600;margin-bottom:8px">MI训练</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <button class="btn btn-outline btn-sm" onclick="sendCommand('TRIAL,LEFT,4')">左4次</button>
+            <button class="btn btn-outline btn-sm" onclick="sendCommand('TRIAL,RIGHT,4')">右4次</button>
+            <button class="btn btn-outline btn-sm" onclick="sendCommand('TRIAL,BOTH,8')">交替8次</button>
+          </div>
+          <div style="margin-top:12px;font-size:12px;font-weight:600;margin-bottom:8px">命令日志</div>
+          <div class="verify-log" id="cmdLog" style="max-height:150px;font-size:11px"></div>
+        </div>
+      </div>
+
+      <!-- Cloud Forward -->
+      <div id="page-cloud" class="page">
+        <div class="cloud-card card">
+          <div class="card-title" style="color:var(--brand-primary);font-size:20px">华为云转发配置</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">配置ESP8266转发服务器，将数据上传至华为云IoTDA</div>
+          <div class="input-group"><label>ESP8266 IP</label><input class="input-field" id="cloudIp" value="192.168.192.172"></div>
+          <div class="input-group"><label>端口</label><input class="input-field" id="cloudPort" value="8888"></div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px" id="cloudStatus">未连接</div>
+          <button class="btn btn-primary" id="btnCloudConnect" onclick="toggleCloudConnect()">启用转发</button>
+        </div>
+        <div class="cloud-card card">
+          <div class="card-title" style="font-size:15px">数据链路说明</div>
+          <div style="padding:8px 0">
+            <div class="chain-step"><span class="chain-box">板子(MCU)</span><span class="chain-arrow">→</span><span class="chain-box">Android手机</span><span class="chain-arrow">→</span><span class="chain-box">ESP8266</span><span class="chain-arrow">→</span><span class="chain-box">华为云IoTDA</span></div>
+          </div>
+          <div style="font-size:12px;color:var(--text-secondary)">
+            <div>1. MCU采集EEG数据并通过ESP8266发送到Android</div>
+            <div>2. Android接收数据并通过TCP转发到华为云ESP8266</div>
+            <div>3. ESP8266通过MQTT协议上报到华为云IoTDA</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Verify -->
+      <div id="page-verify" class="page">
+        <div class="card" style="margin-bottom:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div class="card-title" style="margin:0">数据验证 - 对比华为云IoTDA收到的数据</div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-outline btn-sm" onclick="clearVerifyLog()">清空日志</button>
+              <button class="btn btn-outline btn-sm" onclick="exportVerifyLog()">导出</button>
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">
+            连接到ESP8266(192.168.192.172:8888)后，此处显示所有收到的帧数据。与华为云IoTDA控制台的数据对比即可验证正确性。
+          </div>
+          <div class="verify-stats" id="verifyStats">
+            <div class="verify-stat-card"><div class="stat-label">总帧数</div><div class="stat-value" id="vTotal">0</div></div>
+            <div class="verify-stat-card"><div class="stat-label">波形帧(0x04/0x10)</div><div class="stat-value" id="vWave">0</div></div>
+            <div class="verify-stat-card"><div class="stat-label">频谱帧(0x20-0x47)</div><div class="stat-value" id="vSpectrum">0</div></div>
+            <div class="verify-stat-card"><div class="stat-label">专注度帧(0x05)</div><div class="stat-value" id="vFocus">0</div></div>
+            <div class="verify-stat-card"><div class="stat-label">8通道帧(0x22/0x42)</div><div class="stat-value" id="v8ch">0</div></div>
+            <div class="verify-stat-card"><div class="stat-label">文本命令</div><div class="stat-value" id="vText">0</div></div>
+            <div class="verify-stat-card"><div class="stat-label">数据速率</div><div class="stat-value" id="vRate">0/s</div></div>
+            <div class="verify-stat-card"><div class="stat-label">连接状态</div><div class="stat-value" id="vConn" style="font-size:14px;color:var(--accent-error)">未连接</div></div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-title">波形预览</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><div class="ch-header"><div class="ch-dot" style="background:#1565C0"></div><span class="ch-name">OZ</span></div><canvas id="vWave0" height="80"></canvas></div>
+            <div><div class="ch-header"><div class="ch-dot" style="background:#E65100"></div><span class="ch-name">O1</span></div><canvas id="vWave1" height="80"></canvas></div>
+            <div><div class="ch-header"><div class="ch-dot" style="background:#2E7D32"></div><span class="ch-name">CP3</span></div><canvas id="vWave4" height="80"></canvas></div>
+            <div><div class="ch-header"><div class="ch-dot" style="background:#F57F17"></div><span class="ch-name">CP4</span></div><canvas id="vWave5" height="80"></canvas></div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-title">原始HEX数据流（调试用）</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">显示TCP收到的原始字节，含0x7E的行会高亮</div>
+          <div class="verify-log" id="rawHexLog" style="max-height:200px"></div>
+        </div>
+        <div class="card">
+            <div class="verify-filter">
+              <button class="filter-btn active" data-filter="all" onclick="setVerifyFilter('all',this)">全部</button>
+              <button class="filter-btn" data-filter="wave" onclick="setVerifyFilter('wave',this)">波形</button>
+              <button class="filter-btn" data-filter="spectrum" onclick="setVerifyFilter('spectrum',this)">频谱</button>
+              <button class="filter-btn" data-filter="focus" onclick="setVerifyFilter('focus',this)">专注度</button>
+              <button class="filter-btn" data-filter="text" onclick="setVerifyFilter('text',this)">文本</button>
+              <button class="filter-btn" data-filter="raw" onclick="setVerifyFilter('raw',this)">未知</button>
+            </div>
+          </div>
+          <div class="verify-log" id="verifyLog"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="dialog-overlay" id="dialogDisplayCfg">
+  <div class="dialog">
+    <div class="dialog-title">通道配置</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div><div style="font-weight:600;margin-bottom:8px">A通道</div>
+        <div class="input-group"><label>电极</label><select id="cfgChA"><option value="0">OZ</option><option value="1">O1</option><option value="2">F3</option><option value="3">F4</option><option value="4" selected>CP3</option><option value="5">CP4</option><option value="6">C3</option><option value="7">C4</option></select></div>
+        <div class="input-group"><label>波形类型</label><select id="cfgWaveA"><option value="4">原始波形</option><option value="16">滤波波形</option><option value="17">基线修复</option></select></div>
+        <div class="input-group"><label>频谱类型</label><select id="cfgSpecA"><option value="36">原始频谱(CP3)</option><option value="52">频域滤波频谱</option><option value="68">时域滤波频谱</option></select></div>
+      </div>
+      <div><div style="font-weight:600;margin-bottom:8px">B通道</div>
+        <div class="input-group"><label>电极</label><select id="cfgChB"><option value="0">OZ</option><option value="1">O1</option><option value="2">F3</option><option value="3">F4</option><option value="4">CP3</option><option value="5" selected>CP4</option><option value="6">C3</option><option value="7">C4</option></select></div>
+        <div class="input-group"><label>波形类型</label><select id="cfgWaveB"><option value="4">原始波形</option><option value="16">滤波波形</option><option value="17">基线修复</option></select></div>
+        <div class="input-group"><label>频谱类型</label><select id="cfgSpecB"><option value="37">原始频谱(CP4)</option><option value="53">频域滤波频谱</option><option value="69">时域滤波频谱</option></select></div>
+      </div>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn btn-outline" onclick="closeDialog('dialogDisplayCfg')">取消</button>
+      <button class="btn btn-primary" onclick="applyDisplayCfg()">应用</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CHANNEL_NAMES = ['OZ','O1','F3','F4','CP3','CP4','C3','C4'];
+const CHANNEL_COLORS = ['#1565C0','#E65100','#2E7D32','#F57F17','#4527A0','#40C4FF','#00C853','#FFB300'];
+const SAMPLE_RATE = 250;
+const MAX_POINTS = 5000;
+const FOCUS_MAX_POINTS = 5000;
+const SPECTRUM_BINS = 128;
+const FREQ_MAX = 125;
+
+let ws = null;
+let connected = false;
+let paused = false;
+let wcPaused = false;
+let scPaused = false;
+let focusShowFocus0 = true;
+let focusShowFocus1 = true;
+let focusShowRelax0 = true;
+let focusShowRelax1 = true;
+
+let waveData = Array.from({length:8}, () => []);
+let spectrumData = {};
+let focusAttn0 = [];
+let focusAttn1 = [];
+let focusEma0 = [];
+let focusEma1 = [];
+let focusTimestamps = [];
+
+let monitorCfg = {
+  chA: 4, waveA: 4, specA: 36,
+  chB: 5, waveB: 4, specB: 37
+};
+let wcCfg = [
+  {ch:4, cmd:4, color:'#1565C0', label:'CP3 原始'},
+  {ch:4, cmd:16, color:'#2E7D32', label:'CP3 滤波'},
+  {ch:5, cmd:4, color:'#E65100', label:'CP4 原始'},
+  {ch:5, cmd:16, color:'#40C4FF', label:'CP4 滤波'}
+];
+let scCfg = [
+  {cmd:36, color:'#4527A0', label:'CP3 原始频谱'},
+  {cmd:37, color:'#1A73E8', label:'CP3 时域滤波频谱'},
+  {cmd:52, color:'#40C4FF', label:'CP4 原始频谱'},
+  {cmd:69, color:'#FFB300', label:'CP4 时域滤波频谱'}
+];
+
+let waveYRange = 500;
+let specYRange = 5;
+let xRange = 2.05;
+let focusXRangeSec = 50;
+
+let miState = 'idle';
+let miTrial = 0;
+let miTotalTrials = 4;
+let miTimer = null;
+
+let inferRecords = [];
+let inferStats = {total:0, verified:0, correct:0, leftCount:0, rightCount:0, confSum:0};
+
+let postureState = 'SUPINE';
+let postureTurnCount = 0;
+let ssvepCfg = {chA: 1, chB: 0};
+
+const POSTURE_MAP = {
+  SUPINE: {name:'仰卧', icon:'⬆', color:'#4CAF50'},
+  PRONE: {name:'俯卧', icon:'⬇', color:'#FF9800'},
+  LEFT: {name:'左侧卧', icon:'⬅', color:'#2196F3'},
+  RIGHT: {name:'右侧卧', icon:'➡', color:'#2196F3'},
+  SITTING: {name:'坐姿', icon:'⏫', color:'#9C27B0'}
+};
+
+const FOCUS_STATES = ['放松','平静','专注'];
+const FOCUS_COLORS = ['#FF5252','#FFB300','#00C853'];
+
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.hostname}:8765`);
+  ws.onopen = () => console.log('[WS] Connected to bridge');
+  ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+  ws.onclose = () => { connected = false; updateStatus(); setTimeout(connectWS, 3000); };
+  ws.onerror = () => {};
+}
+connectWS();
+
+function sendWS(msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
+function sendCommand(cmd) {
+  sendWS({type:'command', data:cmd});
+  addCmdLog(cmd);
+}
+
+let cmdLogEntries = [];
+function addCmdLog(cmd) {
+  const ts = new Date().toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  cmdLogEntries.push(`[${ts}] > ${cmd}`);
+  if (cmdLogEntries.length > 100) cmdLogEntries.shift();
+  const el = document.getElementById('cmdLog');
+  if (el) {
+    el.innerHTML = cmdLogEntries.slice(-30).map(e => `<div>${e}</div>`).join('');
+    el.scrollTop = el.scrollHeight;
+  }
+}
+
+function sendCustomCmd() {
+  const input = document.getElementById('cmdInput');
+  if (!input || !input.value.trim()) return;
+  sendCommand(input.value.trim());
+  input.value = '';
+}
+
+function handleMessage(msg) {
+  switch(msg.type) {
+    case 'status':
+      connected = msg.connected;
+      updateStatus();
+      if (document.getElementById('cloudStatus')) {
+        document.getElementById('cloudStatus').textContent = msg.connected ? `已连接 ${msg.ip}:${msg.port}` : (msg.error || '未连接');
+        document.getElementById('statusDot').className = 'status-dot' + (msg.connected ? ' on' : '');
+      }
+      break;
+    case 'wave':
+      handleWave(msg.cmd, msg.ch, msg.val);
+      break;
+    case 'wave_multi':
+      msg.channels.forEach(c => handleWave(msg.cmd, c.ch, c.val));
+      break;
+    case 'spectrum':
+      handleSpectrum(msg.cmd, msg.mags);
+      break;
+    case 'focus':
+      handleFocus(msg);
+      break;
+    case 'text':
+      handleText(msg.data);
+      break;
+    case 'raw_hex':
+      handleRawHex(msg.hex, msg.len);
+      break;
+  }
+}
+
+let rawHexLog = [];
+const MAX_RAW_HEX = 50;
+
+function handleRawHex(hex, len) {
+  rawHexLog.push({time: new Date().toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit',fractionalSecondDigits:3}), hex, len});
+  if (rawHexLog.length > MAX_RAW_HEX) rawHexLog.shift();
+  renderRawHex();
+}
+
+function renderRawHex() {
+  const el = document.getElementById('rawHexLog');
+  if (!el) return;
+  el.innerHTML = rawHexLog.slice(-30).map(e => {
+    const spaced = e.hex.match(/.{1,2}/g).join(' ');
+    const has7E = e.hex.includes('7e') || e.hex.includes('7E');
+    const highlight = has7E ? 'color:#4EC9B0;font-weight:700' : '';
+    return `<div style="${highlight}"><span style="color:#6A9955">[${e.time}]</span> len=${e.len} ${spaced}${has7E ? ' ← 含0x7E' : ''}</div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function handleWave(cmd, ch, val) {
+  if (ch < 0 || ch >= 8) return;
+  if (!paused) {
+    waveData[ch].push(val);
+    if (waveData[ch].length > MAX_POINTS) waveData[ch].shift();
+  }
+}
+
+function handleSpectrum(cmd, mags) {
+  spectrumData[cmd] = mags;
+}
+
+function handleFocus(msg) {
+  const now = Date.now();
+  focusAttn0.push(msg.attn0);
+  focusAttn1.push(msg.attn1);
+  focusEma0.push(msg.ema0);
+  focusEma1.push(msg.ema1);
+  focusTimestamps.push(now);
+  if (focusAttn0.length > FOCUS_MAX_POINTS) {
+    focusAttn0.shift(); focusAttn1.shift(); focusEma0.shift(); focusEma1.shift(); focusTimestamps.shift();
+  }
+  const trend = msg.trend || 0;
+  const instant = msg.instant || 0;
+  document.getElementById('barFocus').textContent = (msg.attn0 * 100).toFixed(0) + '%';
+  document.getElementById('barRelax').textContent = (msg.ema0 * 100).toFixed(0) + '%';
+  document.getElementById('barInstant').textContent = FOCUS_STATES[instant] || '--';
+  document.getElementById('barTrend').textContent = FOCUS_STATES[trend] || '--';
+  document.getElementById('barInstant').style.color = FOCUS_COLORS[instant] || '';
+  document.getElementById('barTrend').style.color = FOCUS_COLORS[trend] || '';
+  const fv0 = document.getElementById('focusVal0');
+  const rv0 = document.getElementById('relaxVal0');
+  const fv1 = document.getElementById('focusVal1');
+  const rv1 = document.getElementById('relaxVal1');
+  if (fv0) fv0.textContent = (msg.attn0 * 100).toFixed(1) + '%';
+  if (rv0) rv0.textContent = (msg.ema0 * 100).toFixed(1) + '%';
+  if (fv1) fv1.textContent = (msg.attn1 * 100).toFixed(1) + '%';
+  if (rv1) rv1.textContent = (msg.ema1 * 100).toFixed(1) + '%';
+}
+
+function handleText(data) {
+  console.log('[TEXT]', data);
+  const ts = new Date().toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  cmdLogEntries.push(`[${ts}] < ${data}`);
+  if (cmdLogEntries.length > 100) cmdLogEntries.shift();
+  const el = document.getElementById('cmdLog');
+  if (el) {
+    el.innerHTML = cmdLogEntries.slice(-30).map(e => `<div>${e}</div>`).join('');
+    el.scrollTop = el.scrollHeight;
+  }
+  if (data.startsWith('POSTURE_STATE,')) {
+    const parts = data.split(',');
+    const state = parts[1] || 'SUPINE';
+    const turns = parseInt(parts[2]) || 0;
+    postureState = state;
+    postureTurnCount = turns;
+    updatePosture();
+  } else if (data.startsWith('TURN_EVENT,')) {
+    addPostureLog(data, false);
+  } else if (data.startsWith('FALL_EVENT')) {
+    addPostureLog('⚠ 坠床警报!', true);
+  } else if (data.startsWith('NO_TURN_ALERT,')) {
+    const dur = data.split(',')[1] || '?';
+    addPostureLog(`⚠ 久未翻身警报: ${dur}分钟`, true);
+  } else if (data.startsWith('RESULT,')) {
+    handleInferenceResult(data);
+  } else if (data === 'READY_TRAIN') {
+    document.getElementById('ssvepStatus').textContent = '就绪 - 可开始训练';
+  } else if (data === 'READY_TEST') {
+    document.getElementById('ssvepStatus').textContent = '就绪 - 可开始测试';
+  } else if (data.startsWith('TASK,LEFT')) {
+    miState = 'active';
+    document.getElementById('miDirection').textContent = '← LEFT';
+    document.getElementById('miDirection').style.color = 'var(--direction-left)';
+    document.getElementById('miPrompt').textContent = '想象左手运动';
+  } else if (data.startsWith('TASK,RIGHT')) {
+    miState = 'active';
+    document.getElementById('miDirection').textContent = 'RIGHT →';
+    document.getElementById('miDirection').style.color = 'var(--direction-right)';
+    document.getElementById('miPrompt').textContent = '想象右手运动';
+  } else if (data === 'TASK,DONE') {
+    miState = 'rest';
+    document.getElementById('miDirection').textContent = '休息';
+    document.getElementById('miDirection').style.color = 'var(--training-rest)';
+    document.getElementById('miPrompt').textContent = '准备下一个试次...';
+  } else if (data.startsWith('MODE_SET_OK,')) {
+    const mode = data.split(',')[1];
+    console.log('[MODE] Set to', mode);
+  }
+}
+
+function handleInferenceResult(data) {
+  const parts = data.split(',');
+  if (parts.length < 4) return;
+  const direction = parts[1];
+  const confidence = parseFloat(parts[2]);
+  const scoreL = parseFloat(parts[3]);
+  const scoreR = parts.length > 4 ? parseFloat(parts[4]) : 0;
+
+  const el = document.getElementById('inferDirection');
+  el.textContent = direction === 'LEFT' ? '← LEFT' : 'RIGHT →';
+  el.style.color = direction === 'LEFT' ? 'var(--direction-left)' : 'var(--direction-right)';
+  document.getElementById('inferConf').textContent = (confidence * 100).toFixed(1) + '%';
+  document.getElementById('inferScoreL').textContent = scoreL.toFixed(3);
+  document.getElementById('inferScoreR').textContent = scoreR.toFixed(3);
+
+  inferStats.total++;
+  if (direction === 'LEFT') inferStats.leftCount++;
+  else inferStats.rightCount++;
+  inferStats.confSum += confidence;
+
+  inferRecords.unshift({time: new Date().toLocaleTimeString(), dir: direction, conf: confidence, sL: scoreL, sR: scoreR});
+  updateInferUI();
+}
+
+function updateInferUI() {
+  document.getElementById('inferTotal').textContent = inferStats.total;
+  document.getElementById('inferVerified').textContent = inferStats.verified;
+  document.getElementById('inferAccuracy').textContent = inferStats.verified > 0 ? (inferStats.correct / inferStats.verified * 100).toFixed(1) + '%' : '--';
+  document.getElementById('inferAvgConf').textContent = inferStats.total > 0 ? (inferStats.confSum / inferStats.total * 100).toFixed(1) + '%' : '--';
+  document.getElementById('inferLeftCount').textContent = inferStats.leftCount;
+  document.getElementById('inferRightCount').textContent = inferStats.rightCount;
+
+  const container = document.getElementById('inferRecords');
+  container.innerHTML = inferRecords.slice(0, 50).map(r =>
+    `<div class="infer-record"><span>${r.time}</span><span style="color:${r.dir==='LEFT'?'var(--direction-left)':'var(--direction-right)'};font-weight:600">${r.dir}</span><span>${(r.conf*100).toFixed(1)}%</span></div>`
+  ).join('');
+}
+
+function exportInference() {
+  if (!inferRecords.length) return;
+  let csv = 'Time,Direction,Confidence,ScoreL,ScoreR\n';
+  inferRecords.forEach(r => csv += `${r.time},${r.dir},${r.conf.toFixed(4)},${r.sL.toFixed(4)},${r.sR.toFixed(4)}\n`);
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'inference_records.csv';
+  a.click();
+}
+
+function clearInference() {
+  inferRecords = [];
+  inferStats = {total:0, verified:0, correct:0, leftCount:0, rightCount:0, confSum:0};
+  updateInferUI();
+}
+
+function startInference() {
+  sendCommand('MODE,SET,2');
+  setTimeout(() => sendCommand('MODE,TEST'), 500);
+}
+
+function updatePosture() {
+  const p = POSTURE_MAP[postureState] || POSTURE_MAP.SUPINE;
+  document.getElementById('postureIcon').textContent = p.icon;
+  document.getElementById('postureStatus').textContent = p.name;
+  document.getElementById('postureStatus').style.color = p.color;
+  document.getElementById('postureTurnCount').textContent = postureTurnCount;
+  document.getElementById('barPosture').textContent = p.name;
+  document.getElementById('barPosture').style.color = p.color;
+}
+
+function addPostureLog(text, isAlert) {
+  const log = document.getElementById('postureLog');
+  const entry = document.createElement('div');
+  entry.className = 'entry' + (isAlert ? ' alert' : '');
+  entry.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+  log.prepend(entry);
+  if (log.children.length > 100) log.removeChild(log.lastChild);
+}
+
+function updateStatus() {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  dot.className = 'status-dot' + (connected ? ' on' : '');
+  txt.textContent = connected ? '已连接' : '未连接';
+  const hDot = document.getElementById('homeStatusDot');
+  const hTxt = document.getElementById('homeStatusText');
+  const hBtn = document.getElementById('btnHomeConnect');
+  if (hDot) { hDot.className = 'status-dot' + (connected ? ' on' : ''); }
+  if (hTxt) { hTxt.textContent = connected ? '已连接' : '未连接'; hTxt.style.color = connected ? 'var(--accent-success)' : 'var(--text-secondary)'; }
+  if (hBtn) { hBtn.textContent = connected ? '断开连接' : '连接设备'; hBtn.className = connected ? 'btn btn-error' : 'btn btn-primary'; }
+}
+
+function togglePause() {
+  paused = !paused;
+  document.getElementById('btnPause').textContent = paused ? '继续' : '暂停';
+}
+function toggleWcPause() {
+  wcPaused = !wcPaused;
+  document.getElementById('btnWcPause').textContent = wcPaused ? '继续' : '暂停';
+}
+function toggleScPause() {
+  scPaused = !scPaused;
+  document.getElementById('btnScPause').textContent = scPaused ? '继续' : '暂停';
+}
+function toggleFocusLine(which) {
+  if (which === 'focus0') {
+    focusShowFocus0 = !focusShowFocus0;
+    document.getElementById('toggleFocus0').style.opacity = focusShowFocus0 ? 1 : 0.4;
+  } else if (which === 'focus1') {
+    focusShowFocus1 = !focusShowFocus1;
+    document.getElementById('toggleFocus1').style.opacity = focusShowFocus1 ? 1 : 0.4;
+  } else if (which === 'relax0') {
+    focusShowRelax0 = !focusShowRelax0;
+    document.getElementById('toggleRelax0').style.opacity = focusShowRelax0 ? 1 : 0.4;
+  } else if (which === 'relax1') {
+    focusShowRelax1 = !focusShowRelax1;
+    document.getElementById('toggleRelax1').style.opacity = focusShowRelax1 ? 1 : 0.4;
+  }
+}
+
+function showDisplayCfg() { document.getElementById('dialogDisplayCfg').classList.add('show'); }
+function closeDialog(id) { document.getElementById(id).classList.remove('show'); }
+function applyDisplayCfg() {
+  monitorCfg.chA = parseInt(document.getElementById('cfgChA').value);
+  monitorCfg.chB = parseInt(document.getElementById('cfgChB').value);
+  monitorCfg.waveA = parseInt(document.getElementById('cfgWaveA').value);
+  monitorCfg.waveB = parseInt(document.getElementById('cfgWaveB').value);
+  monitorCfg.specA = parseInt(document.getElementById('cfgSpecA').value);
+  monitorCfg.specB = parseInt(document.getElementById('cfgSpecB').value);
+  const cmd = `DISPLAY_CFG,${monitorCfg.chA},${monitorCfg.waveA},${monitorCfg.chB},${monitorCfg.waveB},${monitorCfg.specA},${monitorCfg.specB},${monitorCfg.chA},${monitorCfg.waveA},${monitorCfg.chB},${monitorCfg.waveB},${monitorCfg.specA},${monitorCfg.specB}`;
+  sendCommand(cmd);
+  closeDialog('dialogDisplayCfg');
+  buildMonitorUI();
+}
+
+function showWcChannelCfg() { showDisplayCfg(); }
+function showScChannelCfg() { showDisplayCfg(); }
+
+function updateWcCfg() {
+  const chA = parseInt(document.getElementById('wcChA').value);
+  const chB = parseInt(document.getElementById('wcChB').value);
+  wcCfg[0] = {ch:chA, cmd:4, color:'#1565C0', label:CHANNEL_NAMES[chA]+' 原始'};
+  wcCfg[1] = {ch:chA, cmd:16, color:'#2E7D32', label:CHANNEL_NAMES[chA]+' 滤波'};
+  wcCfg[2] = {ch:chB, cmd:4, color:'#E65100', label:CHANNEL_NAMES[chB]+' 原始'};
+  wcCfg[3] = {ch:chB, cmd:16, color:'#40C4FF', label:CHANNEL_NAMES[chB]+' 滤波'};
+  document.getElementById('wcLabel0').textContent = wcCfg[0].label;
+  document.getElementById('wcLabel1').textContent = wcCfg[1].label;
+  document.getElementById('wcLabel2').textContent = wcCfg[2].label;
+  document.getElementById('wcLabel3').textContent = wcCfg[3].label;
+}
+
+function updateScCfg() {
+  const chA = parseInt(document.getElementById('scChA').value);
+  const chB = parseInt(document.getElementById('scChB').value);
+  scCfg[0] = {cmd:0x20+chA, color:'#4527A0', label:CHANNEL_NAMES[chA]+' 原始频谱'};
+  scCfg[1] = {cmd:0x30+chA, color:'#1A73E8', label:CHANNEL_NAMES[chA]+' 频域滤波频谱'};
+  scCfg[2] = {cmd:0x20+chB, color:'#40C4FF', label:CHANNEL_NAMES[chB]+' 原始频谱'};
+  scCfg[3] = {cmd:0x30+chB, color:'#FFB300', label:CHANNEL_NAMES[chB]+' 频域滤波频谱'};
+  document.getElementById('scLabel0').textContent = scCfg[0].label;
+  document.getElementById('scLabel1').textContent = scCfg[1].label;
+  document.getElementById('scLabel2').textContent = scCfg[2].label;
+  document.getElementById('scLabel3').textContent = scCfg[3].label;
+}
+
+function updateSsvepCfg() {
+  ssvepCfg.chA = parseInt(document.getElementById('ssvepChA').value);
+  ssvepCfg.chB = parseInt(document.getElementById('ssvepChB').value);
+  document.getElementById('ssvepLabel0').textContent = CHANNEL_NAMES[ssvepCfg.chA] + ' 频谱';
+  document.getElementById('ssvepLabel1').textContent = CHANNEL_NAMES[ssvepCfg.chB] + ' 频谱';
+}
+
+function setSsvepFreq(freq) {
+  document.querySelectorAll('.freq-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.freq) === freq));
+  document.getElementById('ssvepTargetFreq').textContent = freq + ' Hz';
+  sendCommand(`SSVEP,START,${freq}`);
+}
+
+function startMiTraining() {
+  miTrial = 0;
+  miState = 'rest';
+  document.getElementById('miDirection').textContent = '休息';
+  document.getElementById('miDirection').style.color = 'var(--training-rest)';
+  document.getElementById('miPrompt').textContent = '准备开始...';
+  document.getElementById('miProgressFill').style.width = '0%';
+  document.getElementById('miTrialCount').textContent = `试次: 0/${miTotalTrials}`;
+  sendCommand('MODE,SET,2');
+  setTimeout(() => sendCommand('MODE,TRAIN'), 500);
+}
+
+function toggleCloudConnect() {
+  const ip = document.getElementById('cloudIp').value;
+  const port = parseInt(document.getElementById('cloudPort').value);
+  if (connected) {
+    sendWS({type:'disconnect'});
+  } else {
+    sendWS({type:'connect', ip, port});
+  }
+}
+
+function toggleHomeConnect() {
+  const ip = document.getElementById('homeIp').value;
+  const port = parseInt(document.getElementById('homePort').value);
+  if (connected) {
+    sendWS({type:'disconnect'});
+  } else {
+    sendWS({type:'connect', ip, port});
+  }
+}
+
+function addWifi() {
+  const ssid = document.getElementById('wifiSsid').value;
+  const pass = document.getElementById('wifiPass').value;
+  if (!ssid) return;
+  const wifiCfg = JSON.stringify({ssid, pass});
+  sendCommand(`WIFI_CFG,ADD,${btoa(wifiCfg)}`);
+  document.getElementById('wifiSsid').value = '';
+  document.getElementById('wifiPass').value = '';
+}
+
+function deleteWifi() {
+  const ssid = document.getElementById('wifiSsid').value;
+  if (!ssid) return;
+  sendCommand(`WIFI_CFG,DEL,${btoa(JSON.stringify({ssid}))}`);
+}
+
+// ===== Navigation =====
+document.querySelectorAll('.nav-item, .home-card').forEach(el => {
+  el.addEventListener('click', () => {
+    const page = el.dataset.page;
+    if (!page) return;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
+    if (page === 'monitor') buildMonitorUI();
+  });
+});
+
+// ===== Monitor UI Builder =====
+function buildMonitorUI() {
+  const container = document.getElementById('monitorContainer');
+  container.innerHTML = '';
+  const mode = document.getElementById('monMode') ? document.getElementById('monMode').value : 'dual';
+  if (mode === 'all8') {
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px';
+    for (let i = 0; i < 8; i++) {
+      const chName = CHANNEL_NAMES[i];
+      const chColor = CHANNEL_COLORS[i];
+      const specCmd = 0x20 + i;
+      grid.innerHTML += `
+        <div class="ch-card">
+          <div class="ch-header"><div class="ch-dot" style="background:${chColor}"></div><span class="ch-name">${chName}</span>
+          <div class="ch-quality"><div class="ch-quality-fill" style="background:${chColor}"></div></div></div>
+          <canvas id="monWave${i}" height="60"></canvas>
+        </div>`;
+    }
+    container.appendChild(grid);
+  } else {
+    const rows = [
+      {chIdx: monitorCfg.chA, waveCmd: monitorCfg.waveA, specCmd: monitorCfg.specA},
+      {chIdx: monitorCfg.chB, waveCmd: monitorCfg.waveB, specCmd: monitorCfg.specB}
+    ];
+    rows.forEach((row, ri) => {
+      const grid = document.createElement('div');
+      grid.className = 'monitor-grid';
+      grid.style.marginBottom = '8px';
+      const chName = CHANNEL_NAMES[row.chIdx];
+      const chColor = CHANNEL_COLORS[row.chIdx];
+      grid.innerHTML = `
+        <div class="ch-card">
+          <div class="ch-header"><div class="ch-dot" style="background:${chColor}"></div><span class="ch-name">${chName}</span>
+          <div class="ch-quality"><div class="ch-quality-fill" style="background:${chColor}"></div></div></div>
+          <canvas id="monWave${ri}" height="100"></canvas>
+        </div>
+        <div class="ch-card">
+          <div class="spec-header"><span class="ch-name">频谱 ${chName}</span></div>
+          <canvas id="monSpec${ri}" height="100"></canvas>
+        </div>`;
+      container.appendChild(grid);
+    });
+  }
+}
+
+// ===== Canvas Rendering =====
+function niceNum(range, round) {
+  const exp = Math.floor(Math.log10(range));
+  const frac = range / Math.pow(10, exp);
+  let nice;
+  if (round) {
+    if (frac < 1.5) nice = 1;
+    else if (frac < 3) nice = 2;
+    else if (frac < 7) nice = 5;
+    else nice = 10;
+  } else {
+    if (frac <= 1) nice = 1;
+    else if (frac <= 2) nice = 2;
+    else if (frac <= 5) nice = 5;
+    else nice = 10;
+  }
+  return nice * Math.pow(10, exp);
+}
+
+function drawWaveform(canvas, data, color, yRange, xSec) {
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth;
+  const H = canvas.clientHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.scale(dpr, dpr);
+
+  const padL = 50, padR = 10, padT = 8, padB = 20;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  ctx.fillStyle = '#F0F2F5';
+  ctx.fillRect(0, 0, W, H);
+
+  const yMax = yRange * 1e-6;
+  const tickStep = niceNum(yMax * 2, true);
+  const yStart = Math.ceil(-yMax / tickStep) * tickStep;
+
+  ctx.strokeStyle = '#E0E4E8';
+  ctx.lineWidth = 0.5;
+  ctx.setLineDash([4, 4]);
+  ctx.font = '10px sans-serif';
+  ctx.fillStyle = color;
+  ctx.textAlign = 'right';
+
+  for (let v = yStart; v <= yMax; v += tickStep) {
+    const y = padT + plotH / 2 - (v / yMax) * (plotH / 2);
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL + plotW, y);
+    ctx.stroke();
+    const label = Math.abs(v) >= 1e-3 ? (v * 1e3).toFixed(0) + 'mV' : (v * 1e6).toFixed(0) + 'uV';
+    ctx.fillText(label, padL - 4, y + 3);
+  }
+
+  const numSamples = Math.round(xSec * SAMPLE_RATE);
+  const xTickSec = niceNum(xSec / 5, true);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#607D8B';
+  for (let t = 0; t <= xSec; t += xTickSec) {
+    const x = padL + (t / xSec) * plotW;
+    ctx.beginPath();
+    ctx.moveTo(x, padT);
+    ctx.lineTo(x, padT + plotH);
+    ctx.stroke();
+    ctx.fillText(t.toFixed(1) + 's', x, padT + plotH + 14);
+  }
+
+  ctx.setLineDash([]);
+  ctx.strokeStyle = '#90A4AE';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padL, padT + plotH / 2);
+  ctx.lineTo(padL + plotW, padT + plotH / 2);
+  ctx.stroke();
+
+  if (data.length < 2) return;
+  const startIdx = Math.max(0, data.length - numSamples);
+  const slice = data.slice(startIdx);
+
+  let center = 0;
+  for (let i = 0; i < slice.length; i++) center += slice[i];
+  center /= slice.length;
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  for (let i = 0; i < slice.length; i++) {
+    const x = padL + (i / numSamples) * plotW;
+    const y = padT + plotH / 2 - ((slice[i] - center) / yMax) * (plotH / 2);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 4;
+  ctx.globalAlpha = 0.15;
+  ctx.beginPath();
+  for (let i = 0; i < slice.length; i++) {
+    const x = padL + (i / numSamples) * plotW;
+    const y = padT + plotH / 2 - ((slice[i] - center) / yMax) * (plotH / 2);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+function drawSpectrum(canvas, mags, colorStart, colorEnd, yRange, xMaxHz) {
+  if (!canvas || !mags || !mags.length) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth;
+  const H = canvas.clientHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.scale(dpr, dpr);
+
+  const padL = 50, padR = 10, padT = 8, padB = 20;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  ctx.fillStyle = '#F0F2F5';
+  ctx.fillRect(0, 0, W, H);
+
+  const yMax = yRange;
+  const tickStep = niceNum(yMax, true);
+
+  ctx.strokeStyle = '#E0E4E8';
+  ctx.lineWidth = 0.5;
+  ctx.setLineDash([4, 4]);
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'right';
+
+  for (let v = 0; v <= yMax; v += tickStep) {
+    const y = padT + plotH - (v / yMax) * plotH;
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL + plotW, y);
+    ctx.stroke();
+    const label = v >= 1 ? v.toFixed(0) + 'V' : v >= 1e-3 ? (v * 1e3).toFixed(0) + 'mV' : (v * 1e6).toFixed(0) + 'uV';
+    ctx.fillStyle = '#607D8B';
+    ctx.fillText(label, padL - 4, y + 3);
+  }
+
+  const freqRes = FREQ_MAX / SPECTRUM_BINS;
+  const maxBin = Math.min(mags.length, Math.round(xMaxHz / freqRes));
+  const xTickHz = niceNum(xMaxHz / 5, true);
+  ctx.textAlign = 'center';
+  for (let f = 0; f <= xMaxHz; f += xTickHz) {
+    const x = padL + (f / xMaxHz) * plotW;
+    ctx.beginPath();
+    ctx.moveTo(x, padT);
+    ctx.lineTo(x, padT + plotH);
+    ctx.stroke();
+    ctx.fillText(f.toFixed(0) + 'Hz', x, padT + plotH + 14);
+  }
+
+  ctx.setLineDash([]);
+  ctx.strokeStyle = '#90A4AE';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padL, padT + plotH);
+  ctx.lineTo(padL + plotW, padT + plotH);
+  ctx.stroke();
+
+  const barW = Math.max(1, plotW / maxBin * 0.9);
+  const gap = plotW / maxBin * 0.1;
+
+  for (let i = 0; i < maxBin; i++) {
+    const mag = Math.abs(mags[i]);
+    const barH = Math.min(plotH, (mag / yMax) * plotH);
+    const x = padL + (i / maxBin) * plotW;
+    const y = padT + plotH - barH;
+
+    const grad = ctx.createLinearGradient(x, y + barH, x, y);
+    grad.addColorStop(0, colorStart);
+    grad.addColorStop(1, colorEnd);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, barW, barH);
+  }
+}
+
+function drawFocusChart(canvas) {
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth;
+  const H = canvas.clientHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.scale(dpr, dpr);
+
+  const padL = 50, padR = 10, padT = 10, padB = 25;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  ctx.fillStyle = '#F0F2F5';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = '#E0E4E8';
+  ctx.lineWidth = 0.5;
+  ctx.setLineDash([4, 4]);
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'right';
+
+  for (let v = 0; v <= 1; v += 0.2) {
+    const y = padT + plotH - v * plotH;
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL + plotW, y);
+    ctx.stroke();
+    ctx.fillStyle = '#607D8B';
+    ctx.fillText((v * 100).toFixed(0) + '%', padL - 4, y + 3);
+  }
+  ctx.setLineDash([]);
+
+  const n = focusAttn0.length;
+  if (n < 2) return;
+
+  const windowSamples = focusXRangeSec * 10;
+  const startIdx = Math.max(0, n - windowSamples);
+  const sliceLen = n - startIdx;
+
+  function drawLine(data, color, alpha) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = alpha < 1 ? 4 : 1.5;
+    ctx.globalAlpha = alpha;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < sliceLen; i++) {
+      const x = padL + (i / windowSamples) * plotW;
+      const y = padT + plotH - data[startIdx + i] * plotH;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    if (alpha >= 1) {
+      ctx.lineTo(padL + ((sliceLen - 1) / windowSamples) * plotW, padT + plotH);
+      ctx.lineTo(padL, padT + plotH);
+      ctx.closePath();
+      ctx.globalAlpha = 0.08;
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  if (focusShowRelax0) {
+    drawLine(focusEma0, '#40C4FF', 0.15);
+    drawLine(focusEma0, '#40C4FF', 1);
+  }
+  if (focusShowRelax1) {
+    drawLine(focusEma1, '#9C27B0', 0.15);
+    drawLine(focusEma1, '#9C27B0', 1);
+  }
+  if (focusShowFocus0) {
+    drawLine(focusAttn0, '#F57F17', 0.15);
+    drawLine(focusAttn0, '#F57F17', 1);
+  }
+  if (focusShowFocus1) {
+    drawLine(focusAttn1, '#E65100', 0.15);
+    drawLine(focusAttn1, '#E65100', 1);
+  }
+}
+
+// ===== Animation Loop =====
+let lastRender = 0;
+const RENDER_INTERVAL = 33;
+
+function renderLoop(ts) {
+  requestAnimationFrame(renderLoop);
+  if (ts - lastRender < RENDER_INTERVAL) return;
+  lastRender = ts;
+
+  const activePage = document.querySelector('.page.active');
+  if (!activePage) return;
+  const pageId = activePage.id;
+
+  if (pageId === 'page-monitor') {
+    const mode = document.getElementById('monMode') ? document.getElementById('monMode').value : 'dual';
+    if (mode === 'all8') {
+      for (let i = 0; i < 8; i++) {
+        const c = document.getElementById('monWave' + i);
+        if (c) drawWaveform(c, waveData[i], CHANNEL_COLORS[i], waveYRange, xRange);
+      }
+    } else {
+      const w0 = document.getElementById('monWave0');
+      const w1 = document.getElementById('monWave1');
+      const s0 = document.getElementById('monSpec0');
+      const s1 = document.getElementById('monSpec1');
+      if (w0) drawWaveform(w0, waveData[monitorCfg.chA], CHANNEL_COLORS[monitorCfg.chA], waveYRange, xRange);
+      if (w1) drawWaveform(w1, waveData[monitorCfg.chB], CHANNEL_COLORS[monitorCfg.chB], waveYRange, xRange);
+      if (s0) drawSpectrum(s0, spectrumData[monitorCfg.specA], '#4527A0', '#1A73E8', specYRange, FREQ_MAX);
+      if (s1) drawSpectrum(s1, spectrumData[monitorCfg.specB], '#4527A0', '#1A73E8', specYRange, FREQ_MAX);
+    }
+  }
+
+  if (pageId === 'page-focus') {
+    drawFocusChart(document.getElementById('focusCanvas'));
+  }
+
+  if (pageId === 'page-wave-compare' && !wcPaused) {
+    for (let i = 0; i < 4; i++) {
+      const c = document.getElementById('wc' + i);
+      if (c) drawWaveform(c, waveData[wcCfg[i].ch], wcCfg[i].color, waveYRange, xRange);
+    }
+  }
+
+  if (pageId === 'page-spectrum-compare' && !scPaused) {
+    for (let i = 0; i < 4; i++) {
+      const c = document.getElementById('sc' + i);
+      if (c) drawSpectrum(c, spectrumData[scCfg[i].cmd], scCfg[i].color, '#1A73E8', specYRange, FREQ_MAX);
+    }
+  }
+
+  if (pageId === 'page-ssvep') {
+    drawSpectrum(document.getElementById('ssvepSpec0'), spectrumData[0x20 + ssvepCfg.chA], '#4527A0', '#1A73E8', specYRange, 45);
+    drawSpectrum(document.getElementById('ssvepSpec1'), spectrumData[0x20 + ssvepCfg.chB], '#4527A0', '#1A73E8', specYRange, 45);
+  }
+}
+
+requestAnimationFrame(renderLoop);
+
+buildMonitorUI();
+updatePosture();
+
+// ===== Data Verify =====
+let verifyCounts = {total:0, wave:0, spectrum:0, focus:0, ch8:0, text:0, raw:0};
+let verifyLogEntries = [];
+let verifyFilter = 'all';
+let verifyStartTime = 0;
+const MAX_VERIFY_LOG = 500;
+
+function updateVerifyStats() {
+  document.getElementById('vTotal').textContent = verifyCounts.total;
+  document.getElementById('vWave').textContent = verifyCounts.wave;
+  document.getElementById('vSpectrum').textContent = verifyCounts.spectrum;
+  document.getElementById('vFocus').textContent = verifyCounts.focus;
+  document.getElementById('v8ch').textContent = verifyCounts.ch8;
+  document.getElementById('vText').textContent = verifyCounts.text;
+  const elapsed = verifyStartTime ? (Date.now() - verifyStartTime) / 1000 : 0;
+  document.getElementById('vRate').textContent = elapsed > 0 ? (verifyCounts.total / elapsed).toFixed(1) + '/s' : '0/s';
+  document.getElementById('vConn').textContent = connected ? '已连接' : '未连接';
+  document.getElementById('vConn').style.color = connected ? 'var(--accent-success)' : 'var(--accent-error)';
+}
+
+function addVerifyLog(category, html) {
+  const time = new Date().toLocaleTimeString('zh-CN', {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit', fractionalSecondDigits:3});
+  verifyLogEntries.push({category, time, html});
+  if (verifyLogEntries.length > MAX_VERIFY_LOG) verifyLogEntries.shift();
+  renderVerifyLog();
+}
+
+function renderVerifyLog() {
+  const container = document.getElementById('verifyLog');
+  if (!container) return;
+  const filtered = verifyFilter === 'all' ? verifyLogEntries : verifyLogEntries.filter(e => e.category === verifyFilter);
+  const last200 = filtered.slice(-200);
+  container.innerHTML = last200.map(e => e.html).join('');
+  container.scrollTop = container.scrollHeight;
+}
+
+function setVerifyFilter(f, btn) {
+  verifyFilter = f;
+  document.querySelectorAll('.verify-filter .filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderVerifyLog();
+}
+
+function clearVerifyLog() {
+  verifyLogEntries = [];
+  verifyCounts = {total:0, wave:0, spectrum:0, focus:0, ch8:0, text:0, raw:0};
+  verifyStartTime = 0;
+  renderVerifyLog();
+  updateVerifyStats();
+}
+
+function exportVerifyLog() {
+  const text = verifyLogEntries.map(e => e.html.replace(/<[^>]+>/g, '')).join('\n');
+  const blob = new Blob([text], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'verify_log_' + new Date().toISOString().slice(0,19).replace(/:/g,'-') + '.txt';
+  a.click();
+}
+
+// Patch handleMessage to add verify logging
+const _origHandleMessage = handleMessage;
+handleMessage = function(msg) {
+  _origHandleMessage(msg);
+  if (!verifyStartTime) verifyStartTime = Date.now();
+  verifyCounts.total++;
+  const ts = `<span class="log-time">[${new Date().toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit',fractionalSecondDigits:3})}]</span>`;
+
+  switch(msg.type) {
+    case 'wave':
+      verifyCounts.wave++;
+      const cmdName = msg.cmd === 0x04 ? '原始' : msg.cmd === 0x10 ? '滤波' : msg.cmd === 0x11 ? '基线修复' : '0x'+msg.cmd.toString(16);
+      addVerifyLog('wave', `${ts} <span class="log-wave">[波形]</span> ${cmdName} CH${msg.ch}(${CHANNEL_NAMES[msg.ch]}) = ${msg.val.toFixed(6)}V`);
+      break;
+    case 'wave_multi':
+      if (msg.cmd === 0x22 || msg.cmd === 0x42) {
+        verifyCounts.ch8++;
+        const name8 = msg.cmd === 0x22 ? '滤波8ch' : '原始8ch';
+        const vals = msg.channels.map(c => `CH${c.ch}=${c.val.toFixed(6)}`).join(' ');
+        addVerifyLog('wave', `${ts} <span class="log-wave">[${name8}]</span> ${vals}`);
+      } else {
+        verifyCounts.wave++;
+        const cmdN = msg.cmd === 0x04 ? '原始' : msg.cmd === 0x10 ? '滤波' : '0x'+msg.cmd.toString(16);
+        const vals = msg.channels.map(c => `CH${c.ch}(${CHANNEL_NAMES[c.ch]})=${c.val.toFixed(6)}`).join(' ');
+        addVerifyLog('wave', `${ts} <span class="log-wave">[波形]</span> ${cmdN} ${vals}`);
+      }
+      break;
+    case 'spectrum':
+      verifyCounts.spectrum++;
+      const specCh = msg.cmd & 0x07;
+      const specType = (msg.cmd & 0xF0) === 0x20 ? '原始' : (msg.cmd & 0xF0) === 0x30 ? '频域滤波' : '时域滤波';
+      const top5 = msg.mags.slice(0,5).map((v,i) => `${i}=${v.toFixed(4)}`).join(' ');
+      addVerifyLog('spectrum', `${ts} <span class="log-spectrum">[频谱]</span> ${specType} CH${specCh}(${CHANNEL_NAMES[specCh]}) bins=${msg.mags.length} 前5: ${top5}`);
+      break;
+    case 'focus':
+      verifyCounts.focus++;
+      addVerifyLog('focus', `${ts} <span class="log-focus">[专注度]</span> attn0=${(msg.attn0*100).toFixed(1)}% attn1=${(msg.attn1*100).toFixed(1)}% relax0=${(msg.ema0*100).toFixed(1)}% relax1=${(msg.ema1*100).toFixed(1)}% trend=${FOCUS_STATES[msg.trend]||msg.trend} instant=${FOCUS_STATES[msg.instant]||msg.instant}`);
+      break;
+    case 'text':
+      verifyCounts.text++;
+      addVerifyLog('text', `${ts} <span class="log-text">[文本]</span> ${msg.data}`);
+      break;
+    case 'raw':
+      verifyCounts.raw++;
+      addVerifyLog('raw', `${ts} <span class="log-raw">[未知]</span> cmd=0x${msg.cmd.toString(16)} len=${msg.len} hex=${msg.hex}`);
+      break;
+  }
+  updateVerifyStats();
+};
+
+// Patch status handler for verify page
+const _origUpdateStatus = updateStatus;
+updateStatus = function() {
+  _origUpdateStatus();
+  const vc = document.getElementById('vConn');
+  if (vc) { vc.textContent = connected ? '已连接' : '未连接'; vc.style.color = connected ? 'var(--accent-success)' : 'var(--accent-error)'; }
+};
+
+// Add verify page rendering to the animation loop
+const _origRenderLoop = renderLoop;
+renderLoop = function(ts) {
+  _origRenderLoop(ts);
+  const activePage = document.querySelector('.page.active');
+  if (activePage && activePage.id === 'page-verify') {
+    [0,1,4,5].forEach(ch => {
+      const c = document.getElementById('vWave' + ch);
+      if (c) drawWaveform(c, waveData[ch], CHANNEL_COLORS[ch], waveYRange, xRange);
+    });
+  }
+};
+
+</script>
+</body>
+</html>

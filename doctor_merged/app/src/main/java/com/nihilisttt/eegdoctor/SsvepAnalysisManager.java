@@ -218,6 +218,7 @@ public final class SsvepAnalysisManager {
                 state,
                 buffered,
                 FbccaConfig.WINDOW_SIZE,
+                engine.getSamplesUntilNextUpdate(),
                 waveCommand,
                 synthetic,
                 message));

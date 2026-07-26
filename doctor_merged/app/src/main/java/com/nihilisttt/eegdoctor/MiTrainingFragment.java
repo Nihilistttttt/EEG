@@ -26,7 +26,7 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
     private static final int STATE_MODEL_TRAINING = 4;
 
     private static final int REST_DURATION_MS = 5000;
-    private static final int MI_TRIAL_DURATION_MS = 25000;
+    private static final int MI_TRIAL_DURATION_MS = 15000;
     private static final String[] TRIAL_SEQUENCE = {"LEFT", "RIGHT", "LEFT", "RIGHT"};
 
     private int currentState = STATE_IDLE;

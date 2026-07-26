@@ -7,6 +7,7 @@ public final class SsvepProgress {
     private final State state;
     private final int bufferedSamples;
     private final int windowSamples;
+    private final int samplesUntilNextUpdate;
     private final int waveCommand;
     private final boolean synthetic;
     private final String message;
@@ -14,12 +15,14 @@ public final class SsvepProgress {
     public SsvepProgress(State state,
                          int bufferedSamples,
                          int windowSamples,
+                         int samplesUntilNextUpdate,
                          int waveCommand,
                          boolean synthetic,
                          String message) {
         this.state = state;
         this.bufferedSamples = bufferedSamples;
         this.windowSamples = windowSamples;
+        this.samplesUntilNextUpdate = samplesUntilNextUpdate;
         this.waveCommand = waveCommand;
         this.synthetic = synthetic;
         this.message = message == null ? "" : message;
@@ -28,6 +31,7 @@ public final class SsvepProgress {
     public State getState() { return state; }
     public int getBufferedSamples() { return bufferedSamples; }
     public int getWindowSamples() { return windowSamples; }
+    public int getSamplesUntilNextUpdate() { return samplesUntilNextUpdate; }
     public int getWaveCommand() { return waveCommand; }
     public boolean isSynthetic() { return synthetic; }
     public String getMessage() { return message; }

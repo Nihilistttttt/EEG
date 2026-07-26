@@ -88,7 +88,7 @@
                         style="@style/ParamChip"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="5 mV" />
+                        android:text="500 uV" />
 
                     <TextView
                         android:text="X轴"
@@ -102,7 +102,7 @@
                         style="@style/ParamChip"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="0-45 Hz" />
+                        android:text="0-30 Hz" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

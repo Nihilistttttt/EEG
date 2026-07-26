@@ -240,7 +240,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         tvRatio.setText("--");
         tvMargin.setText("--");
         tvVote.setText("投票: --");
-        tvProgress.setText("窗口: 0 / " + FbccaConfig.WINDOW_SIZE);
+        tvProgress.setText("步进: 0/" + FbccaConfig.STEP_SIZE + "  投票: 0/" + FbccaConfig.VOTE_HISTORY_LEN);
         tvWaveSource.setText(String.format(Locale.US,
                 "波形源: 优先 0x%02X，1秒后回退 0x%02X；输入比例 ×%.0f mV",
                 FbccaConfig.PREFERRED_WAVE_CMD,
@@ -252,17 +252,16 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
     @Override
     public void onSsvepProgress(SsvepProgress progress) {
         if (progress == null || getView() == null) return;
-        int pct = progress.getPercent();
-        if (pct >= 100) {
-            progressWindow.setProgress(0);
-        } else {
-            progressWindow.setProgress(pct);
-        }
+        int stepSize = FbccaConfig.STEP_SIZE;
+        int untilNext = progress.getSamplesUntilNextUpdate();
+        int stepCollected = stepSize - untilNext;
+        if (stepCollected < 0) stepCollected = 0;
+        if (stepCollected > stepSize) stepCollected = stepSize;
+        int pct = Math.round(stepCollected * 100f / stepSize);
+        progressWindow.setProgress(Math.min(100, pct));
         tvProgress.setText(String.format(Locale.US,
-                "窗口: %d/%d（%d%%） %s",
-                progress.getBufferedSamples(),
-                progress.getWindowSamples(),
-                pct,
+                "步进: %d/%d  %s",
+                stepCollected, stepSize,
                 progress.getMessage()));
         if (progress.getWaveCommand() > 0) {
             tvWaveSource.setText(String.format(Locale.US,
@@ -276,6 +275,12 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
     @Override
     public void onSsvepResult(SsvepResult result) {
         if (result == null || getView() == null) return;
+        int totalVotes = result.getVote11() + result.getVote13()
+                + result.getVote15() + result.getVote17();
+        tvProgress.setText(String.format(Locale.US,
+                "步进: --  投票: %d/%d",
+                totalVotes, FbccaConfig.VOTE_HISTORY_LEN));
+
         int finalIndex = result.getFreqIndex();
         int rawIndex = result.getRawFreqIndex();
         if (!result.isChannelUsable()) {

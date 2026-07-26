@@ -7,7 +7,8 @@ import struct
 import os
 import sys
 import threading
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from aiohttp import web
 
 try:
     import websockets
@@ -15,6 +16,13 @@ except ImportError:
     import subprocess
     subprocess.check_call([sys.executable, "-m", "pip", "install", "websockets"])
     import websockets
+
+try:
+    from aiohttp import web as aioweb
+except ImportError:
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "aiohttp"])
+    from aiohttp import web as aioweb
 
 WS_PORT = 8765
 HTTP_PORT = 8088
@@ -269,22 +277,38 @@ class BridgeServer:
         finally:
             self.ws_clients.discard(websocket)
 
+    async def handle_iotda_push(self, request):
+        try:
+            body = await request.text()
+            data = json.loads(body)
+            print(f"[IoTDA] Received push: {body[:200]}")
+            notifications = data.get("notify_data", {}).get("body", data)
+            if isinstance(notifications, dict):
+                services = notifications.get("services", [])
+                for svc in services:
+                    props = svc.get("properties", {})
+                    await self._broadcast({"type": "cloud_data", "properties": props, "service_id": svc.get("service_id", "")})
+            return aioweb.Response(text='{"result":0}')
+        except Exception as e:
+            print(f"[IoTDA] Error: {e}")
+            return aioweb.Response(text='{"result":1}', status=500)
+
 
 async def main():
     bridge = BridgeServer()
     async with websockets.serve(bridge.handle_ws, "0.0.0.0", WS_PORT):
         print(f"[WS] WebSocket server on ws://0.0.0.0:{WS_PORT}")
+
+        app = aioweb.Application()
+        app.router.add_post('/iotda/push', bridge.handle_iotda_push)
         base_dir = os.path.dirname(os.path.abspath(__file__))
-
-        class Handler(SimpleHTTPRequestHandler):
-            def __init__(self, *a, **kw):
-                super().__init__(*a, directory=base_dir, **kw)
-            def log_message(self, *a):
-                pass
-
-        httpd = HTTPServer(("0.0.0.0", HTTP_PORT), Handler)
-        threading.Thread(target=httpd.serve_forever, daemon=True).start()
-        print(f"[HTTP] Server on http://0.0.0.0:{HTTP_PORT}")
+        app.router.add_static('/', path=base_dir, name='static')
+        runner = aioweb.AppRunner(app)
+        await runner.setup()
+        site = aioweb.TCPSite(runner, "0.0.0.0", HTTP_PORT)
+        await site.start()
+        print(f"[HTTP+IoTDA] Server on http://0.0.0.0:{HTTP_PORT}")
+        print(f"[IoTDA] Push endpoint: http://<your-ip>:{HTTP_PORT}/iotda/push")
         print(f"[INFO] Open http://localhost:{HTTP_PORT}/eeg_web.html")
         await asyncio.Future()
 

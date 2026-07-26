@@ -507,6 +507,22 @@ select { padding: 6px 10px; border: 1px solid var(--surface-overlay); border-rad
             <div>3. ESP8266通过MQTT协议上报到华为云IoTDA</div>
           </div>
         </div>
+        <div class="cloud-card card">
+          <div class="card-title" style="font-size:15px">云端接收数据</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">IoTDA转发规则推送数据到此页面</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div class="verify-stat-card"><div class="stat-label">云端数据包</div><div class="stat-value" id="cloudDataCount">0</div></div>
+            <div class="verify-stat-card"><div class="stat-label">云端专注度</div><div class="stat-value" id="cloudFocus" style="font-size:14px">--</div></div>
+          </div>
+          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">最近数据:</div>
+          <div class="verify-log'log" id="cloudLastData" style="max-height:60px;font-size:11px">等待云端数据...</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:12px;margin-bottom:8px">IoTDA转发配置:</div>
+          <div style="font-size:11px;font-family:Consolas,monospace;background:var(--surface-mid);padding:8px;border-radius:4px">
+            推送URL: http://&lt;PC的IP&gt;:8088/iotda/push<br>
+            转发类型: HTTP推送<br>
+            触发事件: 设备属性上报
+          </div>
+        </div>
       </div>
 
       <!-- Data Verify -->
@@ -720,11 +736,41 @@ function handleMessage(msg) {
     case 'raw_hex':
       handleRawHex(msg.hex, msg.len);
       break;
+    case 'cloud_data':
+      handleCloudData(msg);
+      break;
   }
 }
 
 let rawHexLog = [];
 const MAX_RAW_HEX = 50;
+
+let cloudDataCount = 0;
+let cloudLastProps = null;
+
+function handleCloudData(msg) {
+  cloudDataCount++;
+  cloudLastProps = msg.properties;
+  const el = document.getElementById('cloudDataCount');
+  if (el) el.textContent = cloudDataCount;
+  const lastEl = document.getElementById('cloudLastData');
+  if (lastEl) {
+    const props = msg.properties;
+    const parts = [];
+    if (props.wave) parts.push('波形');
+    if (props.focus) parts.push('专注度:' + props.focus);
+    if (props.spectrum) parts.push('频谱');
+    if (props.text) parts.push('文本:' + props.text.substring(0, 40));
+    lastEl.textContent = parts.join(' | ');
+  }
+  if (props.focus) {
+    try {
+      const f = typeof props.focus === 'string' ? JSON.parse(props.focus) : props.focus;
+      document.getElementById('cloudFocus').textContent = (f.e0 * 100).toFixed(1) + '%';
+      document.getElementById('cloudRelax').textContent = (f.e1 * 100).toFixed(1) + '%';
+    } catch(e) {}
+  }
+}
 
 function handleRawHex(hex, len) {
   rawHexLog.push({time: new Date().toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit',fractionalSecondDigits:3}), hex, len});

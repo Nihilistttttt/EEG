@@ -136,9 +136,12 @@ class FrameParser:
     def _parse_focus(self, p, load_len):
         if load_len == 18:
             a0, a1, e0, e1 = struct.unpack_from('<ffff', p, 0)
+            print(f"[FOCUS] hex={p.hex()} a0={a0:.4f} a1={a1:.4f} e0={e0:.4f} e1={e1:.4f} trend={p[16]} instant={p[17]}")
             return {"type": "focus", "attn0": round(a0, 4), "attn1": round(a1, 4),
                     "ema0": round(e0, 4), "ema1": round(e1, 4),
                     "trend": p[16], "instant": p[17]}
+        else:
+            print(f"[FOCUS] unexpected load_len={load_len} hex={p[:20].hex()}")
         return None
 
     def _parse_spectrum(self, cmd, p, load_len):
@@ -152,7 +155,10 @@ class FrameParser:
                     mags.append(struct.unpack_from('<f', p, 2 + i * 4)[0])
                 complete = self.spectrum.add(cmd, frag_idx, total, mags)
                 if complete:
+                    print(f"[SPEC] cmd=0x{cmd:02X} complete! bins={len(complete)} first4={[round(v,6) for v in complete[:4]]}")
                     return {"type": "spectrum", "cmd": cmd, "mags": [round(v, 6) for v in complete]}
+            else:
+                print(f"[SPEC] cmd=0x{cmd:02X} frag={frag_idx}/{total} dataLen={data_len} (expected 16)")
         return None
 
 

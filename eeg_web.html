@@ -527,7 +527,7 @@ select { padding: 6px 10px; border: 1px solid var(--surface-overlay); border-rad
             <div class="verify-stat-card"><div class="stat-label">波形帧(0x04/0x10)</div><div class="stat-value" id="vWave">0</div></div>
             <div class="verify-stat-card"><div class="stat-label">频谱帧(0x20-0x47)</div><div class="stat-value" id="vSpectrum">0</div></div>
             <div class="verify-stat-card"><div class="stat-label">专注度帧(0x05)</div><div class="stat-value" id="vFocus">0</div></div>
-            <div class="verify-stat-card"><div class="stat-label">8通道帧(0x22/0x42)</div><div class="stat-value" id="v8ch">0</div></div>
+            <div class="verify-stat-card"><div class="stat-label">频谱帧(0x20-0x47)</div><div class="stat-value" id="v8ch">0</div></div>
             <div class="verify-stat-card"><div class="stat-label">文本命令</div><div class="stat-value" id="vText">0</div></div>
             <div class="verify-stat-card"><div class="stat-label">数据速率</div><div class="stat-value" id="vRate">0/s</div></div>
             <div class="verify-stat-card"><div class="stat-label">连接状态</div><div class="stat-value" id="vConn" style="font-size:14px;color:var(--accent-error)">未连接</div></div>
@@ -1517,7 +1517,7 @@ handleMessage = function(msg) {
       break;
     case 'wave_multi':
       if (msg.cmd === 0x22 || msg.cmd === 0x42) {
-        verifyCounts.ch8++;
+        verifyCounts.spectrum++;
         const name8 = msg.cmd === 0x22 ? '滤波8ch' : '原始8ch';
         const vals = msg.channels.map(c => `CH${c.ch}=${c.val.toFixed(6)}`).join(' ');
         addVerifyLog('wave', `${ts} <span class="log-wave">[${name8}]</span> ${vals}`);

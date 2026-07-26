@@ -1,0 +1,66 @@
+{
+  "product": {
+    "name": "EEG_Collector",
+    "model": "YUESE001",
+    "protocol_type": "MQTT",
+    "data_format": "json",
+    "service_capabilities": [
+      {
+        "service_id": "mcu_data",
+        "service_type": "mcu_data",
+        "description": "EEG采集设备数据上报服务",
+        "properties": [
+          {
+            "property_name": "wave",
+            "data_type": "string",
+            "description": "波形帧数据 JSON: {cmd,ch,v} 或 {cmd,ch:[a,b],v:[va,vb]}",
+            "access_mode": "R",
+            "required": false
+          },
+          {
+            "property_name": "focus",
+            "data_type": "string",
+            "description": "专注度帧数据 JSON: {a0,a1,e0,e1,trend,instant}",
+            "access_mode": "R",
+            "required": false
+          },
+          {
+            "property_name": "spectrum",
+            "data_type": "string",
+            "description": "频谱帧数据 JSON: {cmd,frag,total,m:[m0,m1,m2,m3]}",
+            "access_mode": "R",
+            "required": false
+          },
+          {
+            "property_name": "text",
+            "data_type": "string",
+            "description": "文本命令行(RESULT,TASK,POSTURE_STATE等)",
+            "access_mode": "R",
+            "required": false
+          },
+          {
+            "property_name": "raw",
+            "data_type": "string",
+            "description": "未识别帧的HEX数据",
+            "access_mode": "R",
+            "required": false
+          }
+        ],
+        "commands": [
+          {
+            "command_name": "send_cmd",
+            "description": "向MCU发送命令",
+            "paras": [
+              {
+                "para_name": "cmd",
+                "data_type": "string",
+                "description": "命令内容，如 MODE,SET,1 或 DISPLAY_CFG,4,4,5,4,36,37",
+                "required": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

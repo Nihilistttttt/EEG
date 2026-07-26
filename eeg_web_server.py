@@ -29,8 +29,7 @@ CMD_WAVE_RAW = 0x04
 CMD_WAVE_FILT = 0x10
 CMD_WAVE_BASELINE = 0x11
 CMD_FOCUS = 0x05
-CMD_FILT_8CH = 0x22
-CMD_RAW_8CH = 0x42
+
 
 
 class SpectrumReassembler:
@@ -104,60 +103,56 @@ class FrameParser:
         if len(raw) < 1:
             return None
         cmd = raw[0] & 0xFF
-        payload = raw[1:]
+        p = raw[1:]
+        load_len = len(p)
         if cmd in (CMD_WAVE_RAW, CMD_WAVE_FILT, CMD_WAVE_BASELINE):
-            return self._parse_wave(cmd, payload)
+            return self._parse_wave(cmd, p, load_len)
         elif cmd == CMD_FOCUS:
-            return self._parse_focus(payload)
-        elif cmd in (CMD_FILT_8CH, CMD_RAW_8CH):
-            return self._parse_8ch(cmd, payload)
-        elif 0x20 <= cmd <= 0x47:
-            return self._parse_spectrum(cmd, payload)
+            return self._parse_focus(p, load_len)
+        elif self._is_spectrum_cmd(cmd):
+            return self._parse_spectrum(cmd, p, load_len)
         else:
-            return {"type": "raw", "cmd": cmd, "len": len(payload), "hex": payload[:20].hex()}
+            return {"type": "raw", "cmd": cmd, "len": load_len, "hex": p[:20].hex()}
 
-    def _parse_wave(self, cmd, p):
-        if len(p) == 5:
+    @staticmethod
+    def _is_spectrum_cmd(cmd):
+        return (0x20 <= cmd <= 0x27) or (0x30 <= cmd <= 0x37) or (0x40 <= cmd <= 0x47)
+
+    def _parse_wave(self, cmd, p, load_len):
+        if load_len == 5:
             return {"type": "wave", "cmd": cmd, "ch": p[0], "val": struct.unpack_from('<f', p, 1)[0]}
-        elif len(p) == 10:
+        elif load_len == 10:
             return {"type": "wave_multi", "cmd": cmd, "channels": [
                 {"ch": p[0], "val": struct.unpack_from('<f', p, 2)[0]},
                 {"ch": p[1], "val": struct.unpack_from('<f', p, 6)[0]}
             ]}
-        elif len(p) == 8:
+        elif load_len == 8:
             return {"type": "wave_multi", "cmd": cmd, "channels": [
                 {"ch": 0, "val": struct.unpack_from('<f', p, 0)[0]},
                 {"ch": 1, "val": struct.unpack_from('<f', p, 4)[0]}
             ]}
         return None
 
-    def _parse_focus(self, p):
-        if len(p) >= 18:
-            a0, a1, e0, e1 = struct.unpack_from('<ffff', p, 1)
+    def _parse_focus(self, p, load_len):
+        if load_len == 18:
+            a0, a1, e0, e1 = struct.unpack_from('<ffff', p, 0)
             return {"type": "focus", "attn0": round(a0, 4), "attn1": round(a1, 4),
                     "ema0": round(e0, 4), "ema1": round(e1, 4),
-                    "trend": p[17] if len(p) > 17 else 0,
-                    "instant": p[18] if len(p) > 18 else 0}
+                    "trend": p[16], "instant": p[17]}
         return None
 
-    def _parse_8ch(self, cmd, p):
-        chs = []
-        for i in range(min(8, len(p) // 4)):
-            chs.append({"ch": i, "val": struct.unpack_from('<f', p, i * 4)[0]})
-        return {"type": "wave_multi", "cmd": cmd, "channels": chs} if chs else None
-
-    def _parse_spectrum(self, cmd, p):
-        if len(p) < 3:
-            return None
-        frag_idx, total = p[1], p[2]
-        mags = []
-        for i in range(4):
-            off = 3 + i * 4
-            if off + 4 <= len(p):
-                mags.append(struct.unpack_from('<f', p, off)[0])
-        complete = self.spectrum.add(cmd, frag_idx, total, mags)
-        if complete:
-            return {"type": "spectrum", "cmd": cmd, "mags": [round(v, 6) for v in complete]}
+    def _parse_spectrum(self, cmd, p, load_len):
+        if load_len >= 2:
+            frag_idx = p[0] & 0xFF
+            total = p[1] & 0xFF
+            data_len = load_len - 2
+            if data_len == 16:
+                mags = []
+                for i in range(4):
+                    mags.append(struct.unpack_from('<f', p, 2 + i * 4)[0])
+                complete = self.spectrum.add(cmd, frag_idx, total, mags)
+                if complete:
+                    return {"type": "spectrum", "cmd": cmd, "mags": [round(v, 6) for v in complete]}
         return None
 
 

@@ -18,8 +18,7 @@ ESCAPE_XOR = 0x20
 CMD_WAVE_RAW = 0x04
 CMD_WAVE_FILT = 0x10
 CMD_FOCUS = 0x05
-CMD_FILT_8CH = 0x22
-CMD_RAW_8CH = 0x42
+
 
 NUM_CHANNELS = 8
 BUFFER_SIZE = 500
@@ -78,24 +77,14 @@ def parse_frame(raw):
             channel_data[0].append(valA)
             channel_data[1].append(valB)
             frame_count += 1
-    elif cmd == CMD_FILT_8CH or cmd == CMD_RAW_8CH:
-        if load_len >= 32:
-            for ch in range(NUM_CHANNELS):
-                val = struct.unpack_from('<f', payload, ch * 4)[0]
-                channel_data[ch].append(val)
-            frame_count += 1
-        else:
-            n = load_len // 4
-            for ch in range(min(n, NUM_CHANNELS)):
-                val = struct.unpack_from('<f', payload, ch * 4)[0]
-                channel_data[ch].append(val)
-            frame_count += 1
+    elif (0x20 <= cmd <= 0x27) or (0x30 <= cmd <= 0x37) or (0x40 <= cmd <= 0x47):
+        pass
     elif cmd == CMD_FOCUS:
-        if load_len >= 18:
-            a0, a1, e0, e1 = struct.unpack_from('<ffff', payload, 1)
-            trend = payload[17] if load_len > 17 else 0
-            instant = payload[18] if load_len > 18 else 0
-            print(f"[FOCUS] attn0={a0*100:.1f}% attn1={a1*100:.1f}% relax0={e0*100:.1f}% relax1={e1*100:.1f}% trend={trend} instant={instant}")
+        if load_len == 18:
+            a0, a1, e0, e1 = struct.unpack_from('<ffff', payload, 0)
+            trend = payload[16]
+            instant = payload[17]
+            print(f"[FOCUS] attn0={a0*100:.1f}% attn1={a1*100:.1f}% ema0={e0*100:.1f}% ema1={e1*100:.1f}% trend={trend} instant={instant}")
             frame_count += 1
     else:
         hex_str = payload.hex()

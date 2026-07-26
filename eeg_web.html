@@ -629,8 +629,8 @@ let scCfg = [
   {cmd:69, color:'#FFB300', label:'CP4 时域滤波频谱'}
 ];
 
-let waveYRange = 500;
-let specYRange = 5;
+let waveYRange = 1500;
+let specYRange = 0.0005;
 let xRange = 2.05;
 let focusXRangeSec = 50;
 
@@ -768,8 +768,8 @@ function handleFocus(msg) {
   }
   const trend = msg.trend || 0;
   const instant = msg.instant || 0;
-  document.getElementById('barFocus').textContent = (msg.attn0 * 100).toFixed(0) + '%';
-  document.getElementById('barRelax').textContent = (msg.ema0 * 100).toFixed(0) + '%';
+  document.getElementById('barFocus').textContent = (msg.ema0 * 100).toFixed(0) + '%';
+  document.getElementById('barRelax').textContent = (msg.ema1 * 100).toFixed(0) + '%';
   document.getElementById('barInstant').textContent = FOCUS_STATES[instant] || '--';
   document.getElementById('barTrend').textContent = FOCUS_STATES[trend] || '--';
   document.getElementById('barInstant').style.color = FOCUS_COLORS[instant] || '';
@@ -1372,20 +1372,12 @@ function drawFocusChart(canvas) {
   }
 
   if (focusShowRelax0) {
-    drawLine(focusEma0, '#40C4FF', 0.15);
-    drawLine(focusEma0, '#40C4FF', 1);
-  }
-  if (focusShowRelax1) {
-    drawLine(focusEma1, '#9C27B0', 0.15);
-    drawLine(focusEma1, '#9C27B0', 1);
+    drawLine(focusEma1, '#40C4FF', 0.15);
+    drawLine(focusEma1, '#40C4FF', 1);
   }
   if (focusShowFocus0) {
-    drawLine(focusAttn0, '#F57F17', 0.15);
-    drawLine(focusAttn0, '#F57F17', 1);
-  }
-  if (focusShowFocus1) {
-    drawLine(focusAttn1, '#E65100', 0.15);
-    drawLine(focusAttn1, '#E65100', 1);
+    drawLine(focusEma0, '#F57F17', 0.15);
+    drawLine(focusEma0, '#F57F17', 1);
   }
 }
 

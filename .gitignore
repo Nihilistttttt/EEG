@@ -49,3 +49,5 @@ desktop.ini
 # ============ Backup Folders ============
 EEG_BAK_*/
 .preferences
+
+cmake-build-debug

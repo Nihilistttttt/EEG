@@ -11,37 +11,51 @@
         "description": "EEG采集设备数据上报服务",
         "properties": [
           {
-            "property_name": "wave",
-            "data_type": "string",
-            "description": "波形帧数据 JSON: {cmd,ch,v} 或 {cmd,ch:[a,b],v:[va,vb]}",
-            "access_mode": "R",
-            "required": false
-          },
-          {
             "property_name": "focus",
             "data_type": "string",
-            "description": "专注度帧数据 JSON: {a0,a1,e0,e1,trend,instant}",
+            "description": "专注度帧(a0=,a1=,e0=,e1=,trend=,instant=)",
             "access_mode": "R",
             "required": false
           },
           {
-            "property_name": "spectrum",
+            "property_name": "event_type",
             "data_type": "string",
-            "description": "频谱帧数据 JSON: {cmd,frag,total,m:[m0,m1,m2,m3]}",
+            "description": "事件类型(alert/dircsv/result)",
+            "access_mode": "R",
+            "required": false
+          },
+          {
+            "property_name": "event_data",
+            "data_type": "string",
+            "description": "事件内容",
             "access_mode": "R",
             "required": false
           },
           {
             "property_name": "text",
             "data_type": "string",
-            "description": "文本命令行(RESULT,TASK,POSTURE_STATE等)",
+            "description": "文本命令行",
             "access_mode": "R",
             "required": false
           },
           {
-            "property_name": "raw",
+            "property_name": "frame_rate",
+            "data_type": "int",
+            "description": "帧率统计",
+            "access_mode": "R",
+            "required": false
+          },
+          {
+            "property_name": "test_int",
+            "data_type": "int",
+            "description": "测试整数",
+            "access_mode": "R",
+            "required": false
+          },
+          {
+            "property_name": "test_str",
             "data_type": "string",
-            "description": "未识别帧的HEX数据",
+            "description": "测试字符串",
             "access_mode": "R",
             "required": false
           }
@@ -54,7 +68,7 @@
               {
                 "para_name": "cmd",
                 "data_type": "string",
-                "description": "命令内容，如 MODE,SET,1 或 DISPLAY_CFG,4,4,5,4,36,37",
+                "description": "命令内容",
                 "required": true
               }
             ]

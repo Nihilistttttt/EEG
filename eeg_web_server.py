@@ -179,6 +179,7 @@ class BridgeServer:
         self.tcp_ip = DEFAULT_TCP_IP
         self.tcp_port = DEFAULT_TCP_PORT
         self.ws_clients = set()
+        self.cloud_data_count = 0
 
     async def tcp_connect(self, ip=None, port=None):
         self.tcp_ip = ip or self.tcp_ip
@@ -281,17 +282,75 @@ class BridgeServer:
         try:
             body = await request.text()
             data = json.loads(body)
-            print(f"[IoTDA] Received push: {body[:200]}")
+            print(f"[IoTDA] Received push ({len(body)} bytes): {body[:500]}")
             notifications = data.get("notify_data", {}).get("body", data)
+            print(f"[IoTDA] notifications type={type(notifications).__name__}, keys={list(notifications.keys()) if isinstance(notifications, dict) else 'N/A'}")
             if isinstance(notifications, dict):
                 services = notifications.get("services", [])
+                print(f"[IoTDA] services count={len(services)}")
                 for svc in services:
                     props = svc.get("properties", {})
+                    print(f"[IoTDA] service_id={svc.get('service_id','')}, props keys={list(props.keys())}")
                     await self._broadcast({"type": "cloud_data", "properties": props, "service_id": svc.get("service_id", "")})
+                    for msg in self._unpack_cloud_props(props):
+                        print(f"[IoTDA] unpacked: {msg}")
+                        await self._broadcast(msg)
             return aioweb.Response(text='{"result":0}')
         except Exception as e:
             print(f"[IoTDA] Error: {e}")
+            import traceback
+            traceback.print_exc()
             return aioweb.Response(text='{"result":1}', status=500)
+
+    def _unpack_cloud_props(self, props):
+        results = []
+        event_type = ""
+        event_data = ""
+        if "event_type" in props:
+            event_type = props["event_type"] if isinstance(props["event_type"], str) else str(props["event_type"])
+        if "event_data" in props:
+            event_data = props["event_data"] if isinstance(props["event_data"], str) else str(props["event_data"])
+
+        if "focus" in props:
+            val = props["focus"]
+            if isinstance(val, str):
+                parsed = {}
+                try:
+                    parsed = json.loads(val)
+                except (json.JSONDecodeError, TypeError):
+                    for pair in val.split(","):
+                        if "=" in pair:
+                            k, v = pair.split("=", 1)
+                            try:
+                                parsed[k.strip()] = float(v)
+                            except ValueError:
+                                parsed[k.strip()] = v
+                if parsed:
+                    val = parsed
+            if isinstance(val, dict):
+                results.append({"type": "cloud_focus", "attn0": val.get("a0", 0), "attn1": val.get("a1", 0),
+                                "ema0": val.get("e0", 0), "ema1": val.get("e1", 0),
+                                "trend": int(val.get("trend", 0)), "instant": int(val.get("instant", 0))})
+
+        if "frame_rate" in props:
+            self.cloud_data_count += 1
+            stats_msg = {"type": "cloud_stats", "fps": props.get("frame_rate", 0),
+                         "total": self.cloud_data_count, "lost": 0}
+            results.append(stats_msg)
+
+        if "text" in props and isinstance(props["text"], str):
+            results.append({"type": "text", "data": props["text"]})
+
+        if event_type and event_data:
+            if event_type == "dircsv":
+                results.append({"type": "cloud_dircsv", "data": event_data})
+            elif event_type == "result":
+                results.append({"type": "cloud_result", "data": event_data})
+            elif event_type == "alert":
+                results.append({"type": "cloud_alert", "data": event_data})
+            else:
+                results.append({"type": "text", "data": event_data})
+        return results
 
 
 async def main():
@@ -302,7 +361,10 @@ async def main():
         app = aioweb.Application()
         app.router.add_post('/iotda/push', bridge.handle_iotda_push)
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        app.router.add_static('/', path=base_dir, name='static')
+        app.router.add_static('/static', path=base_dir, name='static')
+        async def index_redirect(request):
+            return aioweb.FileResponse(os.path.join(base_dir, 'eeg_web.html'))
+        app.router.add_get('/', index_redirect)
         runner = aioweb.AppRunner(app)
         await runner.setup()
         site = aioweb.TCPSite(runner, "0.0.0.0", HTTP_PORT)

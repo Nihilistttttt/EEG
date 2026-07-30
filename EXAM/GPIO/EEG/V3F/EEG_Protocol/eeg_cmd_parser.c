@@ -7,12 +7,14 @@
 #include "Message_Parser.h"
 #include "Serial.h"
 #include "dualcore_ipc.h"
+
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 
 extern uint8_t g_eeg_app_mode;
 extern uint8_t g_ipc_diag_enable;
+extern volatile uint8_t g_ssvep_active;
 #ifdef HAS_ICM42605
 extern uint8_t g_posture_diag_enable;
 #endif
@@ -209,6 +211,8 @@ void Parse_CommandEx(const char *cmd, const char *source)
         g_paused = 0;
         g_eeg_app_mode = EEG_APP_MODE_COLLECT;
         g_v5f_active = V5F_ACTIVE_IDLE;
+        g_ssvep_active = 0;
+        DualCore_IPC_SetSsvepEnable(0);
         EEG_FFT_ResetInferState();
         Direction_Infer1sReset();
         Direction_CSPStreamReset();
@@ -286,5 +290,53 @@ void Parse_CommandEx(const char *cmd, const char *source)
              (unsigned)g_display_config.spec_type[3]);
         return;
     }
+    if (strncmp(clean_cmd, "SSVEP,START", 11) == 0) {
+        g_ssvep_active = 1;
+        DualCore_IPC_SetSsvepEnable(1);
+        DualCore_IPC_RequestSsvepReset();
+        if (g_v5f_active == V5F_ACTIVE_IDLE) {
+            g_v5f_active = V5F_ACTIVE_INFER;
+            DualCore_IPC_RequestV5FReset();
+        }
+
+        RESP("SSVEP,STARTED\r\n");
+        return;
+    }
+    if (strcmp(clean_cmd, "SSVEP,STOP") == 0) {
+        g_ssvep_active = 0;
+        DualCore_IPC_SetSsvepEnable(0);
+        DualCore_IPC_SetSsvepSelftest(0, 0);
+        DualCore_IPC_RequestSsvepReset();
+        if (g_v5f_active == V5F_ACTIVE_INFER
+            && g_eeg_app_mode != EEG_APP_MODE_INFER) {
+            g_v5f_active = V5F_ACTIVE_IDLE;
+        }
+        RESP("SSVEP,STOPPED\r\n");
+        return;
+    }
+    if (strncmp(clean_cmd, "SSVEP,SELFTEST,START", 20) == 0) {
+        uint8_t freq_idx = 0;
+        if (clean_cmd[20] == ',') {
+            int idx_val = atoi(clean_cmd + 21);
+            if (idx_val >= 0 && idx_val <= 3) freq_idx = (uint8_t)idx_val;
+        }
+        g_ssvep_active = 1;
+        DualCore_IPC_SetSsvepEnable(1);
+        DualCore_IPC_SetSsvepSelftest(1, freq_idx);
+        DualCore_IPC_RequestSsvepReset();
+        if (g_v5f_active == V5F_ACTIVE_IDLE) {
+            g_v5f_active = V5F_ACTIVE_INFER;
+            DualCore_IPC_RequestV5FReset();
+        }
+        RESP("SSVEP,SELFTEST,STARTED,%u\r\n", (unsigned)freq_idx);
+        return;
+    }
+    if (strcmp(clean_cmd, "SSVEP,SELFTEST,STOP") == 0) {
+        DualCore_IPC_SetSsvepSelftest(0, 0);
+        DualCore_IPC_RequestSsvepReset();
+        RESP("SSVEP,SELFTEST,STOPPED\r\n");
+        return;
+    }
+
     RESP("ERROR,UNKNOWN_CMD\r\n");
 }

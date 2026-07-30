@@ -1,7 +1,9 @@
 #include "dualcore_ipc.h"
 #include "dualcore_ipc_shared.h"
 #include "dualcore_v5f_dsp.h"
+#include "dualcore_v5f_ssvep.h"
 #include <string.h>
+#include <math.h>
 
 #if defined(Core_V5F) && DUALCORE_IPC_RUNTIME_ENABLE
 
@@ -17,6 +19,7 @@ static volatile uint8_t  g_ipc_v5f_last_frame[DUALCORE_IPC_FRAME_LEN];
 static volatile uint32_t g_ipc_v5f_handler_count = 0;
 static volatile uint8_t  g_ipc_v5f_ack_ready = 0;
 static volatile uint32_t g_ipc_v5f_ack_data = 0;
+
 volatile uint32_t g_ipc_v5f_wfi_wake_count = 0;
 
 void IPC_CH0_Handler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
@@ -34,6 +37,8 @@ static void DualCore_V5F_SendAckNow(void)
     IPC_SetFlagStatus(IPC_CH0, IPC_CH_Sta_Bit0);
     g_ipc_v5f_ack_ready = 0u;
 }
+
+static float s_v5f_selftest_phase = 0.0f;
 
 static int32_t DualCore_FloatVoltToMicroVoltX1000(float volt)
 {
@@ -56,6 +61,13 @@ static void DualCore_V5F_ProcessPreprocess(volatile DualCore_IPC_FrameSlot_t *sl
         DualCore_V5F_DSP_Reset();
         slot->control_reserved[0] &= ~DUALCORE_IPC_CTRL_RESET_DSP;
     }
+    if (slot->control_reserved[0] & DUALCORE_IPC_CTRL_RESET_SSVEP) {
+        DualCore_V5F_SSVEP_Reset();
+        s_v5f_selftest_phase = 0.0f;
+        slot->control_reserved[0] &= ~DUALCORE_IPC_CTRL_RESET_SSVEP;
+    }
+
+    uint8_t ssvep_selftest_idx = slot->control_reserved[1] & 0x03u;
 
     g_ipc_v5f_window_samples++;
     g_v5f_step_count++;
@@ -118,6 +130,52 @@ static void DualCore_V5F_ProcessPreprocess(volatile DualCore_IPC_FrameSlot_t *sl
     slot->v5f_infer_count = g_ipc_v5f_infer_count;
     slot->control_reserved[1] = 0u;
     slot->control_reserved[2] = (uint8_t)(g_ipc_v5f_wfi_wake_count & 0xFFu);
+
+    {
+        int32_t o1_uv = DualCore_ADS1299_CodeToMicroVoltX1000(ch_data[4]);
+        int32_t oz_uv = DualCore_ADS1299_CodeToMicroVoltX1000(ch_data[3]);
+        float o1_mv = (float)o1_uv / 1000000.0f;
+        float oz_mv = (float)oz_uv / 1000000.0f;
+        slot->ssvep_o1_uv_x1000 = o1_uv;
+        slot->ssvep_oz_uv_x1000 = oz_uv;
+        if (slot->control_reserved[0] & DUALCORE_IPC_CTRL_SSVEP_ENABLE) {
+            if (slot->control_reserved[0] & DUALCORE_IPC_CTRL_SSVEP_SELFTEST) {
+                static const float s_selftest_fs = 250.0f;
+                static const float s_selftest_pi = 3.14159265358979323846f;
+                static const float s_selftest_freqs[4] = {11.0f, 13.0f, 15.0f, 17.0f};
+                uint8_t freq_idx = ssvep_selftest_idx;
+                float freq = s_selftest_freqs[freq_idx];
+                float phase = s_v5f_selftest_phase;
+                o1_mv = 0.020f * sinf(2.0f * s_selftest_pi * freq * phase / s_selftest_fs)
+                       + 0.010f * sinf(2.0f * s_selftest_pi * 2.0f * freq * phase / s_selftest_fs + 0.25f)
+                       + 0.004f * sinf(2.0f * s_selftest_pi * 9.0f * phase / s_selftest_fs);
+                oz_mv = 0.015f * sinf(2.0f * s_selftest_pi * freq * phase / s_selftest_fs + 0.4f)
+                       + 0.008f * sinf(2.0f * s_selftest_pi * 2.0f * freq * phase / s_selftest_fs + 0.6f)
+                       + 0.003f * sinf(2.0f * s_selftest_pi * 9.0f * phase / s_selftest_fs + 0.2f);
+                s_v5f_selftest_phase += 1.0f;
+                if (s_v5f_selftest_phase >= s_selftest_fs) s_v5f_selftest_phase -= s_selftest_fs;
+                slot->ssvep_o1_uv_x1000 = (int32_t)(o1_mv * 1000000.0f);
+                slot->ssvep_oz_uv_x1000 = (int32_t)(oz_mv * 1000000.0f);
+            }
+            DualCore_V5F_SSVEP_PushSample(o1_mv, oz_mv);
+        } else {
+            g_ipc_ssvep_valid = 0;
+        }
+    }
+
+    slot->ssvep_valid = g_ipc_ssvep_valid;
+    slot->ssvep_raw_index = g_ipc_ssvep_raw_index;
+
+    slot->ssvep_ratio_q10000 = g_ipc_ssvep_ratio_q10000;
+    slot->ssvep_best_score_q10000 = g_ipc_ssvep_best_score_q10000;
+    slot->ssvep_margin_q10000 = g_ipc_ssvep_margin_q10000;
+    {
+        uint8_t t;
+        for (t = 0; t < 4; t++) {
+            slot->ssvep_scores_q10000[t] = g_ipc_ssvep_scores_q10000[t];
+        }
+    }
+    slot->ssvep_sequence = g_ipc_ssvep_sequence;
 }
 
 void DualCore_V5F_MainLoopProcess(void)
@@ -232,6 +290,7 @@ void DualCore_IPC_Init_V5F(void)
     }
 
     DualCore_V5F_DSP_Reset();
+    DualCore_V5F_SSVEP_Init();
 
     IPC_ClearFlagStatus(IPC_CH0, IPC_CH_Sta_Bit1);
     NVIC_ClearPendingIRQ(IPC_CH0_IRQn);

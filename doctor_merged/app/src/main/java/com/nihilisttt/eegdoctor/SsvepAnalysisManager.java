@@ -1,5 +1,7 @@
 package com.nihilisttt.eegdoctor;
 
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -9,7 +11,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Owns the FBCCA background thread and the optional no-device synthetic test. */
 public final class SsvepAnalysisManager {
     private static final String TAG = "SSVEP_FBCCA";
     private static final SsvepAnalysisManager INSTANCE = new SsvepAnalysisManager();
@@ -25,13 +26,33 @@ public final class SsvepAnalysisManager {
     private volatile boolean prepared;
     private volatile boolean running;
     private volatile boolean synthetic;
+    private volatile boolean mcuMode;
     private volatile int targetFreqIndex = -1;
     private volatile int selectedWaveCommand;
     private volatile long sessionStartedAtMs;
     private volatile int progressCounter;
     private Thread syntheticThread;
+    private final Handler timeoutHandler = new Handler(Looper.getMainLooper());
 
-    private SsvepAnalysisManager() {}
+    private final int[] ssvepChMap;
+    private final double[] pendingSample;
+    private final boolean[] pendingReady;
+    private int pendingCount;
+    private long pendingO1ArrivalMs;
+
+    private static final long CHANNEL_PAIR_TIMEOUT_MS = 5;
+
+    private SsvepAnalysisManager() {
+        int[] chs = FbccaConfig.SSVEP_CHANNELS;
+        ssvepChMap = new int[8];
+        for (int i = 0; i < 8; i++) ssvepChMap[i] = -1;
+        for (int i = 0; i < chs.length; i++) {
+            ssvepChMap[chs[i]] = i;
+        }
+        pendingSample = new double[chs.length];
+        pendingReady = new boolean[chs.length];
+        pendingCount = 0;
+    }
 
     public static SsvepAnalysisManager getInstance() { return INSTANCE; }
 
@@ -48,6 +69,7 @@ public final class SsvepAnalysisManager {
             synthetic = false;
             prepared = true;
             running = false;
+            resetPending();
             postProgress(SsvepProgress.State.PREPARED, 0, 0,
                     "已准备，等待患者端首个刺激帧");
         });
@@ -69,8 +91,10 @@ public final class SsvepAnalysisManager {
             }
             running = true;
             synthetic = false;
+            mcuMode = true;
             selectedWaveCommand = 0;
             sessionStartedAtMs = System.currentTimeMillis();
+            resetPending();
             String msg = String.format(Locale.US,
                     "患者刺激已启动（屏幕 %.2f Hz），等待脑电波形", refreshRate);
             postProgress(SsvepProgress.State.WAITING_WAVE_SOURCE, 0, 0, msg);
@@ -84,6 +108,7 @@ public final class SsvepAnalysisManager {
         prepared = true;
         running = true;
         synthetic = true;
+        mcuMode = false;
         selectedWaveCommand = -1;
         sessionStartedAtMs = System.currentTimeMillis();
         analysisExecutor.execute(() -> {
@@ -103,11 +128,15 @@ public final class SsvepAnalysisManager {
             while (running && synthetic && generation == sessionGeneration.get()
                     && !Thread.currentThread().isInterrupted()) {
                 double t = sampleIndex / FbccaConfig.SAMPLE_RATE;
-                double signalMv = 0.020 * Math.sin(2.0 * Math.PI * freq * t)
+                double o1Mv = 0.020 * Math.sin(2.0 * Math.PI * freq * t)
                         + 0.010 * Math.sin(2.0 * Math.PI * 2.0 * freq * t + 0.25)
                         + 0.004 * Math.sin(2.0 * Math.PI * 9.0 * t)
                         + random.nextGaussian() * 0.006;
-                offerSyntheticSample(signalMv, generation);
+                double ozMv = 0.015 * Math.sin(2.0 * Math.PI * freq * t + 0.4)
+                        + 0.008 * Math.sin(2.0 * Math.PI * 2.0 * freq * t + 0.6)
+                        + 0.003 * Math.sin(2.0 * Math.PI * 9.0 * t + 0.2)
+                        + random.nextGaussian() * 0.005;
+                offerSyntheticSample(o1Mv, ozMv, generation);
                 sampleIndex++;
                 next += periodNs;
                 long sleepNs = next - SystemClock.elapsedRealtimeNanos();
@@ -129,16 +158,22 @@ public final class SsvepAnalysisManager {
         syntheticThread.start();
     }
 
-    private void offerSyntheticSample(double sampleMv, long generation) {
+    private void offerSyntheticSample(double o1Mv, double ozMv, long generation) {
         analysisExecutor.execute(() -> {
             if (generation != sessionGeneration.get() || !running || !synthetic) return;
-            processSample(sampleMv);
+            double[] samples = new double[FbccaConfig.SSVEP_CHANNELS.length];
+            samples[0] = o1Mv;
+            samples[1] = ozMv;
+            processSample(samples);
         });
     }
 
-    /** Called directly by TcpServerManager.FrameParser before UI dispatch. */
-    public void offerWaveSample(int cmd, float channel0Value) {
-        if (!running || synthetic || !Float.isFinite(channel0Value)) return;
+    /** Called by TcpServerManager for each wave sample with its channel index. */
+    public void offerWaveSample(int cmd, int ch, float value) {
+        if (!running || synthetic || !Float.isFinite(value)) return;
+        int idx = (ch >= 0 && ch < ssvepChMap.length) ? ssvepChMap[ch] : -1;
+        if (idx < 0) return;
+
         final long generation = sessionGeneration.get();
         final long now = System.currentTimeMillis();
 
@@ -156,15 +191,60 @@ public final class SsvepAnalysisManager {
         }
         if (cmd != selectedWaveCommand) return;
 
-        final double mv = channel0Value * FbccaConfig.INPUT_SCALE_TO_MV;
+        final double mv = value * FbccaConfig.INPUT_SCALE_TO_MV;
         analysisExecutor.execute(() -> {
             if (generation != sessionGeneration.get() || !running || synthetic) return;
-            processSample(mv);
+            pushChannelSample(idx, mv);
         });
     }
 
-    private void processSample(double sampleMv) {
-        FbccaOutput output = engine.pushSample(sampleMv);
+    private synchronized void pushChannelSample(int idx, double mv) {
+        if (pendingReady[idx]) {
+            flushPending();
+        }
+        pendingSample[idx] = mv;
+        pendingReady[idx] = true;
+        pendingCount++;
+
+        if (idx == 0 && pendingCount == 1) {
+            pendingO1ArrivalMs = System.currentTimeMillis();
+            timeoutHandler.removeCallbacks(flushTimeout);
+            timeoutHandler.postDelayed(flushTimeout, CHANNEL_PAIR_TIMEOUT_MS);
+        }
+
+        if (pendingCount == FbccaConfig.SSVEP_CHANNELS.length) {
+            timeoutHandler.removeCallbacks(flushTimeout);
+            double[] samples = pendingSample.clone();
+            resetPending();
+            processSample(samples);
+        }
+    }
+
+    private final Runnable flushTimeout = () -> {
+        synchronized (SsvepAnalysisManager.this) {
+            if (pendingCount > 0) {
+                flushPending();
+            }
+        }
+    };
+
+    private synchronized void flushPending() {
+        double[] samples = new double[FbccaConfig.SSVEP_CHANNELS.length];
+        for (int i = 0; i < samples.length; i++) {
+            samples[i] = pendingReady[i] ? pendingSample[i] : Double.NaN;
+        }
+        resetPending();
+        processSample(samples);
+    }
+
+    private void resetPending() {
+        for (int i = 0; i < pendingReady.length; i++) pendingReady[i] = false;
+        pendingCount = 0;
+    }
+
+    private void processSample(double[] samplesMv) {
+        if (mcuMode) return;
+        FbccaOutput output = engine.pushSample(samplesMv);
         progressCounter++;
         if (progressCounter % 25 == 0) {
             int buffered = engine.getBufferedSamples();
@@ -192,12 +272,33 @@ public final class SsvepAnalysisManager {
         running = false;
         prepared = false;
         synthetic = false;
+        mcuMode = false;
         targetFreqIndex = -1;
         selectedWaveCommand = 0;
         stopSyntheticThread();
         analysisExecutor.execute(() -> {
             engine.reset();
+            resetPending();
             postProgress(SsvepProgress.State.STOPPED, 0, 0, "SSVEP 分析已停止");
+        });
+    }
+
+    public void onMcuSsvepResult(int seq, int rawIndex, int votedIndex,
+                                 float ratio, float bestScore, float margin,
+                                 float[] scores, int[] voteCounts) {
+        if (!running || synthetic) return;
+        float[] s = scores != null ? scores.clone() : new float[4];
+        int[] v = voteCounts != null ? voteCounts.clone() : new int[4];
+        analysisExecutor.execute(() -> {
+            if (!running || synthetic) return;
+            SsvepResult result = SsvepResult.fromMcu(seq, rawIndex, votedIndex,
+                    ratio, bestScore, margin, s, v);
+            DataDispatcher.getInstance().postSsvepResult(result);
+            TcpServerManager.getInstance().sendToPatient(result.toPatientCommand());
+            Log.i(TAG, "MCU result seq=" + seq
+                    + " raw=" + result.getRawFreq()
+                    + " voted=" + result.getFreq()
+                    + " ratio=" + ratio);
         });
     }
 

@@ -67,6 +67,9 @@ static const uint8_t g_v5f_ch_map[DUALCORE_ADS1299_ACTIVE_CH_NUM] = {
 #define DUALCORE_FENCE()                __asm volatile ("fence iorw, iorw" ::: "memory")
 
 #define DUALCORE_IPC_CTRL_RESET_DSP     0x01u
+#define DUALCORE_IPC_CTRL_SSVEP_ENABLE  0x02u
+#define DUALCORE_IPC_CTRL_RESET_SSVEP   0x04u
+#define DUALCORE_IPC_CTRL_SSVEP_SELFTEST 0x08u
 
 typedef struct
 {
@@ -123,6 +126,17 @@ typedef struct
     volatile int32_t  v5f_score_right;
     volatile int32_t  v5f_confidence;
     volatile uint32_t v5f_infer_count;
+
+    volatile uint8_t  ssvep_valid;
+    volatile int8_t   ssvep_raw_index;
+
+    volatile int32_t  ssvep_ratio_q10000;
+    volatile int32_t  ssvep_best_score_q10000;
+    volatile int32_t  ssvep_margin_q10000;
+    volatile int32_t  ssvep_scores_q10000[4];
+    volatile uint32_t ssvep_sequence;
+    volatile int32_t  ssvep_o1_uv_x1000;
+    volatile int32_t  ssvep_oz_uv_x1000;
 } DualCore_IPC_FrameSlot_t;
 
 uint16_t DualCore_IPC_Checksum16(const volatile uint8_t *buf, uint16_t len);

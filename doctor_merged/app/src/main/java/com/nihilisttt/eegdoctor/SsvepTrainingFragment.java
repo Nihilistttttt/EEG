@@ -183,8 +183,9 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
             // 41002 未连接时该命令只产生正常的未连接日志，不影响患者端和算法自测。
             CommandSender.getInstance().ssvepStart();
             if (selfTest) {
-                analysis.startSyntheticTest(freqIndex);
-                setStatus("模式一算法自测运行中（无需脑电设备）", false);
+                CommandSender.getInstance().ssvepSelftestStart(freqIndex);
+                analysis.confirmStimulusStarted(freqIndex, 240.0f);
+                setStatus("MCU自测模式：V5F生成合成" + FbccaConfig.TARGET_FREQS[freqIndex] + "Hz信号", false);
             } else {
                 setStatus("患者刺激已下发；等待刺激首帧和脑电数据", false);
             }
@@ -208,6 +209,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         ssvepRunning = false;
         SsvepAnalysisManager.getInstance().stopSession();
         CommandSender.getInstance().ssvepStop();
+        CommandSender.getInstance().ssvepSelftestStop();
         server.setSsvepActive(false, -1);
         server.sendToPatient("SSVEP,STOP");
         setRunningUi(false);

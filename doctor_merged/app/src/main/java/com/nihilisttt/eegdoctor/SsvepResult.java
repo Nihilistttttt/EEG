@@ -90,6 +90,24 @@ public class SsvepResult {
         return String.format(Locale.US, "%.2f", FbccaConfig.TARGET_FREQS[index]);
     }
 
+    public static SsvepResult fromMcu(int seq, int rawIndex, int votedIndex,
+                                       float ratio, float bestScore, float margin,
+                                       float[] scores, int[] voteCounts) {
+        String voted = indexToFreq(votedIndex);
+        String raw = indexToFreq(rawIndex);
+        return new SsvepResult(
+                seq, voted, raw, ratio, bestScore, margin,
+                scores != null && scores.length > 0 ? scores[0] : 0f,
+                scores != null && scores.length > 1 ? scores[1] : 0f,
+                scores != null && scores.length > 2 ? scores[2] : 0f,
+                scores != null && scores.length > 3 ? scores[3] : 0f,
+                voteCounts != null && voteCounts.length > 0 ? voteCounts[0] : 0,
+                voteCounts != null && voteCounts.length > 1 ? voteCounts[1] : 0,
+                voteCounts != null && voteCounts.length > 2 ? voteCounts[2] : 0,
+                voteCounts != null && voteCounts.length > 3 ? voteCounts[3] : 0,
+                false, true);
+    }
+
     public static SsvepResult fromLine(String line) {
         try {
             int seq = 0;

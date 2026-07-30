@@ -18,6 +18,17 @@ extern uint8_t g_eeg_app_mode;
 extern uint8_t g_paused;
 extern WorkMode_t g_work_mode;
 
+extern volatile uint8_t  g_ipc_v3f_last_ssvep_valid;
+extern volatile int8_t   g_ipc_v3f_last_ssvep_raw_index;
+
+extern volatile int32_t  g_ipc_v3f_last_ssvep_ratio_q10000;
+extern volatile int32_t  g_ipc_v3f_last_ssvep_best_score_q10000;
+extern volatile int32_t  g_ipc_v3f_last_ssvep_margin_q10000;
+extern volatile int32_t  g_ipc_v3f_last_ssvep_scores_q10000[4];
+extern volatile uint32_t g_ipc_v3f_last_ssvep_sequence;
+extern volatile int32_t  g_ipc_v3f_last_ssvep_o1_uv_x1000;
+extern volatile int32_t  g_ipc_v3f_last_ssvep_oz_uv_x1000;
+
 #define DIR_DEBUG_POWER_PRINT 0
 #define DIR_1S_TEST_TEXT_ONLY 0
 #define DIR_DECISION_ROWS 4
@@ -320,6 +331,7 @@ static float compute_artifact_from_ringbuf (RingBuffer_t *rb, uint16_t start_idx
 }
 
 uint8_t Process_FFT_Step (void) {
+
     switch (fft_step) {
     case FFT_STEP_START:
         fft_step = FFT_STEP_EXTRACT_RAW_FRAME;
@@ -693,75 +705,7 @@ uint8_t Process_FFT_Step (void) {
             Direction_AutoCollectProcess (theta_arr, alpha_arr, beta_arr);
         } else if (g_eeg_app_mode == EEG_APP_MODE_COLLECT_CSP) {
             Direction_AutoCollectCSPProcess (&RingBufFiltered);
-        } else if (g_eeg_app_mode == EEG_APP_MODE_INFER) {
-            if (!g_paused) {
-                uint32_t v5f_pred = DualCore_IPC_GetLastV5FPred();
-                uint32_t v5f_infer_valid = DualCore_IPC_GetLastV5FInferValid();
-                int32_t v5f_score_l = DualCore_IPC_GetLastV5FScoreLeft();
-                int32_t v5f_score_r = DualCore_IPC_GetLastV5FScoreRight();
-                int32_t v5f_conf = DualCore_IPC_GetLastV5FConfidence();
-                uint32_t v5f_trained = DualCore_IPC_GetLastV5FModelTrained();
-                uint32_t v5f_model_used = DualCore_IPC_GetLastV5FModelUsed();
-                uint32_t v5f_infer_cnt = DualCore_IPC_GetLastV5FInferCount();
 
-                {
-                    static uint32_t s_v5f_diag_count = 0;
-                    s_v5f_diag_count++;
-                    if (s_v5f_diag_count >= 250u) {
-                        s_v5f_diag_count = 0;
-                        Serial_Printf (SERIAL_PORT_DEBUG,
-                                       "V5F_DIAG,valid=%lu,cnt=%lu,last_cnt=%lu,trained=%lu,pred=%lu\r\n",
-                                       (unsigned long)v5f_infer_valid,
-                                       (unsigned long)v5f_infer_cnt,
-                                       (unsigned long)s_last_infer_cnt,
-                                       (unsigned long)v5f_trained,
-                                       (unsigned long)v5f_pred);
-                        Serial_Printf (SERIAL_PORT_WIFI,
-                                       "V5F_DIAG,valid=%lu,cnt=%lu,last_cnt=%lu,trained=%lu,pred=%lu\r\n",
-                                       (unsigned long)v5f_infer_valid,
-                                       (unsigned long)v5f_infer_cnt,
-                                       (unsigned long)s_last_infer_cnt,
-                                       (unsigned long)v5f_trained,
-                                       (unsigned long)v5f_pred);
-                    }
-                }
-
-                if (v5f_infer_valid && v5f_infer_cnt != s_last_infer_cnt) {
-                    s_last_infer_cnt = v5f_infer_cnt;
-                    s_infer_row_tick++;
-                    if (s_infer_row_tick >= DIR_DECISION_ROWS) {
-                        s_infer_row_tick = 0;
-                        const char *pred_str;
-                        if (v5f_pred == 0u) {
-                            pred_str = "LEFT";
-                        } else if (v5f_pred == 1u) {
-                            pred_str = "RIGHT";
-                        } else {
-                            pred_str = (v5f_score_l >= v5f_score_r) ? "LEFT" : "RIGHT";
-                        }
-                        uint8_t seq = Retry_GetSeq();
-                        const char *model_str =
-                            (v5f_model_used == DUALCORE_V5F_MODEL_CSP) ? "CSP" : "FFT24";
-                        char result_buf[160];
-                        snprintf (result_buf, sizeof (result_buf),
-                                  "RESULT,seq=%u,src=V5F,window=%lu,dt_ms=%u,win_rows=%u,INTENT=%s,S_LEFT=%ld,S_RIGHT=%ld,CONF=%ld,trained=%d,MODEL=%s\r\n",
-                                  (unsigned)seq,
-                                  (unsigned long)s_result_window,
-                                  (unsigned int)DIR_RESULT_DT_MS,
-                                  (unsigned int)DIR_DECISION_ROWS,
-                                  pred_str,
-                                  (long)v5f_score_l,
-                                  (long)v5f_score_r,
-                                  (long)v5f_conf,
-                                  (int)v5f_trained,
-                                  model_str);
-                        Serial_Printf (SERIAL_PORT_DEBUG, "%s", result_buf);
-                        Serial_Printf (SERIAL_PORT_WIFI, "%s", result_buf);
-                        Retry_Store (result_buf);
-                        s_result_window++;
-                    }
-                }
-            }
         }
 
         fft_step = FFT_STEP_UPDATE_TREND;
@@ -902,4 +846,201 @@ void EEG_FFT_ResetSendState (void) {
     current_filt_send_frag = 0;
     raw_send_channel = 0;
     filt_send_channel = 0;
+}
+
+void EEG_MI_ResultPoll (void) {
+    if (g_eeg_app_mode != EEG_APP_MODE_INFER) return;
+    if (g_paused) return;
+
+    uint32_t v5f_pred = DualCore_IPC_GetLastV5FPred();
+    uint32_t v5f_infer_valid = DualCore_IPC_GetLastV5FInferValid();
+    int32_t v5f_score_l = DualCore_IPC_GetLastV5FScoreLeft();
+    int32_t v5f_score_r = DualCore_IPC_GetLastV5FScoreRight();
+    int32_t v5f_conf = DualCore_IPC_GetLastV5FConfidence();
+    uint32_t v5f_trained = DualCore_IPC_GetLastV5FModelTrained();
+    uint32_t v5f_model_used = DualCore_IPC_GetLastV5FModelUsed();
+    uint32_t v5f_infer_cnt = DualCore_IPC_GetLastV5FInferCount();
+
+    {
+        static uint32_t s_v5f_diag_count = 0;
+        s_v5f_diag_count++;
+        if (s_v5f_diag_count >= 250u) {
+            s_v5f_diag_count = 0;
+            Serial_Printf(SERIAL_PORT_DEBUG,
+                           "V5F_DIAG,valid=%lu,cnt=%lu,last_cnt=%lu,trained=%lu,pred=%lu\r\n",
+                           (unsigned long)v5f_infer_valid,
+                           (unsigned long)v5f_infer_cnt,
+                           (unsigned long)s_last_infer_cnt,
+                           (unsigned long)v5f_trained,
+                           (unsigned long)v5f_pred);
+            Serial_Printf(SERIAL_PORT_WIFI,
+                           "V5F_DIAG,valid=%lu,cnt=%lu,last_cnt=%lu,trained=%lu,pred=%lu\r\n",
+                           (unsigned long)v5f_infer_valid,
+                           (unsigned long)v5f_infer_cnt,
+                           (unsigned long)s_last_infer_cnt,
+                           (unsigned long)v5f_trained,
+                           (unsigned long)v5f_pred);
+        }
+    }
+
+    if (v5f_infer_valid && v5f_infer_cnt != s_last_infer_cnt) {
+        s_last_infer_cnt = v5f_infer_cnt;
+        s_infer_row_tick++;
+        if (s_infer_row_tick >= DIR_DECISION_ROWS) {
+            s_infer_row_tick = 0;
+            const char *pred_str;
+            if (v5f_pred == 0u) {
+                pred_str = "LEFT";
+            } else if (v5f_pred == 1u) {
+                pred_str = "RIGHT";
+            } else {
+                pred_str = (v5f_score_l >= v5f_score_r) ? "LEFT" : "RIGHT";
+            }
+            uint8_t seq = Retry_GetSeq();
+            const char *model_str =
+                (v5f_model_used == DUALCORE_V5F_MODEL_CSP) ? "CSP" : "FFT24";
+            char result_buf[160];
+            snprintf(result_buf, sizeof(result_buf),
+                      "RESULT,seq=%u,src=V5F,window=%lu,dt_ms=%u,win_rows=%u,INTENT=%s,S_LEFT=%ld,S_RIGHT=%ld,CONF=%ld,trained=%d,MODEL=%s\r\n",
+                      (unsigned)seq,
+                      (unsigned long)s_result_window,
+                      (unsigned int)DIR_RESULT_DT_MS,
+                      (unsigned int)DIR_DECISION_ROWS,
+                      pred_str,
+                      (long)v5f_score_l,
+                      (long)v5f_score_r,
+                      (long)v5f_conf,
+                      (int)v5f_trained,
+                      model_str);
+            Serial_Printf(SERIAL_PORT_DEBUG, "%s", result_buf);
+            Serial_Printf(SERIAL_PORT_WIFI, "%s", result_buf);
+            Retry_Store(result_buf);
+            s_result_window++;
+        }
+    }
+}
+
+void EEG_SSVEP_ResultPoll (void) {
+    static uint8_t s_ssvep_was_active = 0;
+    if (!g_ssvep_active) {
+        s_ssvep_was_active = 0;
+        return;
+    }
+
+    static uint32_t s_last_ssvep_seq = 0;
+    uint8_t ssvep_valid = g_ipc_v3f_last_ssvep_valid;
+    uint32_t ssvep_seq = g_ipc_v3f_last_ssvep_sequence;
+
+    {
+        static int8_t  s_vote_history[5];
+        static uint8_t s_vote_count = 0;
+        static uint8_t s_vote_write = 0;
+        static int8_t  s_voted_idx = -1;
+        static int8_t  s_vote_counts[4] = {0, 0, 0, 0};
+
+        if (!s_ssvep_was_active) {
+            s_ssvep_was_active = 1;
+            s_vote_count = 0;
+            s_vote_write = 0;
+            s_voted_idx = -1;
+            memset(s_vote_counts, 0, sizeof(s_vote_counts));
+            s_last_ssvep_seq = ssvep_seq;
+        }
+
+        if (ssvep_valid && ssvep_seq != s_last_ssvep_seq) {
+            int8_t raw_idx = g_ipc_v3f_last_ssvep_raw_index;
+            if (raw_idx < 0) {
+                s_vote_count = 0;
+                s_vote_write = 0;
+                s_voted_idx = -1;
+                memset(s_vote_counts, 0, sizeof(s_vote_counts));
+            } else {
+                s_vote_history[s_vote_write] = raw_idx;
+                s_vote_write = (s_vote_write + 1u) % 5u;
+                if (s_vote_count < 5u) s_vote_count++;
+                memset(s_vote_counts, 0, sizeof(s_vote_counts));
+                {
+                    uint8_t i;
+                    for (i = 0; i < s_vote_count; i++) {
+                        int8_t idx = s_vote_history[i];
+                        if (idx >= 0 && idx < 4) s_vote_counts[idx]++;
+                    }
+                }
+                if (s_vote_count >= 3u) {
+                    int8_t best_idx = -1;
+                    int8_t best_cnt = 0;
+                    uint8_t i;
+                    for (i = 0; i < 4u; i++) {
+                        if (s_vote_counts[i] > best_cnt) {
+                            best_cnt = s_vote_counts[i];
+                            best_idx = (int8_t)i;
+                        }
+                    }
+                    s_voted_idx = (best_cnt >= 3) ? best_idx : -1;
+                } else {
+                    s_voted_idx = -1;
+                }
+            }
+        }
+
+        {
+            static uint16_t s_ssvep_diag_tick = 0;
+            s_ssvep_diag_tick++;
+            if (s_ssvep_diag_tick >= 250u) {
+                s_ssvep_diag_tick = 0;
+                Serial_Printf(SERIAL_PORT_DEBUG,
+                    "SSVEP_DIAG,active=%u,valid=%u,seq=%lu,raw=%d,voted=%d,ratio=%ld,best=%ld,margin=%ld,s0=%ld,s1=%ld,s2=%ld,s3=%ld,o1=%ld,oz=%ld\r\n",
+                    (unsigned)g_ssvep_active,
+                    (unsigned)ssvep_valid,
+                    (unsigned long)ssvep_seq,
+                    (int)g_ipc_v3f_last_ssvep_raw_index,
+                    (int)s_voted_idx,
+                    (long)g_ipc_v3f_last_ssvep_ratio_q10000,
+                    (long)g_ipc_v3f_last_ssvep_best_score_q10000,
+                    (long)g_ipc_v3f_last_ssvep_margin_q10000,
+                    (long)g_ipc_v3f_last_ssvep_scores_q10000[0],
+                    (long)g_ipc_v3f_last_ssvep_scores_q10000[1],
+                    (long)g_ipc_v3f_last_ssvep_scores_q10000[2],
+                    (long)g_ipc_v3f_last_ssvep_scores_q10000[3],
+                    (long)g_ipc_v3f_last_ssvep_o1_uv_x1000,
+                    (long)g_ipc_v3f_last_ssvep_oz_uv_x1000);
+            }
+        }
+
+        if (ssvep_valid && ssvep_seq != s_last_ssvep_seq) {
+            s_last_ssvep_seq = ssvep_seq;
+            const char *raw_str;
+            const char *voted_str;
+            static const char * const s_ssvep_freq_str[4] = {"11.00", "13.00", "15.00", "17.00"};
+            int8_t raw_idx = g_ipc_v3f_last_ssvep_raw_index;
+            if (raw_idx >= 0 && raw_idx < 4) {
+                raw_str = s_ssvep_freq_str[raw_idx];
+            } else {
+                raw_str = "UNCERTAIN";
+            }
+            if (s_voted_idx >= 0 && s_voted_idx < 4) {
+                voted_str = s_ssvep_freq_str[s_voted_idx];
+            } else {
+                voted_str = "UNCERTAIN";
+            }
+            char ssvep_buf[220];
+            snprintf(ssvep_buf, sizeof(ssvep_buf),
+                "SSVEP_RESULT,seq=%lu,raw=%s,voted=%s,ratio=%ld,best=%ld,margin=%ld,s0=%ld,s1=%ld,s2=%ld,s3=%ld,v0=%d,v1=%d,v2=%d,v3=%d\r\n",
+                (unsigned long)ssvep_seq,
+                raw_str, voted_str,
+                (long)g_ipc_v3f_last_ssvep_ratio_q10000,
+                (long)g_ipc_v3f_last_ssvep_best_score_q10000,
+                (long)g_ipc_v3f_last_ssvep_margin_q10000,
+                (long)g_ipc_v3f_last_ssvep_scores_q10000[0],
+                (long)g_ipc_v3f_last_ssvep_scores_q10000[1],
+                (long)g_ipc_v3f_last_ssvep_scores_q10000[2],
+                (long)g_ipc_v3f_last_ssvep_scores_q10000[3],
+                (int)s_vote_counts[0],
+                (int)s_vote_counts[1],
+                (int)s_vote_counts[2],
+                (int)s_vote_counts[3]);
+            Serial_Printf(SERIAL_PORT_DEBUG, "%s", ssvep_buf);
+            Serial_Printf(SERIAL_PORT_WIFI, "%s", ssvep_buf);
+        }
+    }
 }

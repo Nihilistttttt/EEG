@@ -1,6 +1,50 @@
 EEG项目更新记录
 ================
-最后更新: 2026-07-26
+最后更新: 2026-07-30
+
+================================================================================
+2026-07-30  SSVEP投票迁移至V3F+协议补齐投票计数+自测多频率支持
+================================================================================
+
+更新内容:
+1. SSVEP投票从V5F迁移至V3F(方案B):
+   - V5F ssvep_analyze()删除ssvep_vote()调用和投票静态变量，只输出raw_idx
+   - 删除g_ipc_ssvep_voted_index全局、IPC FrameSlot删除ssvep_voted_index字段
+   - V3F EEG_SSVEP_ResultPoll()新增投票逻辑(5窗口/3票确认/4目标计数)
+   - V3F投票在SSVEP重启时自动清零(s_ssvep_was_active过渡检测)
+   - SSVEP_RESULT协议增加v0~v3字段(4个目标投票计数)
+   - SSVEP_DIAG中voted改为V3F本地s_voted_idx(不再读IPC)
+2. Android医生端补齐投票计数解析:
+   - TcpServerManager.parseSsvepResultLine()增加v0~v3解析
+   - SsvepAnalysisManager.onMcuSsvepResult()增加int[] voteCounts参数
+   - SsvepResult.fromMcu()接收voteCounts替代硬编码0,0,0,0
+3. SSVEP自测支持4个目标频率(原硬编码15Hz):
+   - 命令格式: SSVEP,SELFTEST,START,<freqIndex>(0=11Hz,1=13Hz,2=15Hz,3=17Hz)
+   - 向后兼容: SSVEP,SELFTEST,START(无索引)默认freq_idx=0
+   - V3F IPC: control_reserved[1]传递freq_idx给V5F
+   - V5F: s_selftest_freqs[4]={11,13,15,17}按索引生成合成信号
+   - V5F: s_v5f_selftest_phase提升为文件作用域，RESET_SSVEP时清零，模250限幅防精度丢失
+   - CommandSender.ssvepSelftestStart(int freqIndex)传入索引
+   - SsvepTrainingFragment自测状态提示显示具体频率
+4. IPC诊断接口: 删除DualCore_IPC_GetLastSsvepVotedIndex()函数和声明
+
+意义和必要性:
+- 1: V5F负责单窗口分析(FBCCA→raw_idx)，V3F负责跨窗口聚合(投票→voted_idx)，
+  与MI方向识别架构一致(V5F做CSP/SVM，V3F做4-row counting)。投票计数在V3F本地，
+  无需额外IPC字段，数据通路最短
+- 2: 原fromMcu()硬编码投票为0导致UI永远显示"投票 11:0 13:0 15:0 17:0"，
+  协议补齐后医生端可实时看到各目标票数分布
+- 3: 原自测硬编码15Hz无法验证其他频率的SSVEP检测能力；
+  phase模250限幅防止长时间运行后float精度丢失导致信号频率漂移(根因: phase达1e6后
+  sinf(2π*17*1e6/250)参数~427256，float7位精度误差~0.04rad使FBCCA误判11Hz)
+- 4: voted_index已迁移至V3F，V5F IPC不再传输，诊断接口需同步清理
+
+对整体项目的新理解:
+- SSVEP投票与MI 4-row counting是同层决策机制(跨窗口时域平滑)，应放在同一核(V3F)
+- V5F的职责是"单帧分析"(FBCCA/CSP/SVM)，V3F的职责是"序列决策"(投票/计数/格式化)
+- 自测信号必须经过完整FBCCA流水线(陷波→子带IIR→CCA→加权→判决)才有效，
+  任何旁路或捷径都会使自测失去验证意义
+- float精度问题在嵌入式长周期运行中不可忽视，相位/累加器必须周期性归零或模限幅
 
 ================================================================================
 2026-07-26  SSVEP进度条重构+MI训练时间缩短+XML标签修正

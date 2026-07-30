@@ -69,4 +69,14 @@ public class CommandSender {
         Log.i(TAG, "ssvepStop");
         return sendCommand("SSVEP,STOP");
     }
+
+    public boolean ssvepSelftestStart(int freqIndex) {
+        Log.i(TAG, "ssvepSelftestStart freqIndex=" + freqIndex);
+        return sendCommand("SSVEP,SELFTEST,START," + freqIndex);
+    }
+
+    public boolean ssvepSelftestStop() {
+        Log.i(TAG, "ssvepSelftestStop");
+        return sendCommand("SSVEP,SELFTEST,STOP");
+    }
 }

@@ -33,6 +33,15 @@ extern volatile int32_t  g_ipc_v3f_last_v5f_score_right;
 extern volatile int32_t  g_ipc_v3f_last_v5f_confidence;
 extern volatile uint32_t g_ipc_v3f_last_v5f_infer_count;
 
+extern volatile uint8_t  g_ipc_v3f_last_ssvep_valid;
+extern volatile int8_t   g_ipc_v3f_last_ssvep_raw_index;
+
+extern volatile int32_t  g_ipc_v3f_last_ssvep_ratio_q10000;
+extern volatile int32_t  g_ipc_v3f_last_ssvep_best_score_q10000;
+extern volatile int32_t  g_ipc_v3f_last_ssvep_margin_q10000;
+extern volatile int32_t  g_ipc_v3f_last_ssvep_scores_q10000[4];
+extern volatile uint32_t g_ipc_v3f_last_ssvep_sequence;
+
 uint32_t DualCore_IPC_GetNotifyCount(void)       { return g_ipc_v3f_notify_count; }
 uint32_t DualCore_IPC_GetAckCount(void)          { return g_ipc_v3f_ack_count; }
 uint32_t DualCore_IPC_GetTxChecksum(void)        { return g_ipc_v3f_tx_checksum; }
@@ -106,5 +115,18 @@ uint32_t DualCore_IPC_GetV5FHandlerCount(void)
 {
     return IPC_ReadMSG(IPC_MSG2);
 }
+
+uint8_t  DualCore_IPC_GetLastSsvepValid(void)          { return g_ipc_v3f_last_ssvep_valid; }
+int8_t   DualCore_IPC_GetLastSsvepRawIndex(void)       { return g_ipc_v3f_last_ssvep_raw_index; }
+
+int32_t  DualCore_IPC_GetLastSsvepRatioQ10000(void)    { return g_ipc_v3f_last_ssvep_ratio_q10000; }
+int32_t  DualCore_IPC_GetLastSsvepBestScoreQ10000(void){ return g_ipc_v3f_last_ssvep_best_score_q10000; }
+int32_t  DualCore_IPC_GetLastSsvepMarginQ10000(void)   { return g_ipc_v3f_last_ssvep_margin_q10000; }
+int32_t  DualCore_IPC_GetLastSsvepScoreQ10000(uint8_t idx)
+{
+    if (idx >= 4) return 0;
+    return g_ipc_v3f_last_ssvep_scores_q10000[idx];
+}
+uint32_t DualCore_IPC_GetLastSsvepSequence(void)       { return g_ipc_v3f_last_ssvep_sequence; }
 
 #endif

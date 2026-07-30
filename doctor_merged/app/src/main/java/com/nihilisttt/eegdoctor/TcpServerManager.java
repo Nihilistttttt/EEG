@@ -323,6 +323,59 @@ public class TcpServerManager {
         return false;
     }
 
+    private void parseSsvepResultLine(String line) {
+        try {
+            String body = line.substring("SSVEP_RESULT,".length());
+            String[] pairs = body.split(",");
+            int seq = 0;
+            int rawIndex = -1;
+            int votedIndex = -1;
+            float ratio = 0f, bestScore = 0f, margin = 0f;
+            float[] scores = new float[4];
+            int[] voteCounts = new int[4];
+            for (String pair : pairs) {
+                String[] kv = pair.split("=", 2);
+                if (kv.length != 2) continue;
+                String key = kv[0].trim();
+                String val = kv[1].trim();
+                switch (key) {
+                    case "seq": seq = Integer.parseInt(val); break;
+                    case "raw":
+                        if ("UNCERTAIN".equals(val)) rawIndex = -1;
+                        else { double f = Double.parseDouble(val); rawIndex = ssvepFreqToIndex(f); }
+                        break;
+                    case "voted":
+                        if ("UNCERTAIN".equals(val)) votedIndex = -1;
+                        else { double f = Double.parseDouble(val); votedIndex = ssvepFreqToIndex(f); }
+                        break;
+                    case "ratio": ratio = Float.parseFloat(val) / 10000.0f; break;
+                    case "best": bestScore = Float.parseFloat(val) / 10000.0f; break;
+                    case "margin": margin = Float.parseFloat(val) / 10000.0f; break;
+                    case "s0": scores[0] = Float.parseFloat(val) / 10000.0f; break;
+                    case "s1": scores[1] = Float.parseFloat(val) / 10000.0f; break;
+                    case "s2": scores[2] = Float.parseFloat(val) / 10000.0f; break;
+                    case "s3": scores[3] = Float.parseFloat(val) / 10000.0f; break;
+                    case "v0": voteCounts[0] = Integer.parseInt(val); break;
+                    case "v1": voteCounts[1] = Integer.parseInt(val); break;
+                    case "v2": voteCounts[2] = Integer.parseInt(val); break;
+                    case "v3": voteCounts[3] = Integer.parseInt(val); break;
+                }
+            }
+            SsvepAnalysisManager.getInstance().onMcuSsvepResult(
+                    seq, rawIndex, votedIndex, ratio, bestScore, margin, scores, voteCounts);
+        } catch (Exception e) {
+            Log.w("TCP", "parseSsvepResultLine failed: " + line, e);
+        }
+    }
+
+    private static int ssvepFreqToIndex(double freq) {
+        double[] targets = FbccaConfig.TARGET_FREQS;
+        for (int i = 0; i < targets.length; i++) {
+            if (Math.abs(freq - targets[i]) < 0.2) return i;
+        }
+        return -1;
+    }
+
     private void sendAckForSeq(String line) {
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("seq=(\\d+)").matcher(line);
         if (m.find()) {
@@ -1176,9 +1229,7 @@ public class TcpServerManager {
                     ByteBuffer buf = ByteBuffer.wrap(payload, 2, 4).order(ByteOrder.LITTLE_ENDIAN);
                     float val = buf.getFloat();
                     dispatcher.postWaveData(cmd, ch, val);
-                    if (ch == EegChannels.CH_O1) {
-                        SsvepAnalysisManager.getInstance().offerWaveSample(cmd, val);
-                    }
+                    SsvepAnalysisManager.getInstance().offerWaveSample(cmd, ch, val);
                     udpSender.sendWaveData(val, val);
                 } else if (loadLen == 10) {
                     valid = true;
@@ -1189,11 +1240,8 @@ public class TcpServerManager {
                     float valB = buf.getFloat();
                     dispatcher.postWaveData(cmd, chA, valA);
                     dispatcher.postWaveData(cmd, chB, valB);
-                    if (chA == EegChannels.CH_O1) {
-                        SsvepAnalysisManager.getInstance().offerWaveSample(cmd, valA);
-                    } else if (chB == EegChannels.CH_O1) {
-                        SsvepAnalysisManager.getInstance().offerWaveSample(cmd, valB);
-                    }
+                    SsvepAnalysisManager.getInstance().offerWaveSample(cmd, chA, valA);
+                    SsvepAnalysisManager.getInstance().offerWaveSample(cmd, chB, valB);
                     udpSender.sendWaveData(valA, valB);
                 } else if (loadLen == 8) {
                     valid = true;
@@ -1202,7 +1250,8 @@ public class TcpServerManager {
                     float valB = buf.getFloat();
                     dispatcher.postWaveData(cmd, EegChannels.CH_OZ, valA);
                     dispatcher.postWaveData(cmd, EegChannels.CH_O1, valB);
-                    SsvepAnalysisManager.getInstance().offerWaveSample(cmd, valB);
+                    SsvepAnalysisManager.getInstance().offerWaveSample(cmd, EegChannels.CH_OZ, valA);
+                    SsvepAnalysisManager.getInstance().offerWaveSample(cmd, EegChannels.CH_O1, valB);
                     udpSender.sendWaveData(valA, valB);
                 }
             } else if (cmd == 0x05) {
@@ -1274,6 +1323,8 @@ public class TcpServerManager {
                         invalidFrames.incrementAndGet();
                     }
                 }
+            } else if (line.startsWith("SSVEP_RESULT,")) {
+                parseSsvepResultLine(line);
             } else if (line.startsWith("IPCDIAG,")) {
                 IpcDiagInfo diag = IpcDiagInfo.fromLine(line);
                 if (diag != null) {

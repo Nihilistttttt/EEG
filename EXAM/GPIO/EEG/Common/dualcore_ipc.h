@@ -21,6 +21,10 @@ void DualCore_IPC_SendFrameFromV3F(const uint8_t *frame, uint16_t len);
 void DualCore_IPC_SetModelSelect(uint8_t model_select);
 uint8_t DualCore_IPC_GetModelSelect(void);
 void DualCore_IPC_RequestV5FReset(void);
+void DualCore_IPC_RequestSsvepReset(void);
+void DualCore_IPC_SetSsvepEnable(uint8_t enable);
+uint8_t DualCore_IPC_GetSsvepEnable(void);
+void DualCore_IPC_SetSsvepSelftest(uint8_t enable, uint8_t freq_index);
 uint32_t DualCore_IPC_GetLastV5FWfiWake(void);
 void DualCore_V5F_MainLoopProcess(void);
 

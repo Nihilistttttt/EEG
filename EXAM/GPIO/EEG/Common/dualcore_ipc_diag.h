@@ -44,4 +44,13 @@ uint32_t DualCore_IPC_GetLastV5FInferCount(void);
 
 uint32_t DualCore_IPC_GetV5FHandlerCount(void);
 
+uint8_t  DualCore_IPC_GetLastSsvepValid(void);
+int8_t   DualCore_IPC_GetLastSsvepRawIndex(void);
+int8_t   DualCore_IPC_GetLastSsvepRawIndex(void);
+int32_t  DualCore_IPC_GetLastSsvepRatioQ10000(void);
+int32_t  DualCore_IPC_GetLastSsvepBestScoreQ10000(void);
+int32_t  DualCore_IPC_GetLastSsvepMarginQ10000(void);
+int32_t  DualCore_IPC_GetLastSsvepScoreQ10000(uint8_t idx);
+uint32_t DualCore_IPC_GetLastSsvepSequence(void);
+
 #endif

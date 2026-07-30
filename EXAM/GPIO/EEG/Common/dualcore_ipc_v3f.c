@@ -40,10 +40,23 @@ volatile int32_t  g_ipc_v3f_last_v5f_score_right=0;
 volatile int32_t  g_ipc_v3f_last_v5f_confidence=0;
 volatile uint32_t g_ipc_v3f_last_v5f_infer_count=0;
 volatile uint32_t g_ipc_v3f_last_v5f_wfi_wake=0;
+volatile uint8_t  g_ipc_v3f_last_ssvep_valid=0;
+volatile int8_t   g_ipc_v3f_last_ssvep_raw_index=-1;
+
+volatile int32_t  g_ipc_v3f_last_ssvep_ratio_q10000=0;
+volatile int32_t  g_ipc_v3f_last_ssvep_best_score_q10000=0;
+volatile int32_t  g_ipc_v3f_last_ssvep_margin_q10000=0;
+volatile int32_t  g_ipc_v3f_last_ssvep_scores_q10000[4]={0};
+volatile uint32_t g_ipc_v3f_last_ssvep_sequence=0;
+volatile int32_t  g_ipc_v3f_last_ssvep_o1_uv_x1000=0;
+volatile int32_t  g_ipc_v3f_last_ssvep_oz_uv_x1000=0;
 volatile uint8_t  g_ipc_v3f_ready              = 0;
 static volatile uint8_t g_ipc_v3f_model_select
     __attribute__((section(".bss"))) = DUALCORE_V5F_MODEL_SELECT_AUTO;
 static volatile uint8_t g_ipc_v3f_ctrl_reset = 0;
+static volatile uint8_t g_ipc_v3f_ssvep_enable = 0;
+static volatile uint8_t g_ipc_v3f_ssvep_selftest = 0;
+static volatile uint8_t g_ipc_v3f_ssvep_selftest_idx = 0;
 
 static volatile DualCore_IPC_FrameSlot_t g_ipc_v3f_frame_slot[DUALCORE_IPC_FRAME_SLOT_NUM];
 static volatile uint16_t g_ipc_v3f_tx_checksum_hist[DUALCORE_IPC_TX_HISTORY_SIZE];
@@ -68,6 +81,27 @@ uint8_t DualCore_IPC_GetModelSelect(void)
 void DualCore_IPC_RequestV5FReset(void)
 {
     g_ipc_v3f_ctrl_reset = DUALCORE_IPC_CTRL_RESET_DSP;
+}
+
+void DualCore_IPC_RequestSsvepReset(void)
+{
+    g_ipc_v3f_ctrl_reset |= DUALCORE_IPC_CTRL_RESET_SSVEP;
+}
+
+void DualCore_IPC_SetSsvepEnable(uint8_t enable)
+{
+    g_ipc_v3f_ssvep_enable = enable ? 1u : 0u;
+}
+
+uint8_t DualCore_IPC_GetSsvepEnable(void)
+{
+    return g_ipc_v3f_ssvep_enable;
+}
+
+void DualCore_IPC_SetSsvepSelftest(uint8_t enable, uint8_t freq_index)
+{
+    g_ipc_v3f_ssvep_selftest = enable ? 1u : 0u;
+    g_ipc_v3f_ssvep_selftest_idx = freq_index & 0x03u;
 }
 
 uint32_t DualCore_IPC_GetLastV5FWfiWake(void)
@@ -212,7 +246,10 @@ void DualCore_IPC_SendFrameFromV3F(const uint8_t *frame, uint16_t len)
     NVIC_DisableIRQ(IPC_CH0_IRQn);
 
     slot->model_select = g_ipc_v3f_model_select;
-    slot->control_reserved[0] = g_ipc_v3f_ctrl_reset;
+    slot->control_reserved[0] = g_ipc_v3f_ctrl_reset
+                               | (g_ipc_v3f_ssvep_enable ? DUALCORE_IPC_CTRL_SSVEP_ENABLE : 0u)
+                               | (g_ipc_v3f_ssvep_selftest ? DUALCORE_IPC_CTRL_SSVEP_SELFTEST : 0u);
+    slot->control_reserved[1] = g_ipc_v3f_ssvep_selftest ? g_ipc_v3f_ssvep_selftest_idx : 0u;
     g_ipc_v3f_ctrl_reset = 0;
     slot->v5f_parse_valid = 0;
     slot->v5f_status = 0;
@@ -334,6 +371,22 @@ void IPC_CH0_Handler(void)
         g_ipc_v3f_last_v5f_confidence = slot->v5f_confidence;
         g_ipc_v3f_last_v5f_infer_count = slot->v5f_infer_count;
         g_ipc_v3f_last_v5f_wfi_wake = slot->control_reserved[2];
+
+        g_ipc_v3f_last_ssvep_valid = slot->ssvep_valid;
+        g_ipc_v3f_last_ssvep_raw_index = slot->ssvep_raw_index;
+
+        g_ipc_v3f_last_ssvep_ratio_q10000 = slot->ssvep_ratio_q10000;
+        g_ipc_v3f_last_ssvep_best_score_q10000 = slot->ssvep_best_score_q10000;
+        g_ipc_v3f_last_ssvep_margin_q10000 = slot->ssvep_margin_q10000;
+        {
+            uint16_t t;
+            for (t = 0; t < 4; t++) {
+                g_ipc_v3f_last_ssvep_scores_q10000[t] = slot->ssvep_scores_q10000[t];
+            }
+        }
+        g_ipc_v3f_last_ssvep_sequence = slot->ssvep_sequence;
+        g_ipc_v3f_last_ssvep_o1_uv_x1000 = slot->ssvep_o1_uv_x1000;
+        g_ipc_v3f_last_ssvep_oz_uv_x1000 = slot->ssvep_oz_uv_x1000;
 
         if (parse_ok) {
             g_ipc_v3f_parse_ok++;

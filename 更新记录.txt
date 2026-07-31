@@ -1,6 +1,21 @@
 EEG项目更新记录
 ================
-最后更新: 2026-07-30
+最后更新: 2026-07-31
+
+================================================================================
+2026-07-31  SSVEP进度条按MCU投票驱动+运行中切换频率不中断
+================================================================================
+
+更新内容:
+1. MCU模式下进度条按投票计数驱动:
+   - onMcuSsvepResult()收到MCU结果后发postProgress(ANALYZING, totalVotes, VOTE_HISTORY_LEN)
+   - SsvepTrainingFragment识别投票进度(windowSamples==VOTE_HISTORY_LEN)时按投票百分比驱动进度条
+   - onSsvepResult同步更新progressWindow百分比
+   - postProgress新增5参数重载，支持自定义windowSamples(投票模式用VOTE_HISTORY_LEN替代WINDOW_SIZE)
+2. 运行中切换频率不再中断MCU数据接收:
+   - 新增switchFrequency():只重置引擎/投票/进度，保持running和mcuMode不变
+   - selectFreq()运行中切换时调用switchFrequency替代prepareSession
+   - 根因: prepareSession会设running=false，导致onMcuSsvepResult因!running丢弃所有MCU结果
 
 ================================================================================
 2026-07-30  SSVEP投票迁移至V3F+协议补齐投票计数+自测多频率支持

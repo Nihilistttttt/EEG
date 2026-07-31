@@ -75,6 +75,17 @@ public final class SsvepAnalysisManager {
         });
     }
 
+    public void switchFrequency(int freqIndex) {
+        analysisExecutor.execute(() -> {
+            engine.reset();
+            targetFreqIndex = freqIndex;
+            progressCounter = 0;
+            resetPending();
+            postProgress(SsvepProgress.State.COLLECTING, 0, selectedWaveCommand,
+                    "已切换目标频率，重新收集");
+        });
+    }
+
     public void confirmStimulusStarted(int freqIndex, float refreshRate) {
         final long generation = sessionGeneration.get();
         analysisExecutor.execute(() -> {
@@ -291,6 +302,13 @@ public final class SsvepAnalysisManager {
         int[] v = voteCounts != null ? voteCounts.clone() : new int[4];
         analysisExecutor.execute(() -> {
             if (!running || synthetic) return;
+            int totalVotes = 0;
+            for (int c : v) totalVotes += c;
+            int votePct = Math.min(100, Math.round(totalVotes * 100f / FbccaConfig.VOTE_HISTORY_LEN));
+            postProgress(SsvepProgress.State.ANALYZING,
+                    totalVotes, FbccaConfig.VOTE_HISTORY_LEN, selectedWaveCommand,
+                    String.format(Locale.US, "MCU 第 %d 轮：投票 %d/%d（%d%%）",
+                            seq, totalVotes, FbccaConfig.VOTE_HISTORY_LEN, votePct));
             SsvepResult result = SsvepResult.fromMcu(seq, rawIndex, votedIndex,
                     ratio, bestScore, margin, s, v);
             DataDispatcher.getInstance().postSsvepResult(result);
@@ -315,10 +333,18 @@ public final class SsvepAnalysisManager {
                               int buffered,
                               int waveCommand,
                               String message) {
+        postProgress(state, buffered, FbccaConfig.WINDOW_SIZE, waveCommand, message);
+    }
+
+    private void postProgress(SsvepProgress.State state,
+                              int buffered,
+                              int windowSamples,
+                              int waveCommand,
+                              String message) {
         DataDispatcher.getInstance().postSsvepProgress(new SsvepProgress(
                 state,
                 buffered,
-                FbccaConfig.WINDOW_SIZE,
+                windowSamples,
                 engine.getSamplesUntilNextUpdate(),
                 waveCommand,
                 synthetic,

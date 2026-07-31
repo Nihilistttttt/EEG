@@ -121,7 +121,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         updateFreqButtons();
         if (ssvepRunning) {
             SsvepAnalysisManager analysis = SsvepAnalysisManager.getInstance();
-            analysis.prepareSession(index);
+            analysis.switchFrequency(index);
             TcpServerManager server = TcpServerManager.getInstance();
             server.setSsvepActive(true, index);
             server.sendToPatientAsync("SSVEP,START," + index, null);
@@ -254,17 +254,26 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
     @Override
     public void onSsvepProgress(SsvepProgress progress) {
         if (progress == null || getView() == null) return;
-        int stepSize = FbccaConfig.STEP_SIZE;
-        int untilNext = progress.getSamplesUntilNextUpdate();
-        int stepCollected = stepSize - untilNext;
-        if (stepCollected < 0) stepCollected = 0;
-        if (stepCollected > stepSize) stepCollected = stepSize;
-        int pct = Math.round(stepCollected * 100f / stepSize);
-        progressWindow.setProgress(Math.min(100, pct));
-        tvProgress.setText(String.format(Locale.US,
-                "步进: %d/%d  %s",
-                stepCollected, stepSize,
-                progress.getMessage()));
+        if (progress.getState() == SsvepProgress.State.ANALYZING
+                && progress.getWindowSamples() == FbccaConfig.VOTE_HISTORY_LEN) {
+            int votes = progress.getBufferedSamples();
+            int voteWin = progress.getWindowSamples();
+            int pct = Math.min(100, Math.round(votes * 100f / voteWin));
+            progressWindow.setProgress(pct);
+            tvProgress.setText(progress.getMessage());
+        } else {
+            int stepSize = FbccaConfig.STEP_SIZE;
+            int untilNext = progress.getSamplesUntilNextUpdate();
+            int stepCollected = stepSize - untilNext;
+            if (stepCollected < 0) stepCollected = 0;
+            if (stepCollected > stepSize) stepCollected = stepSize;
+            int pct = Math.round(stepCollected * 100f / stepSize);
+            progressWindow.setProgress(Math.min(100, pct));
+            tvProgress.setText(String.format(Locale.US,
+                    "步进: %d/%d  %s",
+                    stepCollected, stepSize,
+                    progress.getMessage()));
+        }
         if (progress.getWaveCommand() > 0) {
             tvWaveSource.setText(String.format(Locale.US,
                     "当前波形源: CMD=0x%02X，通道0，输入换算×%.0f mV",
@@ -279,9 +288,11 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         if (result == null || getView() == null) return;
         int totalVotes = result.getVote11() + result.getVote13()
                 + result.getVote15() + result.getVote17();
+        int votePct = Math.min(100, Math.round(totalVotes * 100f / FbccaConfig.VOTE_HISTORY_LEN));
+        progressWindow.setProgress(votePct);
         tvProgress.setText(String.format(Locale.US,
-                "步进: --  投票: %d/%d",
-                totalVotes, FbccaConfig.VOTE_HISTORY_LEN));
+                "投票: %d/%d（%d%%）",
+                totalVotes, FbccaConfig.VOTE_HISTORY_LEN, votePct));
 
         int finalIndex = result.getFreqIndex();
         int rawIndex = result.getRawFreqIndex();

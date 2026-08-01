@@ -7,6 +7,7 @@
 #include "Message_Parser.h"
 #include "Serial.h"
 #include "dualcore_ipc.h"
+#include "eeg_protocol.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -20,15 +21,11 @@ extern uint8_t g_posture_diag_enable;
 #endif
 extern volatile uint32_t g_icm42605_ms_tick;
 
-#define RESP(fmt, ...) do { \
-    Serial_Printf(SERIAL_PORT_DEBUG, fmt, ##__VA_ARGS__); \
-    Serial_Printf(SERIAL_PORT_WIFI, fmt, ##__VA_ARGS__); \
-} while(0)
-
-#define RETRY_BUF_SIZE 128
 #define RETRY_TIMEOUT_MS 300
 
-static char s_retry_buf[RETRY_BUF_SIZE];
+static uint8_t s_retry_payload[256];
+static uint16_t s_retry_len = 0;
+static uint8_t s_retry_cmd = 0;
 static uint8_t s_retry_seq = 0;
 static uint8_t s_retry_count = 0;
 static uint8_t s_retry_max = 10;
@@ -39,21 +36,29 @@ uint8_t Retry_GetSeq(void)
     return s_retry_seq + 1u;
 }
 
-void Retry_Store(const char *msg)
+static void Retry_SendNow(void)
+{
+    if (s_retry_len == 0) return;
+    Pack_Frame(SERIAL_PORT_WIFI, s_retry_cmd, s_retry_payload, s_retry_len);
+}
+
+void Retry_Store(const uint8_t *payload, uint16_t len, uint8_t cmd)
 {
     s_retry_seq++;
-    strncpy(s_retry_buf, msg, RETRY_BUF_SIZE - 1);
-    s_retry_buf[RETRY_BUF_SIZE - 1] = '\0';
+    s_retry_cmd = cmd;
+    s_retry_len = len > sizeof(s_retry_payload) ? (uint16_t)sizeof(s_retry_payload) : len;
+    memcpy(s_retry_payload, payload, s_retry_len);
     s_retry_count = 0;
     s_retry_max = 10;
     s_retry_send_tick = g_icm42605_ms_tick;
 }
 
-void Retry_StoreEx(const char *msg, uint8_t max_count)
+void Retry_StoreEx(const uint8_t *payload, uint16_t len, uint8_t cmd, uint8_t max_count)
 {
     s_retry_seq++;
-    strncpy(s_retry_buf, msg, RETRY_BUF_SIZE - 1);
-    s_retry_buf[RETRY_BUF_SIZE - 1] = '\0';
+    s_retry_cmd = cmd;
+    s_retry_len = len > sizeof(s_retry_payload) ? (uint16_t)sizeof(s_retry_payload) : len;
+    memcpy(s_retry_payload, payload, s_retry_len);
     s_retry_count = 0;
     s_retry_max = max_count;
     s_retry_send_tick = g_icm42605_ms_tick;
@@ -61,24 +66,279 @@ void Retry_StoreEx(const char *msg, uint8_t max_count)
 
 void Retry_Tick(void)
 {
-    if (s_retry_buf[0] == '\0') return;
+    if (s_retry_len == 0) return;
     if (s_retry_count >= s_retry_max) {
-        s_retry_buf[0] = '\0';
+        s_retry_len = 0;
         return;
     }
     uint32_t elapsed = g_icm42605_ms_tick - s_retry_send_tick;
     if (elapsed >= RETRY_TIMEOUT_MS) {
         s_retry_count++;
         s_retry_send_tick = g_icm42605_ms_tick;
-        Serial_Printf(SERIAL_PORT_WIFI, "%s", s_retry_buf);
-        Serial_Printf(SERIAL_PORT_DEBUG, "[RETRY:%u] %s", s_retry_count, s_retry_buf);
+        Retry_SendNow();
     }
 }
 
 static void Retry_Ack(uint8_t seq)
 {
-    if (seq == s_retry_seq && s_retry_buf[0] != '\0') {
-        s_retry_buf[0] = '\0';
+    if (seq == s_retry_seq && s_retry_len != 0) {
+        s_retry_len = 0;
+    }
+}
+
+static void Send_Resp(uint8_t cmd, const uint8_t *payload, uint16_t len)
+{
+    Pack_Frame(SERIAL_PORT_DEBUG, cmd, payload, len);
+    Pack_Frame(SERIAL_PORT_WIFI, cmd, payload, len);
+}
+
+static void Send_RespOk(uint8_t cmd)
+{
+    uint8_t payload[1] = {0};
+    Send_Resp(cmd, payload, 1);
+}
+
+static void Send_RespErr(uint8_t code)
+{
+    uint8_t payload[1] = {(uint8_t)code};
+    Send_Resp(CMD_NULL, payload, 1);
+    (void)code;
+}
+
+void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *source)
+{
+    (void)source;
+    if (len < 1) return;
+    uint8_t cmd = payload[0];
+    const uint8_t *data = payload + 1;
+    uint16_t dlen = len - 1;
+
+    switch (cmd) {
+    case CMD_ACK:
+        if (dlen >= 1) {
+            Retry_Ack(data[0]);
+        }
+        break;
+
+    case CMD_MODE_TRAIN:
+        g_work_mode = WORK_MODE_TRAIN;
+        g_trial_state = TRIAL_IDLE;
+        g_paused = 0;
+        g_v5f_active = V5F_ACTIVE_COLLECT;
+        DualCore_IPC_RequestV5FReset();
+        Direction_ResetRestBaseline();
+        if (g_eeg_app_mode == EEG_APP_MODE_COLLECT_CSP) {
+            Direction_CSPStreamReset();
+        }
+        Send_RespOk(CMD_READY_TRAIN);
+        break;
+
+    case CMD_MODE_TEST:
+        g_work_mode = WORK_MODE_TEST;
+        g_trial_state = TRIAL_IDLE;
+        g_paused = 0;
+        EEG_FFT_ResetInferState();
+        Send_RespOk(CMD_READY_TEST);
+        break;
+
+    case CMD_MODEL_SET:
+        if (dlen >= 1) {
+            uint8_t select = data[0];
+            if (select == DUALCORE_V5F_MODEL_SELECT_AUTO
+                || select == DUALCORE_V5F_MODEL_SELECT_FFT24
+                || select == DUALCORE_V5F_MODEL_SELECT_CSP) {
+                DualCore_IPC_SetModelSelect(select);
+                uint8_t resp[2] = {CMD_MODEL_SET, select};
+                Send_Resp(CMD_MODE_SET_OK, resp, 2);
+            } else {
+                Send_RespErr(1);
+            }
+        }
+        break;
+
+    case CMD_MODEL_GET:
+        {
+            uint8_t resp[2] = {CMD_MODEL_GET, DualCore_IPC_GetModelSelect()};
+            Send_Resp(CMD_MODE_SET_OK, resp, 2);
+        }
+        break;
+
+    case CMD_MODE_SET:
+        if (dlen >= 1) {
+            uint8_t mode = data[0];
+            if (mode == EEG_APP_MODE_COLLECT || mode == EEG_APP_MODE_INFER || mode == EEG_APP_MODE_COLLECT_CSP) {
+                g_eeg_app_mode = mode;
+                if (mode == EEG_APP_MODE_INFER) {
+                    g_v5f_active = V5F_ACTIVE_INFER;
+                    DualCore_IPC_RequestV5FReset();
+                } else {
+                    g_v5f_active = V5F_ACTIVE_IDLE;
+                }
+                if (mode == EEG_APP_MODE_COLLECT || mode == EEG_APP_MODE_COLLECT_CSP) {
+                    g_ipc_diag_enable = 0;
+                }
+                uint8_t resp[2] = {CMD_MODE_SET, mode};
+                Send_Resp(CMD_MODE_SET_OK, resp, 2);
+                dir_phase = DIR_PHASE_REST;
+                dir_phase_row_count = 0;
+                dir_skip_row_count = 0;
+                dir_round_count = 0;
+                csp_collect_row_tick = 0;
+                csp_window_id = 0;
+                Direction_CSPStreamReset();
+            } else {
+                Send_RespErr(2);
+            }
+        }
+        break;
+
+    case CMD_TRIAL:
+        if (g_work_mode != WORK_MODE_TRAIN) {
+            Send_RespErr(3);
+            break;
+        }
+        if (g_trial_state == TRIAL_RUNNING) {
+            Send_RespErr(4);
+            break;
+        }
+        if (dlen >= 1) {
+            uint8_t side = data[0];
+            if (side == 0u) {
+                g_trial_label = DIR_LABEL_LEFT;
+            } else if (side == 1u) {
+                g_trial_label = DIR_LABEL_RIGHT;
+            } else {
+                Send_RespErr(5);
+                break;
+            }
+            g_trial_state = TRIAL_RUNNING;
+            g_trial_row_count = 0;
+            g_paused = 0;
+            g_v5f_active = V5F_ACTIVE_COLLECT;
+            DualCore_IPC_RequestV5FReset();
+            Direction_ResetTaskZero();
+            uint8_t resp[1] = {side};
+            Send_Resp(CMD_TASK_START, resp, 1);
+        }
+        break;
+
+    case CMD_STOP:
+        g_work_mode = WORK_MODE_IDLE;
+        g_trial_state = TRIAL_IDLE;
+        g_paused = 0;
+        g_eeg_app_mode = EEG_APP_MODE_COLLECT;
+        g_v5f_active = V5F_ACTIVE_IDLE;
+        g_ssvep_active = 0;
+        DualCore_IPC_SetSsvepEnable(0);
+        EEG_FFT_ResetInferState();
+        Direction_Infer1sReset();
+        Direction_CSPStreamReset();
+        Send_RespOk(CMD_TASK_STOPPED);
+        break;
+
+    case CMD_STATUS:
+        {
+            uint8_t resp[6];
+            resp[0] = (uint8_t)g_work_mode;
+            resp[1] = (uint8_t)g_trial_state;
+            resp[2] = (uint8_t)g_trial_row_count;
+            resp[3] = 0;
+            resp[4] = DualCore_IPC_GetModelSelect();
+            resp[5] = (uint8_t)(g_trial_row_count >> 8);
+            Send_Resp(CMD_STATUS, resp, 6);
+        }
+        break;
+
+    case CMD_IPCDIAG:
+        if (dlen >= 1) {
+            g_ipc_diag_enable = data[0] ? 1 : 0;
+            uint8_t resp[2] = {CMD_IPCDIAG, g_ipc_diag_enable};
+            Send_Resp(CMD_MODE_SET_OK, resp, 2);
+        }
+        break;
+
+    case CMD_POSTURE:
+#ifdef HAS_ICM42605
+        if (dlen >= 1) {
+            g_posture_diag_enable = data[0] ? 1 : 0;
+            uint8_t resp[2] = {CMD_POSTURE, g_posture_diag_enable};
+            Send_Resp(CMD_MODE_SET_OK, resp, 2);
+        }
+#endif
+        break;
+
+    case CMD_DISPLAY_CFG:
+        if (dlen >= 12) {
+            if (data[0] < DISPLAY_MAX_CH) g_display_config.wave_ch[0] = data[0];
+            g_display_config.wave_type[0] = data[1];
+            if (data[2] < DISPLAY_MAX_CH) g_display_config.wave_ch[1] = data[2];
+            g_display_config.wave_type[1] = data[3];
+            g_display_config.spec_type[0] = data[4];
+            g_display_config.spec_type[1] = data[5];
+            if (dlen >= 12) {
+                if (data[6] < DISPLAY_MAX_CH) g_display_config.wave_ch[2] = data[6];
+                g_display_config.wave_type[2] = data[7];
+                if (data[8] < DISPLAY_MAX_CH) g_display_config.wave_ch[3] = data[8];
+                g_display_config.wave_type[3] = data[9];
+                g_display_config.spec_type[2] = data[10];
+                g_display_config.spec_type[3] = data[11];
+            }
+            EEG_FFT_ResetSendState();
+            uint8_t resp[12];
+            memcpy(resp, data, 12);
+            Send_Resp(CMD_DISPLAY_CFG, resp, 12);
+        }
+        break;
+
+    case CMD_SSVEP_START:
+        g_ssvep_active = 1;
+        DualCore_IPC_SetSsvepEnable(1);
+        DualCore_IPC_RequestSsvepReset();
+        if (g_v5f_active == V5F_ACTIVE_IDLE) {
+            g_v5f_active = V5F_ACTIVE_INFER;
+            DualCore_IPC_RequestV5FReset();
+        }
+        Send_RespOk(CMD_SSVEP_START);
+        break;
+
+    case CMD_SSVEP_STOP:
+        g_ssvep_active = 0;
+        DualCore_IPC_SetSsvepEnable(0);
+        DualCore_IPC_SetSsvepSelftest(0, 0);
+        DualCore_IPC_RequestSsvepReset();
+        if (g_v5f_active == V5F_ACTIVE_INFER
+            && g_eeg_app_mode != EEG_APP_MODE_INFER) {
+            g_v5f_active = V5F_ACTIVE_IDLE;
+        }
+        Send_RespOk(CMD_SSVEP_STOP);
+        break;
+
+    case CMD_SSVEP_SELFTEST_START:
+        {
+            uint8_t freq_idx = 0;
+            if (dlen >= 1 && data[0] <= 3) freq_idx = data[0];
+            g_ssvep_active = 1;
+            DualCore_IPC_SetSsvepEnable(1);
+            DualCore_IPC_SetSsvepSelftest(1, freq_idx);
+            DualCore_IPC_RequestSsvepReset();
+            if (g_v5f_active == V5F_ACTIVE_IDLE) {
+                g_v5f_active = V5F_ACTIVE_INFER;
+                DualCore_IPC_RequestV5FReset();
+            }
+            uint8_t resp[1] = {freq_idx};
+            Send_Resp(CMD_SSVEP_SELFTEST_START, resp, 1);
+        }
+        break;
+
+    case CMD_SSVEP_SELFTEST_STOP:
+        DualCore_IPC_SetSsvepSelftest(0, 0);
+        DualCore_IPC_RequestSsvepReset();
+        Send_RespOk(CMD_SSVEP_SELFTEST_STOP);
+        break;
+
+    default:
+        Send_RespErr(0xFF);
+        break;
     }
 }
 
@@ -92,251 +352,7 @@ void Parse_CommandEx(const char *cmd, const char *source)
         clean_cmd[len-1] = '\0';
         len--;
     }
-
+    if (len == 0) return;
     Serial_Printf(SERIAL_PORT_DEBUG, "RX[%s]: %s\r\n", source, clean_cmd);
     Serial_Printf(SERIAL_PORT_WIFI, "RX[%s]: %s\r\n", source, clean_cmd);
-
-    if (strncmp(clean_cmd, "ACK,", 4) == 0) {
-        uint8_t ack_seq = (uint8_t)atoi(clean_cmd + 4);
-        Retry_Ack(ack_seq);
-        return;
-    }
-
-    if (strcmp(clean_cmd, "MODE,TRAIN") == 0) {
-        g_work_mode = WORK_MODE_TRAIN;
-        g_trial_state = TRIAL_IDLE;
-        g_paused = 0;
-        g_v5f_active = V5F_ACTIVE_COLLECT;
-        DualCore_IPC_RequestV5FReset();
-        Direction_ResetRestBaseline();
-        if (g_eeg_app_mode == EEG_APP_MODE_COLLECT_CSP) {
-            Direction_CSPStreamReset();
-        }
-        RESP("READY_TRAIN\r\n");
-        return;
-    }
-    if (strcmp(clean_cmd, "MODE,TEST") == 0) {
-        g_work_mode = WORK_MODE_TEST;
-        g_trial_state = TRIAL_IDLE;
-        g_paused = 0;
-
-        EEG_FFT_ResetInferState();
-        RESP("READY_TEST\r\n");
-        return;
-    }
-
-    if (strncmp(clean_cmd, "MODEL,SET,", 10) == 0) {
-        const char *name = clean_cmd + 10;
-        uint8_t select;
-        if (strcmp(name, "AUTO") == 0) {
-            select = DUALCORE_V5F_MODEL_SELECT_AUTO;
-        } else if ((strcmp(name, "FFT") == 0) || (strcmp(name, "FFT24") == 0)) {
-            select = DUALCORE_V5F_MODEL_SELECT_FFT24;
-        } else if (strcmp(name, "CSP") == 0) {
-            select = DUALCORE_V5F_MODEL_SELECT_CSP;
-        } else {
-            RESP("ERROR,INVALID_MODEL\r\n");
-            return;
-        }
-        DualCore_IPC_SetModelSelect(select);
-        RESP("MODEL_SET_OK,%s\r\n",
-             (select == DUALCORE_V5F_MODEL_SELECT_CSP) ? "CSP" :
-             (select == DUALCORE_V5F_MODEL_SELECT_FFT24) ? "FFT24" : "AUTO");
-        return;
-    }
-    if (strcmp(clean_cmd, "MODEL,GET") == 0) {
-        uint8_t select = DualCore_IPC_GetModelSelect();
-        RESP("MODEL,%s\r\n",
-             (select == DUALCORE_V5F_MODEL_SELECT_CSP) ? "CSP" :
-             (select == DUALCORE_V5F_MODEL_SELECT_FFT24) ? "FFT24" : "AUTO");
-        return;
-    }
-
-    if (strncmp(clean_cmd, "MODE,SET,", 9) == 0) {
-        int mode = atoi(clean_cmd + 9);
-        if (mode == EEG_APP_MODE_COLLECT || mode == EEG_APP_MODE_INFER || mode == EEG_APP_MODE_COLLECT_CSP) {
-            g_eeg_app_mode = (uint8_t)mode;
-            if (mode == EEG_APP_MODE_INFER) {
-                g_v5f_active = V5F_ACTIVE_INFER;
-                DualCore_IPC_RequestV5FReset();
-            } else {
-                g_v5f_active = V5F_ACTIVE_IDLE;
-            }
-            if (mode == EEG_APP_MODE_COLLECT || mode == EEG_APP_MODE_COLLECT_CSP) {
-                g_ipc_diag_enable = 0;
-            }
-            RESP("MODE_SET_OK,%d\r\n", mode);
-            dir_phase = DIR_PHASE_REST;
-            dir_phase_row_count = 0;
-            dir_skip_row_count = 0;
-            dir_round_count = 0;
-            csp_collect_row_tick = 0;
-            csp_window_id = 0;
-            Direction_CSPStreamReset();
-        } else {
-            RESP("ERROR,INVALID_MODE\r\n");
-        }
-        return;
-    }
-    if (strncmp(clean_cmd, "TRIAL,", 6) == 0) {
-        if (g_work_mode != WORK_MODE_TRAIN) {
-            RESP("ERROR,NOT_TRAIN_MODE\r\n");
-            return;
-        }
-        if (g_trial_state == TRIAL_RUNNING) {
-            RESP("ERROR,BUSY\r\n");
-            return;
-        }
-        const char *side = clean_cmd + 6;
-        if (strcmp(side, "LEFT") == 0) {
-            g_trial_label = DIR_LABEL_LEFT;
-        } else if (strcmp(side, "RIGHT") == 0) {
-            g_trial_label = DIR_LABEL_RIGHT;
-        } else {
-            RESP("ERROR,INVALID_SIDE\r\n");
-            return;
-        }
-        g_trial_state = TRIAL_RUNNING;
-        g_trial_row_count = 0;
-        g_paused = 0;
-        g_v5f_active = V5F_ACTIVE_COLLECT;
-        DualCore_IPC_RequestV5FReset();
-        Direction_ResetTaskZero();
-        RESP("TASK,%s,start\r\n", (g_trial_label==DIR_LABEL_LEFT)?"LEFT":"RIGHT");
-        return;
-    }
-    if (strcmp(clean_cmd, "STOP") == 0) {
-        g_work_mode = WORK_MODE_IDLE;
-        g_trial_state = TRIAL_IDLE;
-        g_paused = 0;
-        g_eeg_app_mode = EEG_APP_MODE_COLLECT;
-        g_v5f_active = V5F_ACTIVE_IDLE;
-        g_ssvep_active = 0;
-        DualCore_IPC_SetSsvepEnable(0);
-        EEG_FFT_ResetInferState();
-        Direction_Infer1sReset();
-        Direction_CSPStreamReset();
-        RESP("TASK,STOPPED\r\n");
-        return;
-    }
-    if (strcmp(clean_cmd, "STATUS") == 0) {
-        RESP("STATUS,mode=%d,trial=%d,row=%d,model=%u\r\n",
-                      g_work_mode, g_trial_state, g_trial_row_count,
-                      (unsigned)DualCore_IPC_GetModelSelect());
-        return;
-    }
-    if (strcmp(clean_cmd, "IPCDIAG,ON") == 0) {
-        g_ipc_diag_enable = 1;
-        RESP("IPCDIAG,ON\r\n");
-        return;
-    }
-    if (strcmp(clean_cmd, "IPCDIAG,OFF") == 0) {
-        g_ipc_diag_enable = 0;
-        RESP("IPCDIAG,OFF\r\n");
-        return;
-    }
-#ifdef HAS_ICM42605
-    if (strcmp(clean_cmd, "POSTURE,ON") == 0) {
-        g_posture_diag_enable = 1;
-        RESP("POSTURE,ON\r\n");
-        return;
-    }
-    if (strcmp(clean_cmd, "POSTURE,OFF") == 0) {
-        g_posture_diag_enable = 0;
-        RESP("POSTURE,OFF\r\n");
-        return;
-    }
-#endif
-    if (strncmp(clean_cmd, "DISPLAY_CFG,", 12) == 0) {
-        const char *p = clean_cmd + 12;
-        int vals[12];
-        int count = 0;
-        while (*p && count < 12) {
-            vals[count++] = atoi(p);
-            const char *next = strchr(p, ',');
-            if (next == NULL) break;
-            p = next + 1;
-        }
-        if (count >= 6) {
-            if (vals[0] >= 0 && vals[0] < DISPLAY_MAX_CH) g_display_config.wave_ch[0] = (uint8_t)vals[0];
-            if (vals[1] >= 0 && vals[1] <= 2 || vals[1] == WAVE_TYPE_NONE) g_display_config.wave_type[0] = (uint8_t)vals[1];
-            if (vals[2] >= 0 && vals[2] < DISPLAY_MAX_CH) g_display_config.wave_ch[1] = (uint8_t)vals[2];
-            if (vals[3] >= 0 && vals[3] <= 2 || vals[3] == WAVE_TYPE_NONE) g_display_config.wave_type[1] = (uint8_t)vals[3];
-            if (vals[4] >= 0 && vals[4] <= 2 || vals[4] == SPEC_TYPE_NONE) g_display_config.spec_type[0] = (uint8_t)vals[4];
-            if (vals[5] >= 0 && vals[5] <= 2 || vals[5] == SPEC_TYPE_NONE) g_display_config.spec_type[1] = (uint8_t)vals[5];
-        }
-        if (count >= 12) {
-            if (vals[6] >= 0 && vals[6] < DISPLAY_MAX_CH) g_display_config.wave_ch[2] = (uint8_t)vals[6];
-            if (vals[7] >= 0 && vals[7] <= 2 || vals[7] == WAVE_TYPE_NONE) g_display_config.wave_type[2] = (uint8_t)vals[7];
-            if (vals[8] >= 0 && vals[8] < DISPLAY_MAX_CH) g_display_config.wave_ch[3] = (uint8_t)vals[8];
-            if (vals[9] >= 0 && vals[9] <= 2 || vals[9] == WAVE_TYPE_NONE) g_display_config.wave_type[3] = (uint8_t)vals[9];
-            if (vals[10] >= 0 && vals[10] <= 2 || vals[10] == SPEC_TYPE_NONE) g_display_config.spec_type[2] = (uint8_t)vals[10];
-            if (vals[11] >= 0 && vals[11] <= 2 || vals[11] == SPEC_TYPE_NONE) g_display_config.spec_type[3] = (uint8_t)vals[11];
-        }
-
-        EEG_FFT_ResetSendState();
-        RESP("DISPLAY_CFG_OK,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\r\n",
-             (unsigned)g_display_config.wave_ch[0],
-             (unsigned)g_display_config.wave_type[0],
-             (unsigned)g_display_config.wave_ch[1],
-             (unsigned)g_display_config.wave_type[1],
-             (unsigned)g_display_config.spec_type[0],
-             (unsigned)g_display_config.spec_type[1],
-             (unsigned)g_display_config.wave_ch[2],
-             (unsigned)g_display_config.wave_type[2],
-             (unsigned)g_display_config.wave_ch[3],
-             (unsigned)g_display_config.wave_type[3],
-             (unsigned)g_display_config.spec_type[2],
-             (unsigned)g_display_config.spec_type[3]);
-        return;
-    }
-    if (strncmp(clean_cmd, "SSVEP,START", 11) == 0) {
-        g_ssvep_active = 1;
-        DualCore_IPC_SetSsvepEnable(1);
-        DualCore_IPC_RequestSsvepReset();
-        if (g_v5f_active == V5F_ACTIVE_IDLE) {
-            g_v5f_active = V5F_ACTIVE_INFER;
-            DualCore_IPC_RequestV5FReset();
-        }
-
-        RESP("SSVEP,STARTED\r\n");
-        return;
-    }
-    if (strcmp(clean_cmd, "SSVEP,STOP") == 0) {
-        g_ssvep_active = 0;
-        DualCore_IPC_SetSsvepEnable(0);
-        DualCore_IPC_SetSsvepSelftest(0, 0);
-        DualCore_IPC_RequestSsvepReset();
-        if (g_v5f_active == V5F_ACTIVE_INFER
-            && g_eeg_app_mode != EEG_APP_MODE_INFER) {
-            g_v5f_active = V5F_ACTIVE_IDLE;
-        }
-        RESP("SSVEP,STOPPED\r\n");
-        return;
-    }
-    if (strncmp(clean_cmd, "SSVEP,SELFTEST,START", 20) == 0) {
-        uint8_t freq_idx = 0;
-        if (clean_cmd[20] == ',') {
-            int idx_val = atoi(clean_cmd + 21);
-            if (idx_val >= 0 && idx_val <= 3) freq_idx = (uint8_t)idx_val;
-        }
-        g_ssvep_active = 1;
-        DualCore_IPC_SetSsvepEnable(1);
-        DualCore_IPC_SetSsvepSelftest(1, freq_idx);
-        DualCore_IPC_RequestSsvepReset();
-        if (g_v5f_active == V5F_ACTIVE_IDLE) {
-            g_v5f_active = V5F_ACTIVE_INFER;
-            DualCore_IPC_RequestV5FReset();
-        }
-        RESP("SSVEP,SELFTEST,STARTED,%u\r\n", (unsigned)freq_idx);
-        return;
-    }
-    if (strcmp(clean_cmd, "SSVEP,SELFTEST,STOP") == 0) {
-        DualCore_IPC_SetSsvepSelftest(0, 0);
-        DualCore_IPC_RequestSsvepReset();
-        RESP("SSVEP,SELFTEST,STOPPED\r\n");
-        return;
-    }
-
-    RESP("ERROR,UNKNOWN_CMD\r\n");
 }

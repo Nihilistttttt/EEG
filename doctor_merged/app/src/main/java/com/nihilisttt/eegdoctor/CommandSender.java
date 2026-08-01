@@ -21,6 +21,7 @@ public class CommandSender {
         return TcpServerManager.getInstance().isDeviceConnected();
     }
 
+    /** 兼容旧文本命令入口：由 TcpServerManager 映射为二进制帧。 */
     public boolean sendCommand(String cmd) {
         Log.i(TAG, "sendCommand: [" + cmd + "]");
         TcpServerManager.getInstance().sendToDevice(cmd);
@@ -29,7 +30,9 @@ public class CommandSender {
 
     public boolean setMode(int mode) {
         Log.i(TAG, "setMode: " + mode);
-        return sendCommand("MODE,SET," + mode);
+        TcpServerManager.getInstance().sendBinaryToDevice(
+                EegProtocol.CMD_MODE_SET, new byte[]{(byte) mode});
+        return true;
     }
 
     public boolean setModeCollect() { return setMode(1); }
@@ -38,45 +41,55 @@ public class CommandSender {
 
     public boolean startTraining() {
         Log.i(TAG, "startTraining");
-        return sendCommand("MODE,TRAIN");
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_MODE_TRAIN, null);
+        return true;
     }
 
     public boolean startTest() {
         Log.i(TAG, "startTest");
-        return sendCommand("MODE,TEST");
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_MODE_TEST, null);
+        return true;
     }
 
     public boolean trialLeft() {
         Log.i(TAG, "trialLeft");
-        return sendCommand("TRIAL,LEFT");
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_TRIAL, new byte[]{0});
+        return true;
     }
 
     public boolean trialRight() {
         Log.i(TAG, "trialRight");
-        return sendCommand("TRIAL,RIGHT");
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_TRIAL, new byte[]{1});
+        return true;
     }
 
     public boolean sendPage(int page) {
-        return sendCommand("PAGE," + page);
+        TcpServerManager.getInstance().sendToPatient("PAGE," + page);
+        return true;
     }
 
     public boolean ssvepStart() {
         Log.i(TAG, "ssvepStart");
-        return sendCommand("SSVEP,START");
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_SSVEP_START, null);
+        return true;
     }
 
     public boolean ssvepStop() {
         Log.i(TAG, "ssvepStop");
-        return sendCommand("SSVEP,STOP");
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_SSVEP_STOP, null);
+        return true;
     }
 
     public boolean ssvepSelftestStart(int freqIndex) {
         Log.i(TAG, "ssvepSelftestStart freqIndex=" + freqIndex);
-        return sendCommand("SSVEP,SELFTEST,START," + freqIndex);
+        TcpServerManager.getInstance().sendBinaryToDevice(
+                EegProtocol.CMD_SSVEP_SELFTEST_START, new byte[]{(byte) freqIndex});
+        return true;
     }
 
     public boolean ssvepSelftestStop() {
         Log.i(TAG, "ssvepSelftestStop");
-        return sendCommand("SSVEP,SELFTEST,STOP");
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_SSVEP_SELFTEST_STOP, null);
+        return true;
     }
 }

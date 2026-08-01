@@ -14,6 +14,7 @@
 #define V5F_ACTIVE_INFER            2
 
 extern volatile uint8_t g_v5f_active;
+extern volatile uint8_t g_ssvep_active;
 
 #define DIR_TEXT_PORT               SERIAL_PORT_WIFI
 

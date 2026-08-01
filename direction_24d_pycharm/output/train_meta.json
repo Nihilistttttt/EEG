@@ -1,9 +1,0 @@
-{
-  "feature_dim": 24,
-  "sample_count": 425,
-  "left_count": 205,
-  "right_count": 220,
-  "default_model": "svm",
-  "hidden_dim": 16,
-  "data_dir": "D:\\InstallData\\SocialTools\\QQ\\2089937759\\FileRecv\\direction_24d_pycharm\\data"
-}

@@ -8,14 +8,58 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="0b740863-50a5-4d8e-af23-d41e8bac614c" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/../doctor/.idea/deploymentTargetDropDown.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../CH32_Waveform/CH32_Waveform.ino" beforeDir="false" afterPath="$PROJECT_DIR$/../CH32_Waveform/CH32_Waveform.ino" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/Common/DualCore_Direction_Model_4ch_Weights.h" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/Common/DualCore_Direction_Model_4ch_Weights.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Attention/blink_detector.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Attention/blink_detector.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/EEG_FFT/eeg_fft.h" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/EEG_FFT/eeg_fft.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/Signal_Analysis.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/Signal_Analysis.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/Signal_Analysis.h" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/Signal_Analysis.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/patient_monitor.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/patient_monitor.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/SRC/Debug/debug.h" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/SRC/Debug/debug.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/SRC/Ld/V3F/Link_v3f.ld" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/SRC/Ld/V3F/Link_v3f.ld" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/SRC/Ld/V5F/Link_v5f.ld" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/SRC/Ld/V5F/Link_v5f.ld" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/.idea/direction_24d_pycharm.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/.idea/inspectionProfiles/profiles_settings.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/.idea/misc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/.idea/modules.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/.idea/vcs.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/README_PYCHARM_24D.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/mcu_export/Direction_Classifier.c" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/mcu_export/Direction_Classifier.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/mcu_export/Direction_Model.c" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/mcu_export/Direction_Model.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/mcu_export/Direction_Model_4ch_Weights.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/mcu_export/README.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/output/Direction_Model_4ch_Weights.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/output/README.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/output/confusion_matrix_train.csv" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/output/metrics.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../direction_24d_pycharm/output/metrics.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/output/train_meta.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../direction_24d_pycharm/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../direction_24d_pycharm/train_direction_24d.py" beforeDir="false" afterPath="$PROJECT_DIR$/../direction_24d_pycharm/train_direction_24d.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/.idea/compiler.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/.idea/gradle.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/CommandSender.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/CommandSender.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/EegChannels.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/EegChannels.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/FbccaConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/FbccaConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/FbccaEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/FbccaEngine.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/TcpServerManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/TcpServerManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/nihilisttt/eegpatient/DoctorConnector.java" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/nihilisttt/eegpatient/DoctorConnector.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../安卓.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../规范性要求.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../规范性要求.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[3167155715001XH]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />

@@ -3,6 +3,7 @@
 #include "eeg_direction_feature.h"
 #include "eeg_cmd_parser.h"
 #include "Serial.h"
+#include "Message_Parser.h"
 #include "dualcore_ipc_diag.h"
 #include "dualcore_ipc_shared.h"
 #include <stdio.h>
@@ -77,28 +78,22 @@ static uint32_t s_csp_last_trial_state
 static uint8_t s_csp_trial_done_pending
     __attribute__((section(".bss")));
 
-static uint8_t CSP_TrySendBoth(const char *line, uint16_t reserve_bytes)
+static uint8_t CSP_TrySendBothBinary(uint8_t cmd, const uint8_t *payload, uint16_t len, uint16_t reserve_bytes)
 {
-    uint16_t len;
     uint16_t needed;
 
-    if (line == 0) {
+    if (payload == 0) {
         return 0u;
     }
 
-    len = (uint16_t)strlen(line);
     needed = (uint16_t)(len + reserve_bytes);
     if ((Serial_TxFreeBytes(SERIAL_PORT_DEBUG) < needed) ||
         (Serial_TxFreeBytes(SERIAL_PORT_WIFI) < needed)) {
         return 0u;
     }
 
-    if (Serial_SendArray_DMA(SERIAL_PORT_DEBUG, (const uint8_t *)line, len) != len) {
-        return 0u;
-    }
-    if (Serial_SendArray_DMA(SERIAL_PORT_WIFI, (const uint8_t *)line, len) != len) {
-        return 0u;
-    }
+    Pack_Frame(SERIAL_PORT_DEBUG, cmd, payload, len);
+    Pack_Frame(SERIAL_PORT_WIFI, cmd, payload, len);
     return 1u;
 }
 
@@ -147,43 +142,42 @@ static uint8_t CSP_QueueWindow(uint8_t label, RingBuffer_t *filt_buf)
 static void CSP_SendTrialDone(void)
 {
 #if CMD_MODE_ENABLE
-    uint8_t seq;
-    char buf[112];
+    uint8_t payload[PROTO_TASK_PAYLOAD];
 
     g_trial_state = TRIAL_DONE;
     s_csp_last_trial_state = TRIAL_DONE;
-    seq = Retry_GetSeq();
-    snprintf(buf, sizeof(buf),
-             "TASK,DONE,seq=%u,label=%d,rows=%u,csp_win=%lu,trial=%lu\r\n",
-             (unsigned)seq,
-             (int)g_trial_label,
-             (unsigned)g_trial_row_count,
-             (unsigned long)csp_window_id,
-             (unsigned long)s_csp_trial_id);
-    Serial_Printf(SERIAL_PORT_DEBUG, "%s", buf);
-    Serial_Printf(SERIAL_PORT_WIFI, "%s", buf);
-    Retry_Store(buf);
+    payload[0] = Retry_GetSeq();
+    payload[1] = g_trial_label;
+    payload[2] = (uint8_t)(g_trial_row_count & 0xFF);
+    payload[3] = (uint8_t)((g_trial_row_count >> 8) & 0xFF);
+    payload[4] = 0;
+    payload[5] = 0;
+    memcpy(payload + 6, &csp_window_id, 4);
+    memcpy(payload + 10, &s_csp_trial_id, 4);
+    Pack_Frame(SERIAL_PORT_DEBUG, CMD_TASK, payload, PROTO_TASK_PAYLOAD);
+    Pack_Frame(SERIAL_PORT_WIFI, CMD_TASK, payload, PROTO_TASK_PAYLOAD);
+    Retry_Store(payload, PROTO_TASK_PAYLOAD, CMD_TASK);
 #endif
 }
 
 void Direction_CSPStreamTask(void)
 {
-    char line[176];
-    uint8_t n;
+    uint8_t payload[PROTO_CSP_MAX_PAYLOAD];
+    uint16_t n;
 
     if (s_csp_stream.phase == CSP_STREAM_IDLE) {
         return;
     }
 
     if (s_csp_stream.phase == CSP_STREAM_BEGIN) {
-        snprintf(line, sizeof(line),
-                 "CSP_BEGIN,label=%u,win=%lu,trial=%lu,fs=250,n=%u,ch=4,unit=uVx1000,order=CP3_CP4_C3_C4,source=V3F_FILTERED\r\n",
-                 (unsigned int)s_csp_stream.label,
-                 (unsigned long)s_csp_stream.win_id,
-                 (unsigned long)s_csp_stream.trial_id,
-                 (unsigned int)CSP_WIN_SIZE);
-        /* DEBUG供PC上位机采集，WIFI供Android或无线调试，二者格式完全一致。 */
-        if (!CSP_TrySendBoth(line, 0u)) {
+        uint16_t win_size = CSP_WIN_SIZE;
+        n = 0;
+        payload[n++] = PROTO_CSP_BEGIN;
+        payload[n++] = s_csp_stream.label;
+        memcpy(payload + n, &s_csp_stream.win_id, 4); n += 4;
+        memcpy(payload + n, &s_csp_stream.trial_id, 4); n += 4;
+        memcpy(payload + n, &win_size, 2); n += 2;
+        if (!CSP_TrySendBothBinary(CMD_CSP, payload, n, 0u)) {
             return;
         }
         s_csp_stream.phase = CSP_STREAM_ROWS;
@@ -195,15 +189,16 @@ void Direction_CSPStreamTask(void)
              (n < CSP_STREAM_ROWS_PER_FRAME) && (s_csp_stream.row < CSP_WIN_SIZE);
              n++) {
             uint16_t row = s_csp_stream.row;
-            snprintf(line, sizeof(line),
-                     "CSP,%lu,%u,%ld,%ld,%ld,%ld\r\n",
-                     (unsigned long)s_csp_stream.win_id,
-                     (unsigned int)row,
-                     (long)s_csp_stream.sample[row][0],
-                     (long)s_csp_stream.sample[row][1],
-                     (long)s_csp_stream.sample[row][2],
-                     (long)s_csp_stream.sample[row][3]);
-            if (!CSP_TrySendBoth(line, 0u)) {
+            uint16_t p = 0;
+            uint16_t row16 = (uint16_t)row;
+            payload[p++] = PROTO_CSP_ROW;
+            memcpy(payload + p, &s_csp_stream.win_id, 4); p += 4;
+            memcpy(payload + p, &row16, 2); p += 2;
+            memcpy(payload + p, &s_csp_stream.sample[row][0], 4); p += 4;
+            memcpy(payload + p, &s_csp_stream.sample[row][1], 4); p += 4;
+            memcpy(payload + p, &s_csp_stream.sample[row][2], 4); p += 4;
+            memcpy(payload + p, &s_csp_stream.sample[row][3], 4); p += 4;
+            if (!CSP_TrySendBothBinary(CMD_CSP, payload, p, 0u)) {
                 return;
             }
             s_csp_stream.row++;
@@ -214,12 +209,12 @@ void Direction_CSPStreamTask(void)
         return;
     }
 
-    snprintf(line, sizeof(line),
-             "CSP_END,label=%u,win=%lu,trial=%lu\r\n",
-             (unsigned int)s_csp_stream.label,
-             (unsigned long)s_csp_stream.win_id,
-             (unsigned long)s_csp_stream.trial_id);
-    if (!CSP_TrySendBoth(line, s_csp_trial_done_pending ? 128u : 0u)) {
+    n = 0;
+    payload[n++] = PROTO_CSP_END;
+    payload[n++] = s_csp_stream.label;
+    memcpy(payload + n, &s_csp_stream.win_id, 4); n += 4;
+    memcpy(payload + n, &s_csp_stream.trial_id, 4); n += 4;
+    if (!CSP_TrySendBothBinary(CMD_CSP, payload, n, s_csp_trial_done_pending ? 64u : 0u)) {
         return;
     }
 
@@ -389,13 +384,17 @@ void Direction_AutoCollectProcess(float theta_pow[NUM_CHANNELS],
             g_trial_state = TRIAL_DONE;
             s_collect_sync.last_trial_state = TRIAL_DONE;
             {
-                uint8_t seq = Retry_GetSeq();
-                char buf[96];
-                snprintf(buf, sizeof(buf), "TASK,DONE,seq=%u,label=%d,rows=%u,skip=%u\r\n",
-                    (unsigned)seq, (int)g_trial_label, (unsigned)g_trial_row_count, (unsigned)g_skip_rows);
-                Serial_Printf(SERIAL_PORT_DEBUG, "%s", buf);
-                Serial_Printf(SERIAL_PORT_WIFI, "%s", buf);
-                Retry_Store(buf);
+                uint8_t payload[PROTO_TASK_PAYLOAD];
+                payload[0] = Retry_GetSeq();
+                payload[1] = g_trial_label;
+                payload[2] = (uint8_t)(g_trial_row_count & 0xFF);
+                payload[3] = (uint8_t)((g_trial_row_count >> 8) & 0xFF);
+                payload[4] = (uint8_t)(g_skip_rows & 0xFF);
+                payload[5] = (uint8_t)((g_skip_rows >> 8) & 0xFF);
+                memset(payload + 6, 0, 8);
+                Pack_Frame(SERIAL_PORT_DEBUG, CMD_TASK, payload, PROTO_TASK_PAYLOAD);
+                Pack_Frame(SERIAL_PORT_WIFI, CMD_TASK, payload, PROTO_TASK_PAYLOAD);
+                Retry_Store(payload, PROTO_TASK_PAYLOAD, CMD_TASK);
             }
         }
         return;

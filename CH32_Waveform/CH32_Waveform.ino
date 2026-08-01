@@ -52,48 +52,159 @@ const uint16_t SERVER_PORT = 41002;
 IPAddress serverIP;
 WiFiClient tcpClient;
 
-// ========== PING检测（最小化，只拦截"PING\n"五个字节，其余全透传） ==========
-static uint8_t pingState = 0;
-static const uint8_t PING_PATTERN[] = {'P','I','N','G','\n'};
+// ========== 二进制协议帧识别（只拦截 PING 命令帧并回 PONG，其余全透传MCU） ==========
+#define PROTO_AA 0xAA
+#define PROTO_55 0x55
+#define PROTO_TAIL 0x7E
+#define PROTO_ESC 0x7D
+#define PROTO_XOR 0x20
+#define PROTO_ADDR_MCU 0x01
+#define PROTO_CMD_PING 0x30
+#define PROTO_CMD_PONG 0x31
+#define PROTO_BODY_BASE 8 // addr + cmd + len(2) + ts(4)
 
-static void checkPingAndForward(uint8_t b) {
-    if (b == PING_PATTERN[pingState]) {
-        pingState++;
-        if (pingState == 5) {
-            tcpClient.print("PONG\n");
-            pingState = 0;
-            return;
+static uint8_t fsmState = 0;
+static uint8_t fsmBody[128];
+static uint16_t fsmBodyLen = 0;
+
+static uint16_t fsmChecksum16(const uint8_t *data, uint16_t len) {
+    uint16_t sum = 0;
+    for (uint16_t i = 0; i < len; i++) sum = (uint16_t)(sum + data[i]);
+    return sum;
+}
+
+static void sendBinaryPong() {
+    uint8_t body[16];
+    uint16_t bodyLen = 0;
+    uint32_t ts = millis();
+    body[bodyLen++] = PROTO_ADDR_MCU;
+    body[bodyLen++] = PROTO_CMD_PONG;
+    body[bodyLen++] = 0x01; // len lo
+    body[bodyLen++] = 0x00; // len hi
+    body[bodyLen++] = (uint8_t)(ts & 0xFF);
+    body[bodyLen++] = (uint8_t)((ts >> 8) & 0xFF);
+    body[bodyLen++] = (uint8_t)((ts >> 16) & 0xFF);
+    body[bodyLen++] = (uint8_t)((ts >> 24) & 0xFF);
+    body[bodyLen++] = PROTO_CMD_PONG; // payload[0]
+    uint16_t crc = fsmChecksum16(body, bodyLen);
+    body[bodyLen++] = (uint8_t)(crc & 0xFF);
+    body[bodyLen++] = (uint8_t)((crc >> 8) & 0xFF);
+
+    uint8_t frame[32];
+    uint16_t idx = 0;
+    frame[idx++] = PROTO_AA;
+    frame[idx++] = PROTO_55;
+    for (uint16_t i = 0; i < bodyLen; i++) {
+        uint8_t b = body[i];
+        if (b == PROTO_AA || b == PROTO_55 || b == PROTO_TAIL || b == PROTO_ESC) {
+            frame[idx++] = PROTO_ESC;
+            frame[idx++] = (uint8_t)(b ^ PROTO_XOR);
+        } else {
+            frame[idx++] = b;
         }
-    } else {
-        if (pingState > 0) {
-            for (uint8_t i = 0; i < pingState; i++) {
-                Serial.write(PING_PATTERN[i]);
+    }
+    frame[idx++] = PROTO_TAIL;
+    tcpClient.write(frame, idx);
+}
+
+// 返回 1 表示识别为 PING 并已回复（不转发），返回 0 表示需要透传。
+static uint8_t tryHandleCompleteFrame() {
+    if (fsmBodyLen < PROTO_BODY_BASE + 2) return 0;
+    uint16_t payloadLen = fsmBody[2] | ((uint16_t)fsmBody[3] << 8);
+    if (fsmBodyLen < PROTO_BODY_BASE + payloadLen + 2) return 0;
+    uint16_t calc = fsmChecksum16(fsmBody, PROTO_BODY_BASE + payloadLen);
+    uint16_t got = fsmBody[PROTO_BODY_BASE + payloadLen]
+            | ((uint16_t)fsmBody[PROTO_BODY_BASE + payloadLen + 1] << 8);
+    if (calc != got) return 0;
+    if (fsmBody[PROTO_BODY_BASE] == PROTO_CMD_PING) { // payload[0] == CMD_PING
+        sendBinaryPong();
+        return 1;
+    }
+    return 0;
+}
+
+static void checkBinaryFrameAndForward(uint8_t b) {
+    switch (fsmState) {
+        case 0:
+            if (b == PROTO_AA) {
+                fsmState = 1;
+            } else {
+                Serial.write(b);
             }
-            pingState = 0;
-            if (b == PING_PATTERN[0]) {
-                pingState = 1;
-                return;
+            break;
+        case 1:
+            if (b == PROTO_55) {
+                fsmState = 2;
+                fsmBodyLen = 0;
+            } else if (b == PROTO_AA) {
+                fsmState = 1;
+            } else {
+                fsmState = 0;
+                Serial.write(PROTO_AA);
+                Serial.write(b);
             }
-        }
-        Serial.write(b);
+            break;
+        case 2:
+            if (b == PROTO_ESC) {
+                fsmState = 3;
+            } else if (b == PROTO_TAIL) {
+                uint8_t handled = tryHandleCompleteFrame();
+                if (!handled) {
+                    Serial.write(PROTO_AA);
+                    Serial.write(PROTO_55);
+                    for (uint16_t i = 0; i < fsmBodyLen; i++) {
+                        Serial.write(fsmBody[i]);
+                    }
+                    Serial.write(PROTO_TAIL);
+                }
+                fsmState = 0;
+                fsmBodyLen = 0;
+            } else {
+                if (fsmBodyLen < sizeof(fsmBody)) {
+                    fsmBody[fsmBodyLen++] = b;
+                } else {
+                    fsmState = 0;
+                }
+            }
+            break;
+        case 3:
+            if (fsmBodyLen < sizeof(fsmBody)) {
+                fsmBody[fsmBodyLen++] = (uint8_t)(b ^ PROTO_XOR);
+                fsmState = 2;
+            } else {
+                fsmState = 0;
+            }
+            break;
     }
 }
 
+// ★★★ 修改后的 WiFi 连接函数 ★★★
 void connectToWiFi() {
+    WiFi.mode(WIFI_STA);
+
+    // ---- 第一步：优先尝试固定 SSID/密码 ----
+    WiFi.begin("jianxin", "123456789");
+    unsigned long start = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) { // 10秒超时
+        delay(500);
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+        serverIP = WiFi.gatewayIP();
+        return;  // 连接成功，直接返回
+    }
+
+    // ---- 第二步：若失败，回退到 EEPROM 中存储的配置 ----
     loadWifiConfig();
-    saveWifiConfig();
+    saveWifiConfig();   // 确保默认配置被写入（仅首次）
 
     int idx = wifiCfg.active_idx;
     if (idx >= MAX_WIFI_PROFILES || !wifiCfg.profiles[idx].valid) idx = 0;
 
-    WiFi.mode(WIFI_STA);
     WiFi.begin(wifiCfg.profiles[idx].ssid, wifiCfg.profiles[idx].password);
-
-    unsigned long start = millis();
+    start = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
         delay(500);
     }
-
     if (WiFi.status() == WL_CONNECTED) {
         serverIP = WiFi.gatewayIP();
     }
@@ -124,14 +235,14 @@ void loop() {
 
     if (!connectToServer()) return;
 
-    // 1. TCP下行优先：透传到MCU串口（只拦截PING）
+    // 1. TCP下行优先：识别二进制 PING 帧，其余透传到MCU串口
     while (tcpClient.available()) {
         uint8_t buf[128];
         size_t len = tcpClient.available();
         if (len > sizeof(buf)) len = sizeof(buf);
         len = tcpClient.readBytes(buf, len);
         for (size_t i = 0; i < len; i++) {
-            checkPingAndForward(buf[i]);
+            checkBinaryFrameAndForward(buf[i]);
         }
     }
 

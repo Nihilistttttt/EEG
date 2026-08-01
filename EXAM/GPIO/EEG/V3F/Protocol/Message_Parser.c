@@ -1,27 +1,8 @@
 #include "Message_Parser.h"
 #include "Config.h"
 
-typedef struct {
-    CmdType Cmd;
-    void (*handler)(uint8_t *payload, uint16_t Len);
-} CmdEntry;
 
-extern void Handle_Waveform(uint8_t *payload, uint16_t Len);
-extern void Handle_Spectrum_CH0(uint8_t *payload, uint16_t Len);
-extern void Handle_Spectrum_CH1(uint8_t *payload, uint16_t Len);
-
-static CmdEntry cmd_table[] = {
-    {CMD_RAW_WAVE,          Handle_Waveform    },
-    {CMD_FILT_WAVE,         Handle_Waveform    },
-    {CMD_BASELINE_WAVE,     Handle_Waveform    },
-    {CMD_FREQ_SPECTRUM_CH0, Handle_Spectrum_CH0},
-    {CMD_FILT_SPECTRUM_CH0, Handle_Spectrum_CH0},
-    {CMD_RAW_SPECTRUM_CH0,  Handle_Spectrum_CH0},
-    {CMD_FREQ_SPECTRUM_CH1, Handle_Spectrum_CH1},
-    {CMD_FILT_SPECTRUM_CH1, Handle_Spectrum_CH1},
-    {CMD_RAW_SPECTRUM_CH1,  Handle_Spectrum_CH1},
-    {CMD_NULL,              NULL               }
-};
+extern void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *source);
 
 DisplayConfig_t g_display_config;
 
@@ -41,22 +22,22 @@ void DisplayConfig_SetDefaults(DisplayConfig_t *cfg)
     cfg->spec_type[3] = SPEC_TYPE_TIME_FILTER;
 }
 
-CmdType DisplayConfig_GetWaveCmd(uint8_t wave_type)
+uint8_t DisplayConfig_GetWaveCmd(uint8_t wave_type)
 {
     switch (wave_type) {
-    case WAVE_TYPE_FILT:     return CMD_FILT_WAVE;
-    case WAVE_TYPE_BASELINE: return CMD_BASELINE_WAVE;
-    default:                 return CMD_RAW_WAVE;
+    case WAVE_TYPE_FILT:     return PROTO_WAVE_FILT;
+    case WAVE_TYPE_BASELINE: return PROTO_WAVE_BASELINE;
+    default:                 return PROTO_WAVE_RAW;
     }
 }
 
-CmdType DisplayConfig_GetSpectrumCmd(uint8_t spec_type, uint8_t ch)
+uint8_t DisplayConfig_GetSpectrumCmd(uint8_t spec_type, uint8_t ch)
 {
-    if (ch >= DISPLAY_MAX_CH) ch = 0;
+    (void)ch;
     switch (spec_type) {
-    case SPEC_TYPE_FREQ_FILTER: return (CmdType)(CMD_FREQ_SPECTRUM_BASE + ch);
-    case SPEC_TYPE_TIME_FILTER: return (CmdType)(CMD_FILT_SPECTRUM_BASE + ch);
-    default:                    return (CmdType)(CMD_RAW_SPECTRUM_BASE + ch);
+    case SPEC_TYPE_FREQ_FILTER:  return PROTO_SPEC_FREQ_FILTER;
+    case SPEC_TYPE_TIME_FILTER:  return PROTO_SPEC_TIME_FILTER;
+    default:                     return PROTO_SPEC_RAW;
     }
 }
 
@@ -108,6 +89,13 @@ uint8_t DisplayConfig_IsAllNone(void)
 static uint8_t payload_buf_debug[SERIAL_DEBUG_RX_BUF_SIZE];
 static uint8_t payload_buf_wifi[SERIAL_WIFI_RX_BUF_SIZE];
 
+typedef struct {
+    uint8_t  state;
+    uint8_t *payload;
+    uint16_t capacity;
+    uint16_t len;
+} FrameParser;
+
 static FrameParser parser_debug = {
     .state = 0,
     .payload = payload_buf_debug,
@@ -125,29 +113,57 @@ static inline FrameParser* get_parser(Serial_Port port) {
     return (port == SERIAL_PORT_DEBUG) ? &parser_debug : &parser_wifi;
 }
 
-static void Parse_Frame(FrameParser *p, uint8_t byte) {
+static void Parse_Frame_Dispatch(FrameParser *p)
+{
+    uint8_t *body = p->payload;
+    uint16_t body_len = p->len;
+    uint16_t payload_len;
+    uint16_t full_len;
+    uint16_t crc;
+    uint16_t calc;
+
+    if (body_len < PROTO_BODY_BASE + PROTO_CRC_LEN) return;
+
+    payload_len = (uint16_t)(body[PROTO_ADDR_LEN + PROTO_CMD_LEN]
+                             | (body[PROTO_ADDR_LEN + PROTO_CMD_LEN + 1] << 8));
+    full_len = PROTO_BODY_BASE + payload_len + PROTO_CRC_LEN;
+    if (body_len != full_len) return;
+
+    crc = (uint16_t)(body[body_len - 2] | (body[body_len - 1] << 8));
+    calc = Proto_Checksum16(body, body_len - PROTO_CRC_LEN);
+    if (crc != calc) return;
+
+    const char *source = (p == &parser_debug) ? "PY" : "AND";
+    Parse_CommandBinary(&body[PROTO_BODY_BASE], payload_len, source);
+}
+
+static void Parse_Frame(FrameParser *p, uint8_t byte)
+{
     switch (p->state) {
         case 0:
-            if (byte == FRAME_CHAR) {
+            if (byte == PROTO_FRAME_HEADER0) {
                 p->state = 1;
-                p->len = 0;
             }
             break;
 
         case 1:
-            if (byte == ESCAPE_CHAR) {
+            if (byte == PROTO_FRAME_HEADER1) {
                 p->state = 2;
-            } else if (byte == FRAME_CHAR) {
-                if (p->len >= CMD_PREFIX_LEN) {
-                    uint8_t cmd = p->payload[0];
-                    for (int i = 0; cmd_table[i].Cmd; i++) {
-                        if (cmd == cmd_table[i].Cmd) {
-                            cmd_table[i].handler(p->payload + CMD_PREFIX_LEN,
-                                                 p->len - CMD_PREFIX_LEN);
-                            break;
-                        }
-                    }
-                }
+                p->len = 0;
+
+            } else if (byte == PROTO_FRAME_HEADER0) {
+                p->state = 1;
+            } else {
+                p->state = 0;
+            }
+            break;
+
+        case 2:
+            if (byte == PROTO_ESCAPE_CHAR) {
+                p->state = 3;
+            } else if (byte == PROTO_FRAME_TAIL) {
+                Parse_Frame_Dispatch(p);
+                p->state = 0;
                 p->len = 0;
             } else {
                 if (p->len < p->capacity) {
@@ -158,19 +174,20 @@ static void Parse_Frame(FrameParser *p, uint8_t byte) {
             }
             break;
 
-        case 2:
+        case 3:
             {
-                uint8_t original = byte ^ ESCAPE_XOR;
+                uint8_t original = byte ^ PROTO_ESCAPE_XOR;
                 if (p->len < p->capacity) {
                     p->payload[p->len++] = original;
                 } else {
                     p->state = 0;
                     break;
                 }
-                p->state = 1;
+                p->state = 2;
             }
             break;
     }
+
 }
 
 void Parse_Serial_Data(Serial_Port port) {
@@ -184,60 +201,83 @@ void Parse_Serial_Data(Serial_Port port) {
     }
 }
 
-void Pack_Frame(Serial_Port port, CmdType Cmd, const uint8_t *payload, uint16_t len) {
+static void Emit_Escaped(uint8_t *frame, uint16_t *idx, uint8_t b)
+{
+    if (b == PROTO_FRAME_HEADER0 || b == PROTO_FRAME_HEADER1
+        || b == PROTO_FRAME_TAIL || b == PROTO_ESCAPE_CHAR) {
+        frame[(*idx)++] = PROTO_ESCAPE_CHAR;
+        frame[(*idx)++] = b ^ PROTO_ESCAPE_XOR;
+    } else {
+        frame[(*idx)++] = b;
+    }
+}
+
+void Pack_Frame(Serial_Port port, uint8_t cmd, const uint8_t *payload, uint16_t len)
+{
     static uint8_t frame[TX_MESSAGE_BUF_SIZE];
     uint16_t idx = 0;
+    uint16_t i;
+    uint32_t ts = Proto_GetTimestampMs();
 
-    frame[idx++] = FRAME_CHAR;
+    frame[idx++] = PROTO_FRAME_HEADER0;
+    frame[idx++] = PROTO_FRAME_HEADER1;
 
-    if (Cmd == FRAME_CHAR || Cmd == ESCAPE_CHAR) {
-        frame[idx++] = ESCAPE_CHAR;
-        frame[idx++] = (uint8_t)Cmd ^ ESCAPE_XOR;
-    } else {
-        frame[idx++] = (uint8_t)Cmd;
+    Emit_Escaped(frame, &idx, PROTO_ADDR_MCU);
+    Emit_Escaped(frame, &idx, cmd);
+    Emit_Escaped(frame, &idx, (uint8_t)(len & 0xFF));
+    Emit_Escaped(frame, &idx, (uint8_t)((len >> 8) & 0xFF));
+    Emit_Escaped(frame, &idx, (uint8_t)(ts & 0xFF));
+    Emit_Escaped(frame, &idx, (uint8_t)((ts >> 8) & 0xFF));
+    Emit_Escaped(frame, &idx, (uint8_t)((ts >> 16) & 0xFF));
+    Emit_Escaped(frame, &idx, (uint8_t)((ts >> 24) & 0xFF));
+
+    for (i = 0; i < len && idx < TX_MESSAGE_BUF_SIZE - 8; i++) {
+        Emit_Escaped(frame, &idx, payload[i]);
     }
 
-    for (uint16_t i = 0; i < len && idx < TX_MESSAGE_BUF_SIZE - 2; i++) {
-        uint8_t b = payload[i];
-        if (b == FRAME_CHAR || b == ESCAPE_CHAR) {
-            frame[idx++] = ESCAPE_CHAR;
-            frame[idx++] = b ^ ESCAPE_XOR;
-        } else {
-            frame[idx++] = b;
+    {
+        uint8_t body[PROTO_BODY_BASE];
+        uint16_t crc;
+        body[0] = PROTO_ADDR_MCU;
+        body[1] = cmd;
+        body[2] = (uint8_t)(len & 0xFF);
+        body[3] = (uint8_t)((len >> 8) & 0xFF);
+        body[4] = (uint8_t)(ts & 0xFF);
+        body[5] = (uint8_t)((ts >> 8) & 0xFF);
+        body[6] = (uint8_t)((ts >> 16) & 0xFF);
+        body[7] = (uint8_t)((ts >> 24) & 0xFF);
+        crc = Proto_Checksum16(body, sizeof(body));
+        for (i = 0; i < len; i++) {
+            crc = (uint16_t)(crc + payload[i]);
         }
+        Emit_Escaped(frame, &idx, (uint8_t)(crc & 0xFF));
+        Emit_Escaped(frame, &idx, (uint8_t)((crc >> 8) & 0xFF));
     }
 
-    frame[idx++] = FRAME_CHAR;
+    frame[idx++] = PROTO_FRAME_TAIL;
 
     Serial_SendArray_DMA(port, frame, idx);
 }
 
-void Pack_Frame_Fragmented(Serial_Port port, CmdType Cmd, const uint8_t *payload, uint16_t len,
-                           uint8_t frag_idx, uint8_t total_frags) {
-    static uint8_t extended_payload[TX_MESSAGE_BUF_SIZE - 4];
-    uint16_t ext_len = 0;
+void Send_RespCommand(uint8_t cmd, const uint8_t *payload, uint16_t len)
+{
+    Pack_Frame(SERIAL_PORT_DEBUG, cmd, payload, len);
+    Pack_Frame(SERIAL_PORT_WIFI, cmd, payload, len);
+}
 
-    extended_payload[ext_len++] = frag_idx;
-    extended_payload[ext_len++] = total_frags;
-
-    if (ext_len + len <= sizeof(extended_payload)) {
-        memcpy(extended_payload + ext_len, payload, len);
-        ext_len += len;
-    } else {
-        ext_len = sizeof(extended_payload);
+void Send_WaveformBatch(uint8_t wave_type, const float vals[DISPLAY_MAX_CH])
+{
+    uint8_t payload[PROTO_WAVE_PAYLOAD];
+    uint8_t i;
+    payload[0] = wave_type;
+    for (i = 0; i < DISPLAY_MAX_CH; i++) {
+        memcpy(payload + PROTO_WAVE_HEADER + i * 4, &vals[i], 4);
     }
-
-    Pack_Frame(port, Cmd, extended_payload, ext_len);
+    Pack_Frame(SERIAL_PORT_WIFI, CMD_WAVE, payload, PROTO_WAVE_PAYLOAD);
 }
 
-void Send_WaveformSingle(CmdType wave_type, uint8_t ch, float val) {
-    uint8_t payload[5];
-    payload[0] = ch;
-    memcpy(payload + 1, &val, 4);
-    Pack_Frame(SERIAL_PORT_WIFI, wave_type, payload, 5);
-}
-
-void Send_Spectrum(CmdType spectrum_type, float *mag, uint8_t frag_idx) {
+void Send_Spectrum(uint8_t ch, uint8_t spectrum_type, float *mag, uint8_t frag_idx)
+{
     const uint8_t TOTAL_FRAGS = 32;
     const uint16_t FLOAT_PER_FRAG = 128 / TOTAL_FRAGS;
     const uint16_t FRAG_SIZE = FLOAT_PER_FRAG * sizeof(float);
@@ -245,16 +285,19 @@ void Send_Spectrum(CmdType spectrum_type, float *mag, uint8_t frag_idx) {
     if (frag_idx >= TOTAL_FRAGS) return;
 
     uint16_t offset = frag_idx * FLOAT_PER_FRAG;
-    uint8_t payload[FRAG_SIZE];
-    memcpy(payload, mag + offset, FRAG_SIZE);
+    uint8_t payload[PROTO_SPECTRUM_HEADER + PROTO_SPECTRUM_FRAG_SIZE];
+    payload[0] = ch;
+    payload[1] = spectrum_type;
+    payload[2] = frag_idx;
+    payload[3] = TOTAL_FRAGS;
+    memcpy(payload + PROTO_SPECTRUM_HEADER, mag + offset, FRAG_SIZE);
 
-    Pack_Frame_Fragmented(SERIAL_PORT_WIFI, spectrum_type, payload, FRAG_SIZE,
-                          frag_idx, TOTAL_FRAGS);
+    Pack_Frame(SERIAL_PORT_WIFI, CMD_SPECTRUM, payload, PROTO_SPECTRUM_HEADER + FRAG_SIZE);
 }
 
 void Send_Focus(float attn0, float attn1, float ema0, float ema1,
                 uint8_t trend_state, uint8_t instant_state) {
-    uint8_t payload[18];
+    uint8_t payload[PROTO_FOCUS_PAYLOAD];
     uint16_t off = 0;
     memcpy(payload + off, &attn0, 4); off += 4;
     memcpy(payload + off, &attn1, 4); off += 4;
@@ -262,5 +305,5 @@ void Send_Focus(float attn0, float attn1, float ema0, float ema1,
     memcpy(payload + off, &ema1,  4); off += 4;
     memcpy(payload + off, &trend_state, 1); off += 1;
     memcpy(payload + off, &instant_state, 1);
-    Pack_Frame(SERIAL_PORT_WIFI, CMD_FOCUS, payload, 18);
+    Pack_Frame(SERIAL_PORT_WIFI, CMD_FOCUS, payload, PROTO_FOCUS_PAYLOAD);
 }

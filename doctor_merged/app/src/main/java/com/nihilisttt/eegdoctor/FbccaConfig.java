@@ -8,6 +8,8 @@ public final class FbccaConfig {
     public static final int HARMONICS = 2;
 
     public static final double[] TARGET_FREQS = {11.0, 13.0, 15.0, 17.0};
+
+    public static final int[] SSVEP_CHANNELS = {EegChannels.CH_O1, EegChannels.CH_OZ};
     public static final double[][] FILTER_BANKS = {
             {6.0, 45.0},
             {10.0, 45.0},

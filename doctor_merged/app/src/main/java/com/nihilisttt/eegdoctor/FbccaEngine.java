@@ -5,23 +5,25 @@ import java.util.Arrays;
 import java.util.Deque;
 
 /**
- * Pure-Java, single-channel FBCCA implementation for mode 1.
+ * Pure-Java, dual-channel (O1+OZ) FBCCA implementation for mode 1.
  *
- * The Python code uses FBCCA_USE_CHANNELS=[0], so canonical correlation can be
- * calculated exactly as a weighted multiple-correlation coefficient. This
- * avoids a large SVD dependency while preserving the one-channel math.
+ * With 2 rows in X, CCA finds the optimal spatial combination of O1 and OZ
+ * to maximize correlation with each reference signal. This exploits inter-channel
+ * phase/amplitude differences for better SNR and discrimination.
+ *
+ * The 2x2 eigenvalue problem is solved analytically (quadratic formula),
+ * avoiding any SVD dependency.
  */
 public final class FbccaEngine {
-    private final double[] ring = new double[FbccaConfig.WINDOW_SIZE];
+    private static final int NUM_CH = FbccaConfig.SSVEP_CHANNELS.length;
+
+    private final double[][] ring = new double[NUM_CH][FbccaConfig.WINDOW_SIZE];
     private int ringWrite;
     private int ringCount;
     private int sinceLastUpdate;
     private int sequence;
 
-    private final NotchFilter notch = new NotchFilter(
-            FbccaConfig.SAMPLE_RATE,
-            FbccaConfig.NOTCH_FREQ,
-            FbccaConfig.NOTCH_RHO);
+    private final NotchFilter[] notch = new NotchFilter[NUM_CH];
 
     private final Deque<Integer> voteHistory = new ArrayDeque<>();
     private final FourierTable fourierTable = new FourierTable(
@@ -31,13 +33,24 @@ public final class FbccaEngine {
             45.0);
     private final double[] timeWeights = makeTukeyWeights(FbccaConfig.WINDOW_SIZE, 0.25);
 
+    public FbccaEngine() {
+        for (int i = 0; i < NUM_CH; i++) {
+            notch[i] = new NotchFilter(
+                    FbccaConfig.SAMPLE_RATE,
+                    FbccaConfig.NOTCH_FREQ,
+                    FbccaConfig.NOTCH_RHO);
+        }
+    }
+
     public void reset() {
-        Arrays.fill(ring, 0.0);
+        for (int c = 0; c < NUM_CH; c++) {
+            Arrays.fill(ring[c], 0.0);
+            notch[c].reset();
+        }
         ringWrite = 0;
         ringCount = 0;
         sinceLastUpdate = 0;
         sequence = 0;
-        notch.reset();
         voteHistory.clear();
     }
 
@@ -52,12 +65,20 @@ public final class FbccaEngine {
         return Math.max(0, FbccaConfig.STEP_SIZE - sinceLastUpdate);
     }
 
-    public FbccaOutput pushSample(double sampleMv) {
-        if (!Double.isFinite(sampleMv)) return null;
-        double filtered = notch.process(sampleMv);
-        ring[ringWrite] = filtered;
-        ringWrite = (ringWrite + 1) % ring.length;
-        if (ringCount < ring.length) ringCount++;
+    public FbccaOutput pushSample(double[] samplesMv) {
+        if (samplesMv == null || samplesMv.length < NUM_CH) return null;
+        boolean anyValid = false;
+        for (int c = 0; c < NUM_CH; c++) {
+            if (Double.isFinite(samplesMv[c])) {
+                ring[c][ringWrite] = notch[c].process(samplesMv[c]);
+                anyValid = true;
+            } else {
+                ring[c][ringWrite] = Double.NaN;
+            }
+        }
+        if (!anyValid) return null;
+        ringWrite = (ringWrite + 1) % ring[0].length;
+        if (ringCount < ring[0].length) ringCount++;
         sinceLastUpdate++;
 
         if (ringCount < FbccaConfig.WINDOW_SIZE) return null;
@@ -66,32 +87,52 @@ public final class FbccaEngine {
         return analyze(copyWindowChronological());
     }
 
-    private double[] copyWindowChronological() {
-        double[] out = new double[ring.length];
-        int start = ringCount < ring.length ? 0 : ringWrite;
-        for (int i = 0; i < ring.length; i++) {
-            out[i] = ring[(start + i) % ring.length];
+    private double[][] copyWindowChronological() {
+        double[][] out = new double[NUM_CH][ring[0].length];
+        int start = ringCount < ring[0].length ? 0 : ringWrite;
+        for (int c = 0; c < NUM_CH; c++) {
+            for (int i = 0; i < ring[0].length; i++) {
+                out[c][i] = ring[c][(start + i) % ring[0].length];
+            }
         }
         return out;
     }
 
-    private FbccaOutput analyze(double[] x) {
+    private FbccaOutput analyze(double[][] x) {
         sequence++;
-        if (!isChannelUsable(x)) {
+        boolean[] usable = new boolean[NUM_CH];
+        int usableCount = 0;
+        for (int c = 0; c < NUM_CH; c++) {
+            usable[c] = isChannelUsable(x[c]);
+            if (usable[c]) usableCount++;
+        }
+        if (usableCount == 0) {
             voteHistory.clear();
             return new FbccaOutput(sequence, -1, -1, 0.0, 0.0, 0.0,
                     new double[4], new int[4], false);
         }
 
-        removeMeanInPlace(x);
-        FourierTable.Spectrum spectrum = fourierTable.forward(x);
-        double[][] banks = new double[FbccaConfig.FILTER_BANKS.length][];
-        for (int b = 0; b < banks.length; b++) {
-            banks[b] = fourierTable.inverseBand(
-                    spectrum,
-                    FbccaConfig.FILTER_BANKS[b][0],
-                    FbccaConfig.FILTER_BANKS[b][1]);
-            normalizeInPlace(banks[b]);
+        int[] usableIdx = new int[usableCount];
+        for (int c = 0, j = 0; c < NUM_CH; c++) {
+            if (usable[c]) usableIdx[j++] = c;
+        }
+
+        for (int c : usableIdx) removeMeanInPlace(x[c]);
+
+        FourierTable.Spectrum[] spectra = new FourierTable.Spectrum[NUM_CH];
+        for (int c : usableIdx) {
+            spectra[c] = fourierTable.forward(x[c]);
+        }
+
+        double[][][] banks = new double[NUM_CH][FbccaConfig.FILTER_BANKS.length][];
+        for (int c : usableIdx) {
+            for (int b = 0; b < FbccaConfig.FILTER_BANKS.length; b++) {
+                banks[c][b] = fourierTable.inverseBand(
+                        spectra[c],
+                        FbccaConfig.FILTER_BANKS[b][0],
+                        FbccaConfig.FILTER_BANKS[b][1]);
+                normalizeInPlace(banks[c][b]);
+            }
         }
 
         double[] scores = new double[FbccaConfig.TARGET_FREQS.length];
@@ -111,8 +152,12 @@ public final class FbccaEngine {
                             FbccaConfig.HARMONICS,
                             low,
                             high);
-                    double rho = refs.length == 0 ? 0.0
-                            : canonicalCorrSingleX(banks[bankIndex], refs, timeWeights, 1e-6);
+                    if (refs.length == 0) continue;
+
+                    double[][] xBank = new double[usableCount][];
+                    for (int j = 0; j < usableCount; j++) xBank[j] = banks[usableIdx[j]][bankIndex];
+
+                    double rho = canonicalCorrelation(xBank, refs, timeWeights, 1e-6);
                     total += FbccaConfig.filterBankWeight(bankIndex) * rho * rho;
                 }
                 if (total > bestTotal) bestTotal = total;
@@ -251,7 +296,118 @@ public final class FbccaEngine {
         return refs;
     }
 
-    /** Exact CCA for a one-row X and a multi-row Y. */
+    /**
+     * Multi-channel CCA: finds optimal linear combination of X rows to maximize
+     * correlation with Y rows. For 2-channel X, solves a 2x2 generalized
+     * eigenvalue problem analytically via the quadratic formula.
+     *
+     * ρ² = max eigenvalue of  Cxx^{-1} Cxy Cyy^{-1} Cxy^T
+     *
+     * For p=2, the 2x2 matrix M = Cxx^{-1} Cxy Cyy^{-1} Cxy^T has eigenvalues
+     * that can be found from trace and determinant without SVD.
+     */
+    private static double canonicalCorrelation(double[][] xRows,
+                                                double[][] yRows,
+                                                double[] weights,
+                                                double reg) {
+        int p = xRows.length;
+        int q = yRows.length;
+        int n = xRows[0].length;
+        if (q == 0 || n < 5 || p < 1) return 0.0;
+
+        if (p == 1) {
+            return canonicalCorrSingleX(xRows[0], yRows, weights, reg);
+        }
+
+        double weightSum = 0.0;
+        for (double w : weights) weightSum += w;
+
+        double[] meanX = new double[p];
+        double[] meanY = new double[q];
+        for (int i = 0; i < n; i++) {
+            double w = weights[i] / weightSum;
+            for (int r = 0; r < p; r++) meanX[r] += w * xRows[r][i];
+            for (int r = 0; r < q; r++) meanY[r] += w * yRows[r][i];
+        }
+
+        double[][] cxx = new double[p][p];
+        double[][] cxy = new double[p][q];
+        double[][] cyy = new double[q][q];
+        for (int i = 0; i < n; i++) {
+            double w = weights[i] / weightSum;
+            double[] dx = new double[p];
+            for (int r = 0; r < p; r++) dx[r] = xRows[r][i] - meanX[r];
+            double[] dy = new double[q];
+            for (int r = 0; r < q; r++) dy[r] = yRows[r][i] - meanY[r];
+
+            for (int r = 0; r < p; r++) {
+                for (int c = r; c < p; c++) cxx[r][c] += w * dx[r] * dx[c];
+                for (int c = 0; c < q; c++) cxy[r][c] += w * dx[r] * dy[c];
+            }
+            for (int r = 0; r < q; r++) {
+                for (int c = r; c < q; c++) cyy[r][c] += w * dy[r] * dy[c];
+            }
+        }
+        for (int r = 0; r < p; r++) {
+            for (int c = 0; c < r; c++) cxx[r][c] = cxx[c][r];
+            cxx[r][r] += reg;
+        }
+        for (int r = 0; r < q; r++) {
+            for (int c = 0; c < r; c++) cyy[r][c] = cyy[c][r];
+            cyy[r][r] += reg;
+        }
+
+        double[][] invCxx = invert(cxx);
+        double[][] invCyy = invert(cyy);
+        if (invCxx == null || invCyy == null) return 0.0;
+
+        double[][] tmp = new double[p][q];
+        for (int r = 0; r < p; r++) {
+            for (int c = 0; c < q; c++) {
+                double s = 0.0;
+                for (int k = 0; k < p; k++) s += invCxx[r][k] * cxy[k][c];
+                tmp[r][c] = s;
+            }
+        }
+
+        double[][] cyyInvCxyT = new double[q][p];
+        for (int r = 0; r < q; r++) {
+            for (int c = 0; c < p; c++) {
+                double s = 0.0;
+                for (int k = 0; k < q; k++) s += invCyy[r][k] * cxy[c][k];
+                cyyInvCxyT[r][c] = s;
+            }
+        }
+
+        double[][] M = new double[p][p];
+        for (int r = 0; r < p; r++) {
+            for (int c = 0; c < p; c++) {
+                double s = 0.0;
+                for (int k = 0; k < q; k++) s += tmp[r][k] * cyyInvCxyT[k][c];
+                M[r][c] = s;
+            }
+        }
+
+        double maxEig = maxEigenvalue2x2(M);
+        return Math.sqrt(Math.max(0.0, Math.min(1.0, maxEig)));
+    }
+
+    private static double maxEigenvalue2x2(double[][] M) {
+        int p = M.length;
+        if (p == 1) return M[0][0];
+        if (p == 2) {
+            double trace = M[0][0] + M[1][1];
+            double det = M[0][0] * M[1][1] - M[0][1] * M[1][0];
+            double disc = trace * trace - 4.0 * det;
+            if (disc < 0) disc = 0;
+            return (trace + Math.sqrt(disc)) / 2.0;
+        }
+        double trace = 0.0;
+        for (int i = 0; i < p; i++) trace += M[i][i];
+        return Math.max(0.0, trace / p);
+    }
+
+    /** Single-channel CCA fallback (degenerates to weighted multiple correlation). */
     private static double canonicalCorrSingleX(double[] x,
                                                 double[][] y,
                                                 double[] weights,

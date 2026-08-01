@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-/* ---------- ÄÚ²¿³£Á¿ ---------- */
+/* ---------- ï¿½Ú²ï¿½ï¿½ï¿½ï¿½ï¿½ ---------- */
 static const real_t kDefaultProminenceK     = 4.0f;
 static const real_t kMinIntervalMs          = 150.0f;
 static const real_t kMinDurationMs          = 50.0f;
@@ -15,7 +15,7 @@ static const real_t kBufferSec             = 3.0f;
 static const real_t kPolaritySec           = 2.0f;
 static const real_t kPolaritySkewThreshold = 0.3f;
 
-/* ---------- Ô¤¼ÆËã´øÍ¨ÏµÊý (4½× Butterworth 0.1~10Hz, 250SPS) ---------- */
+/* ---------- Ô¤ï¿½ï¿½ï¿½ï¿½ï¿½Í¨Ïµï¿½ï¿½ (4ï¿½ï¿½ Butterworth 0.1~10Hz, 250SPS) ---------- */
 static void design_bandpass_sos_0_1_10_250(real_t *b0, real_t *b1, real_t *b2,
                                            real_t *a1, real_t *a2) {
     b0[0] = 0.93637848f; b1[0] = -1.87275696f; b2[0] = 0.93637848f;
@@ -24,11 +24,8 @@ static void design_bandpass_sos_0_1_10_250(real_t *b0, real_t *b1, real_t *b2,
     a1[1] = -1.90886498f; a2[1] = 0.91127901f;
 }
 
-/* ---------- ÄÚ²¿¸¨Öúº¯ÊýÉùÃ÷ ---------- */
-static void sos_filter_step(const real_t *b0, const real_t *b1, const real_t *b2,
-                            const real_t *a1, const real_t *a2,
-                            real_t *w1, real_t *w2,
-                            real_t input, real_t *output);
+/* ---------- ï¿½Ú²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ---------- */
+
 static int  find_local_maxima(const real_t *x, int n, int *peaks, int max_peaks);
 static void compute_prominences(const real_t *x, int n, const int *peaks, int np,
                                 real_t *proms, int *left_bases, int *right_bases);
@@ -37,21 +34,21 @@ static void compute_widths(const real_t *x, int n, const int *peaks, int np,
                            real_t rel_height, real_t *widths, real_t *left_ips, real_t *right_ips);
 static real_t central_diff_abs_max(const real_t *x, int n, int start, int end);
 
-/* ---------- »·ÐÎÊÂ¼þÀúÊ·¸¨Öú ---------- */
+/* ---------- ï¿½ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ï¿½ï¿½Ê·ï¿½ï¿½ï¿½ï¿½ ---------- */
 static void event_history_push(BlinkDetector_t *bd, const BlinkEvent_t *ev) {
     if (bd->hist_count < BLINK_HISTORY_CAPACITY) {
-        // »º³åÇøÎ´Âú
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î´ï¿½ï¿½
         int tail = (bd->hist_head + bd->hist_count) % BLINK_HISTORY_CAPACITY;
         bd->event_history[tail] = *ev;
         bd->hist_count++;
     } else {
-        // ¸²¸Ç×î¾É
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         bd->event_history[bd->hist_head] = *ev;
         bd->hist_head = (bd->hist_head + 1) % BLINK_HISTORY_CAPACITY;
     }
 }
 
-/* ---------- ¹«¿ª½Ó¿ÚÊµÏÖ ---------- */
+/* ---------- ï¿½ï¿½ï¿½ï¿½ï¿½Ó¿ï¿½Êµï¿½ï¿½ ---------- */
 
 int blink_detector_init(BlinkDetector_t *bd, double sample_rate) {
     memset(bd, 0, sizeof(BlinkDetector_t));
@@ -70,7 +67,7 @@ int blink_detector_init(BlinkDetector_t *bd, double sample_rate) {
     bd->polarity_min_samples = (int)(kPolaritySec * sample_rate);
     bd->polarity_skew_threshold = kPolaritySkewThreshold;
 
-    // ·ÖÅäÄÚ´æ
+    // ï¿½ï¿½ï¿½ï¿½ï¿½Ú´ï¿½
     bd->filt_buffer = (real_t*)malloc(bd->buffer_capacity * sizeof(real_t));
     bd->raw_buffer  = (real_t*)malloc(bd->buffer_capacity * sizeof(real_t));
     bd->valid_buffer = (uint8_t*)malloc(bd->buffer_capacity * sizeof(uint8_t));
@@ -81,7 +78,7 @@ int blink_detector_init(BlinkDetector_t *bd, double sample_rate) {
     }
     bd->buffer_allocated = 1;
 
-    // ³õÊ¼»¯ÂË²¨Æ÷ÏµÊýÓë×´Ì¬
+    // ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½Ë²ï¿½ï¿½ï¿½Ïµï¿½ï¿½ï¿½ï¿½×´Ì¬
     design_bandpass_sos_0_1_10_250(bd->bp_b0, bd->bp_b1, bd->bp_b2, bd->bp_a1, bd->bp_a2);
     memset(bd->bp_w1, 0, sizeof(bd->bp_w1));
     memset(bd->bp_w2, 0, sizeof(bd->bp_w2));
@@ -92,7 +89,7 @@ int blink_detector_init(BlinkDetector_t *bd, double sample_rate) {
 void blink_detector_process_sample(BlinkDetector_t *bd,
                                    real_t raw_sample, real_t filt_sample,
                                    uint8_t valid) {
-    // ÒÆÈë»º³å£¨¼òµ¥ÏßÐÔÒÆ¶¯£¬ÂúÊ±¶ªÆú×î¾É£©
+    // ï¿½ï¿½ï¿½ë»ºï¿½å£¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ¶ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É£ï¿½
     if (bd->buf_count < bd->buffer_capacity) {
         bd->filt_buffer[bd->buf_count] = filt_sample;
         bd->raw_buffer[bd->buf_count]  = raw_sample;
@@ -116,12 +113,12 @@ void blink_detector_finish_block(BlinkDetector_t *bd,
                                  double block_timestamp_ms, int block_len) {
     int n = bd->buf_count;
     if (n < bd->lookahead_samples * 2) {
-        // Êý¾Ý²»×ã£¬½ö¸üÐÂÊ±¼ä´Á
+        // ï¿½ï¿½ï¿½Ý²ï¿½ï¿½ã£¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½
         bd->last_ts_ms = (real_t)block_timestamp_ms;
         return;
     }
 
-    // ---- ¼«ÐÔ×ÔÊÊÓ¦ ----
+    // ---- ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦ ----
     if (bd->polarity == 0 && n >= bd->polarity_min_samples) {
         const real_t *x = bd->filt_buffer;
         real_t mean = 0.0f;
@@ -146,12 +143,12 @@ void blink_detector_finish_block(BlinkDetector_t *bd,
     }
     int pol = (bd->polarity != 0) ? bd->polarity : 1;
 
-    // ---- ¼«ÐÔ»¯ÐÅºÅ ----
+    // ---- ï¿½ï¿½ï¿½Ô»ï¿½ï¿½Åºï¿½ ----
     for (int i = 0; i < n; i++) {
         bd->polarity_scratch[i] = pol * bd->filt_buffer[i];
     }
 
-    // ---- ·åÖµ¼ì²â ----
+    // ---- ï¿½ï¿½Öµï¿½ï¿½ï¿½ ----
     int peaks[BLINK_MAX_EVENTS];
     int np = find_local_maxima(bd->polarity_scratch, n, peaks, BLINK_MAX_EVENTS);
     if (np == 0) {
@@ -159,34 +156,34 @@ void blink_detector_finish_block(BlinkDetector_t *bd,
         return;
     }
 
-    // ---- Prominence ¼ÆËãÓëãÐÖµ¹ýÂË ----
+    // ---- Prominence ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½ ----
     real_t proms[BLINK_MAX_EVENTS];
     int left_bases[BLINK_MAX_EVENTS], right_bases[BLINK_MAX_EVENTS];
     compute_prominences(bd->polarity_scratch, n, peaks, np, proms, left_bases, right_bases);
 
     int keep[BLINK_MAX_EVENTS] = {0};
-    real_t min_prom = bd->prominence_k * 1.0f; // ÔëÉù¹À¼Æ¼ò»¯Îª 1.0£¬Êµ¼ÊÓ¦»ùÓÚ MAD
+    real_t min_prom = bd->prominence_k * 1.0f; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ¼ï¿½Îª 1.0ï¿½ï¿½Êµï¿½ï¿½Ó¦ï¿½ï¿½ï¿½ï¿½ MAD
     if (min_prom < bd->min_prominence) min_prom = bd->min_prominence;
     for (int i = 0; i < np; i++) {
         if (proms[i] >= min_prom) keep[i] = 1;
     }
 
-    // ---- Width ¼ÆËãÓë¹ýÂË ----
+    // ---- Width ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ----
     real_t widths[BLINK_MAX_EVENTS], left_ips[BLINK_MAX_EVENTS], right_ips[BLINK_MAX_EVENTS];
     compute_widths(bd->polarity_scratch, n, peaks, np, proms, left_bases, right_bases,
                    0.85f, widths, left_ips, right_ips);
 
-    // ---- ¹¹½¨²¢È·ÈÏÊÂ¼þ ----
+    // ---- ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½Â¼ï¿½ ----
     bd->pending_count = 0;
     const int confirm_boundary = n - bd->lookahead_samples;
     for (int i = 0; i < np && bd->pending_count < BLINK_MAX_EVENTS; i++) {
         if (!keep[i]) continue;
         int peak_local = peaks[i];
-        if (peak_local > confirm_boundary) continue;  // Î´È·ÈÏ
+        if (peak_local > confirm_boundary) continue;  // Î´È·ï¿½ï¿½
         if (!bd->valid_buffer[peak_local]) continue;
         real_t duration_ms = widths[i] / bd->sample_rate * 1000.0f;
 
-        // ---- 1. Ð±ÂÊ¹ýÂË ----
+        // ---- 1. Ð±ï¿½Ê¹ï¿½ï¿½ï¿½ ----
         int s_start = (int)(left_ips[i]) - 5;
         if (s_start < 0) s_start = 0;
         int s_end   = (int)(right_ips[i]) + 5;
@@ -194,14 +191,14 @@ void blink_detector_finish_block(BlinkDetector_t *bd,
         real_t max_slope = central_diff_abs_max(bd->polarity_scratch, n, s_start, s_end);
         if (max_slope < bd->min_slope) continue;
 
-        // ---- 2. Ê±³¤¹ýÂË ----
+        // ---- 2. Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ----
         if (duration_ms < kMinDurationMs || duration_ms > kMaxDurationMs) continue;
 
-        // ---- 3. ¼ä¸ô¹ýÂË ----
+        // ---- 3. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ----
         long global_peak = bd->global_sample_index - n + peak_local;
         if (global_peak - bd->last_blink_index < bd->min_interval_samples) continue;
 
-        // ---- 4. ·ù¶È¹ýÂË (Ô­Ê¼ÐÅºÅ·å·åÖµ) ----
+        // ---- 4. ï¿½ï¿½ï¿½È¹ï¿½ï¿½ï¿½ (Ô­Ê¼ï¿½ÅºÅ·ï¿½ï¿½Öµ) ----
         int amp_r = (int)(0.3f * bd->sample_rate);
         int a_s = peak_local - amp_r; if (a_s < 0) a_s = 0;
         int a_e = peak_local + amp_r; if (a_e >= n) a_e = n - 1;
@@ -213,10 +210,10 @@ void blink_detector_finish_block(BlinkDetector_t *bd,
         real_t amp = raw_max - raw_min;
         if (amp < bd->absolute_threshold) continue;
 
-        // ---- 5. Âý²¨ÑÏ¸ñ¹ýÂË ----
+        // ---- 5. ï¿½ï¿½ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½ï¿½ï¿½ ----
         if (duration_ms > 120.0f && max_slope < 10.0f && amp < 150.0f) continue;
 
-        // ---- 6. ¾â³Ý¶È (EMG) ¹ýÂË ----
+        // ---- 6. ï¿½ï¿½Ý¶ï¿½ (EMG) ï¿½ï¿½ï¿½ï¿½ ----
         int seg_s = (int)(left_ips[i]); if (seg_s < 0) seg_s = 0;
         int seg_e = (int)(right_ips[i]) + 1; if (seg_e >= n) seg_e = n - 1;
         real_t path_len = 0.0f;
@@ -230,7 +227,7 @@ void blink_detector_finish_block(BlinkDetector_t *bd,
         if (expected < 1.0f) expected = 1.0f;
         if (path_len / expected > 1.7f) continue;
 
-        // ---- ÊÂ¼þ´´½¨ ----
+        // ---- ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ ----
         bd->last_blink_index = global_peak;
         real_t confidence = fminf(1.0f, proms[i] / (bd->min_prominence * 3.0f));
         real_t start_time = (real_t)block_timestamp_ms - (n - left_ips[i]) / bd->sample_rate * 1000.0f;
@@ -246,7 +243,7 @@ void blink_detector_finish_block(BlinkDetector_t *bd,
         bd->pending_events[bd->pending_count++] = ev;
         bd->total_blinks++;
 
-        // ´æÈë»·ÐÎÀúÊ·
+        // ï¿½ï¿½ï¿½ë»·ï¿½ï¿½ï¿½ï¿½Ê·
         event_history_push(bd, &ev);
     }
 
@@ -272,7 +269,7 @@ void blink_detector_get_statistics(const BlinkDetector_t *bd, BlinkStatistics_t 
     real_t dur_sum = 0.0f;
     int slow_count = 0;
 
-    // ±éÀú»·ÐÎÀúÊ·
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê·
     for (int i = 0; i < bd->hist_count; i++) {
         int idx = (bd->hist_head + i) % BLINK_HISTORY_CAPACITY;
         const BlinkEvent_t *ev = &bd->event_history[idx];
@@ -284,7 +281,7 @@ void blink_detector_get_statistics(const BlinkDetector_t *bd, BlinkStatistics_t 
     }
 
     stats->recent_count = recent_count;
-    stats->blink_rate   = (real_t)recent_count;   // ×î½ü´°¿Ú×Ü´ÎÊý (´Î/·ÖÖÓ)
+    stats->blink_rate   = (real_t)recent_count;   // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü´ï¿½ï¿½ï¿½ (ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½)
     stats->slow_blink_ratio = (recent_count > 0) ? (real_t)slow_count / recent_count : 0.0f;
     stats->avg_duration = (recent_count > 0) ? dur_sum / recent_count : 0.0f;
 }
@@ -299,21 +296,7 @@ void blink_detector_deinit(BlinkDetector_t *bd) {
     }
 }
 
-/* ========== ÄÚ²¿ÂË²¨Óë¼ì²âº¯ÊýÊµÏÖ ========== */
-
-static void sos_filter_step(const real_t *b0, const real_t *b1, const real_t *b2,
-                            const real_t *a1, const real_t *a2,
-                            real_t *w1, real_t *w2,
-                            real_t input, real_t *output) {
-    for (int s = 0; s < 2; s++) {
-        real_t w = input - a1[s] * w1[s] - a2[s] * w2[s];
-        real_t y = b0[s] * w + b1[s] * w1[s] + b2[s] * w2[s];
-        w2[s] = w1[s];
-        w1[s] = w;
-        input = y;
-    }
-    *output = input;
-}
+/* ========== ï¿½Ú²ï¿½ï¿½Ë²ï¿½ï¿½ï¿½ï¿½âº¯ï¿½ï¿½Êµï¿½ï¿½ ========== */
 
 static int find_local_maxima(const real_t *x, int n, int *peaks, int max_peaks) {
     int cnt = 0;
@@ -339,7 +322,7 @@ static void compute_prominences(const real_t *x, int n, const int *peaks, int np
     for (int p = 0; p < np; p++) {
         int peak = peaks[p];
         real_t peak_val = x[peak];
-        // ×ó»ùµ×
+        // ï¿½ï¿½ï¿½ï¿½ï¿½
         int i = peak;
         real_t left_min = peak_val;
         int left_base = peak;
@@ -347,7 +330,7 @@ static void compute_prominences(const real_t *x, int n, const int *peaks, int np
             if (x[i] < left_min) { left_min = x[i]; left_base = i; }
             i--;
         }
-        // ÓÒ»ùµ×
+        // ï¿½Ò»ï¿½ï¿½ï¿½
         i = peak;
         real_t right_min = peak_val;
         int right_base = peak;
@@ -368,12 +351,12 @@ static void compute_widths(const real_t *x, int n, const int *peaks, int np,
     for (int p = 0; p < np; p++) {
         int peak = peaks[p];
         real_t h = x[peak] - proms[p] * rel_height;
-        // ×ó½»µã
+        // ï¿½ó½»µï¿½
         int i = peak;
         while (i > left_bases[p] && x[i] > h) i--;
         real_t left = (real_t)i;
         if (i < peak && x[i] < h) left += (h - x[i]) / (x[i+1] - x[i]);
-        // ÓÒ½»µã
+        // ï¿½Ò½ï¿½ï¿½ï¿½
         i = peak;
         while (i < right_bases[p] && x[i] > h) i++;
         real_t right = (real_t)i;

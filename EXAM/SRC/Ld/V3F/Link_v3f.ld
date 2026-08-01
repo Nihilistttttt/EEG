@@ -9,7 +9,7 @@ MEMORY
 {
 	/*FLASH, RAM, and RAM-CODE can be freely configured according to project 
 	requirements;Please refer to the datasheet manual for specific allocation*/
-	FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 64K             /* zero_wait flah ,and loaded into RAM_CODE for running */
+	FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 72K             /* zero_wait flah ,and loaded into RAM_CODE for running */
 	RAM_CODE (xrw) : ORIGIN = 0x20100000, LENGTH = 64K         /* RAM for running code*/
 	RAM (xrw) : ORIGIN = (0x20110000+256), LENGTH = (448K-256) /* RAM for .data .bss section and other*/
 	RAM_LOAD (xrw) : ORIGIN = 0x20110000, LENGTH = 256         /* RAM for .load section*/
@@ -55,6 +55,7 @@ SECTIONS
 		KEEP(*(SORT_NONE(.vector_handler)))
     		*(.text)
     		*(.text.*)
+
         	*(.sdata2.*)
 		*(.glue_7)
 		*(.glue_7t)

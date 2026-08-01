@@ -103,6 +103,16 @@ public final class EegChannels {
         return -1;
     }
 
+    public static int spectrumUiCmd(int specType, int ch) {
+        int base;
+        switch (specType) {
+            case SPEC_TYPE_FREQ_FILT: base = CMD_SPEC_FREQ_FILT_BASE; break;
+            case SPEC_TYPE_TIME_FILT: base = CMD_SPEC_TIME_FILT_BASE; break;
+            default: base = CMD_SPEC_RAW_BASE; break;
+        }
+        return base + ch;
+    }
+
     public static String buildAllNoneDisplayConfig() {
         return String.format("DISPLAY_CFG,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
                 0, WAVE_TYPE_NONE, 0, WAVE_TYPE_NONE, SPEC_TYPE_NONE, SPEC_TYPE_NONE,

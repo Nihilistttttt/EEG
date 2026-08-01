@@ -32,10 +32,6 @@ static float PM_Sqrtf(float x)
     return sqrtf(x);
 }
 
-static float PM_Absf(float x)
-{
-    return (x >= 0.0f) ? x : -x;
-}
 
 static PM_Event_t PM_ConfirmFall(const PostureResult_t *posture,
                                  uint32_t tick_ms)

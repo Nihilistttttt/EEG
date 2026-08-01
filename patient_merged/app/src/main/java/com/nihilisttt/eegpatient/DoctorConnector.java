@@ -4,9 +4,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
-import java.io.BufferedReader;
-
-import java.io.InputStreamReader;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -14,6 +13,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
@@ -310,29 +311,32 @@ public class DoctorConnector {
 
             // 此时只代表 TCP 已建立；收到医生端 CONTROL_READY 后才报告控制已连接。
             setControlConnectedIfCurrent(socket, generation, false);
-            sendControlLine(socket, generation, "PATIENT_READY");
+            sendBinaryControl(socket, generation, EegProtocol.CMD_PATIENT_READY, null);
             Log.i(TAG, "D2P TCP connected, waiting CONTROL_READY: " + ip + ":" + D2P_CMD_PORT
                     + ", generation=" + generation);
 
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(socket.getInputStream(), "UTF-8"));
+            InputStream in = socket.getInputStream();
+            byte[] buf = new byte[512];
+            FrameDecoder decoder = new FrameDecoder(socket, generation);
             while (autoConnecting && isCurrentControlSession(socket, generation)) {
-                String line;
+                int n;
                 try {
-                    line = reader.readLine();
+                    n = in.read(buf);
                 } catch (SocketTimeoutException timeout) {
                     Log.w(TAG, "D2P heartbeat timeout, reconnecting generation=" + generation);
                     break;
+                } catch (IOException e) {
+                    Log.w(TAG, "D2P read error generation=" + generation + ": " + e.getMessage());
+                    break;
                 }
-                if (line == null) {
+                if (n < 0) {
                     Log.w(TAG, "D2P connection closed by doctor generation=" + generation);
                     break;
                 }
-                line = line.trim();
-                if (line.isEmpty()) continue;
-                lastControlRxAt = System.currentTimeMillis();
-                Log.i(TAG, "D2P RECV: [" + line + "] generation=" + generation);
-                parseD2pCommand(line, socket, generation);
+                if (n == 0) continue;
+                for (int i = 0; i < n; i++) {
+                    decoder.parse(buf[i] & 0xFF);
+                }
             }
         } catch (Exception e) {
             if (autoConnecting) {
@@ -425,6 +429,11 @@ public class DoctorConnector {
     /** Send a patient feedback message over the bidirectional 41004 control socket. */
     public boolean sendControlMessage(String line) {
         if (line == null || line.trim().isEmpty() || !controlConnected) return false;
+        byte[] payload = controlTextToPayload(line);
+        if (payload == null) {
+            Log.w(TAG, "unsupported control message: " + line);
+            return false;
+        }
         final Socket socket;
         final long generation;
         synchronized (socketLock) {
@@ -432,21 +441,57 @@ public class DoctorConnector {
             generation = currentControlGeneration;
         }
         if (socket == null || socket.isClosed()) return false;
-        final String normalized = line.trim();
-        controlReplyWriter.execute(() -> sendControlLine(socket, generation, normalized));
+        final int cmd = payload[0] & 0xFF;
+        final byte[] data = new byte[payload.length - 1];
+        System.arraycopy(payload, 1, data, 0, data.length);
+        controlReplyWriter.execute(() -> sendBinaryControl(socket, generation, cmd, data));
         return true;
     }
 
-    private boolean sendControlLine(Socket socket, long generation, String line) {
+    /** 患者端反馈文本 → 41004 上行二进制 payload（[cmd][data...]）。 */
+    private static byte[] controlTextToPayload(String line) {
+        String cmd = line == null ? "" : line.trim();
+        if (cmd.equals("PONG")) return new byte[]{ (byte) EegProtocol.CMD_PONG };
+        if (cmd.equals("PATIENT_READY")) return new byte[]{ (byte) EegProtocol.CMD_PATIENT_READY };
+        if (cmd.startsWith("SSVEP,STIM_STARTED,")) {
+            String[] parts = cmd.split(",");
+            if (parts.length >= 4) {
+                try {
+                    int freqIndex = Integer.parseInt(parts[2].trim());
+                    float refreshRate = Float.parseFloat(parts[3].trim());
+                    ByteBuffer bb = ByteBuffer.allocate(5).order(ByteOrder.LITTLE_ENDIAN);
+                    bb.put((byte) freqIndex);
+                    bb.putFloat(refreshRate);
+                    byte[] data = bb.array();
+                    byte[] payload = new byte[data.length + 1];
+                    payload[0] = (byte) EegProtocol.CMD_SSVEP_STIM_STARTED;
+                    System.arraycopy(data, 0, payload, 1, data.length);
+                    return payload;
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean sendBinaryControl(Socket socket, long generation, int cmd, byte[] data) {
         synchronized (d2pWriteLock) {
             if (!isCurrentControlSession(socket, generation) || socket.isClosed()) return false;
             try {
+                int dLen = (data == null) ? 0 : data.length;
+                byte[] payload = new byte[dLen + 1];
+                payload[0] = (byte) cmd;
+                if (dLen > 0) {
+                    System.arraycopy(data, 0, payload, 1, dLen);
+                }
+                byte[] frame = EegProtocol.packFrame(EegProtocol.ADDR_PATIENT, cmd, payload);
                 OutputStream output = socket.getOutputStream();
-                output.write((line + "\n").getBytes("UTF-8"));
+                output.write(frame);
                 output.flush();
                 return true;
             } catch (Exception e) {
-                Log.w(TAG, "send control line failed: " + e.getMessage());
+                Log.w(TAG, "send control frame failed: " + e.getMessage());
                 return false;
             }
         }
@@ -512,81 +557,288 @@ public class DoctorConnector {
         }
     }
 
-    private void parseD2pCommand(String line, Socket socket, long generation) {
-        if (line == null || line.isEmpty()) return;
+    /** 41004 控制通道二进制帧解码器（医生端 → 患者端）。 */
+    private class FrameDecoder {
+        private static final int STATE_WAIT_AA = 0;
+        private static final int STATE_WAIT_55 = 1;
+        private static final int STATE_BODY = 2;
+        private static final int STATE_ESCAPE = 3;
 
-        if (line.equals("CONTROL_READY")) {
+        private final Socket socket;
+        private final long generation;
+        private int state = STATE_WAIT_AA;
+        private final byte[] body = new byte[256];
+        private int bodyLen = 0;
+
+        FrameDecoder(Socket socket, long generation) {
+            this.socket = socket;
+            this.generation = generation;
+        }
+
+        void parse(int rawByte) {
+            switch (state) {
+                case STATE_WAIT_AA:
+                    if (rawByte == 0xAA) state = STATE_WAIT_55;
+                    break;
+                case STATE_WAIT_55:
+                    if (rawByte == 0x55) {
+                        state = STATE_BODY;
+                        bodyLen = 0;
+                    } else if (rawByte == 0xAA) {
+                        state = STATE_WAIT_55;
+                    } else {
+                        state = STATE_WAIT_AA;
+                    }
+                    break;
+                case STATE_BODY:
+                    if (rawByte == 0x7D) {
+                        state = STATE_ESCAPE;
+                    } else if (rawByte == 0x7E) {
+                        int minBody = EegProtocol.ADDR_LEN + EegProtocol.CMD_LEN
+                                + EegProtocol.LEN_LEN + EegProtocol.TS_LEN + EegProtocol.CRC_LEN;
+                        if (bodyLen >= minBody) {
+                            dispatch();
+                        }
+                        state = STATE_WAIT_AA;
+                        bodyLen = 0;
+                    } else {
+                        if (bodyLen < body.length) {
+                            body[bodyLen++] = (byte) rawByte;
+                        } else {
+                            state = STATE_WAIT_AA;
+                        }
+                    }
+                    break;
+                case STATE_ESCAPE:
+                    if (bodyLen < body.length) {
+                        body[bodyLen++] = (byte) (rawByte ^ EegProtocol.ESCAPE_XOR);
+                    }
+                    state = STATE_BODY;
+                    break;
+            }
+        }
+
+        private void dispatch() {
+            int cmd = body[1] & 0xFF;
+            int payloadLen = EegProtocol.readU16LE(body, 2);
+            int fixed = EegProtocol.ADDR_LEN + EegProtocol.CMD_LEN
+                    + EegProtocol.LEN_LEN + EegProtocol.TS_LEN;
+            if (bodyLen != fixed + payloadLen + EegProtocol.CRC_LEN) return;
+            int calc = EegProtocol.checksum16(body, 0, fixed + payloadLen);
+            int receivedCrc = EegProtocol.readU16LE(body, fixed + payloadLen);
+            if (calc != receivedCrc) return;
             lastControlRxAt = System.currentTimeMillis();
-            setControlConnectedIfCurrent(socket, generation, true);
-            Log.i(TAG, "D2P handshake completed generation=" + generation);
-            return;
+            Log.i(TAG, "D2P RECV: cmd=0x" + Integer.toHexString(cmd) + " generation=" + generation);
+            // 下行帧 payload 首字节为 cmd（对齐 MCU Parse_CommandBinary 约定），真实数据从 payload[1] 开始
+            int dataLen = Math.max(0, payloadLen - 1);
+            int dataOff = fixed + 1;
+            handleFrame(cmd, dataLen, dataOff);
         }
 
-        if (line.equals("PING")) {
-            sendControlLine(socket, generation, "PONG");
-            return;
-        }
-
-        // 握手完成前不执行页面和刺激控制，避免误把半连接当作可用控制通道。
-        if (!controlConnected || !isCurrentControlSession(socket, generation)) {
-            Log.w(TAG, "ignore control command before handshake: " + line);
-            return;
-        }
-
-        if (line.startsWith("PAGE,")) {
-            try {
-                int doctorPage = Integer.parseInt(line.substring("PAGE,".length()).trim());
-                dispatchPageSwitch(mapDoctorPageToPatient(doctorPage), "D2P");
-            } catch (NumberFormatException e) {
-                Log.w(TAG, "invalid PAGE command: " + line);
-            }
-            return;
-        }
-
-        if (line.startsWith("SSVEP,START")) {
-            int freqIndex = 0;
-            String[] parts = line.split(",");
-            if (parts.length >= 3) {
-                try {
-                    freqIndex = Integer.parseInt(parts[2].trim());
-                } catch (NumberFormatException e) {
-                    Log.w(TAG, "invalid SSVEP frequency index: " + line);
+        private void handleFrame(int cmd, int payloadLen, int off) {
+            switch (cmd) {
+                case EegProtocol.CMD_CONTROL_READY:
+                    setControlConnectedIfCurrent(socket, generation, true);
+                    Log.i(TAG, "D2P handshake completed generation=" + generation);
                     return;
-                }
+                case EegProtocol.CMD_PING:
+                    sendBinaryControl(socket, generation, EegProtocol.CMD_PONG, null);
+                    return;
+                default:
+                    break;
             }
+
+            // 握手完成前不执行页面和刺激控制，避免误把半连接当作可用控制通道。
+            if (!controlConnected || !isCurrentControlSession(socket, generation)) {
+                Log.w(TAG, "ignore control command before handshake: cmd=0x"
+                        + Integer.toHexString(cmd));
+                return;
+            }
+
+            switch (cmd) {
+                case EegProtocol.CMD_PAGE:
+                    if (payloadLen >= 1) {
+                        dispatchPageSwitch(mapDoctorPageToPatient(body[off] & 0xFF), "D2P");
+                    }
+                    break;
+                case EegProtocol.CMD_SSVEP_START_P:
+                    handleSsvepStart(payloadLen >= 1 ? (body[off] & 0xFF) : 0);
+                    break;
+                case EegProtocol.CMD_SSVEP_RESULT: {
+                    PatientSsvepResult result = decodeSsvepResult(payloadLen, off);
+                    if (result != null) {
+                        for (DataListener listener : listeners) {
+                            try { listener.onSsvepResult(result); }
+                            catch (Exception e) {
+                                Log.w(TAG, "onSsvepResult listener error: " + e.getMessage());
+                            }
+                        }
+                    }
+                    break;
+                }
+                case EegProtocol.CMD_SSVEP_STOP_P:
+                    handleSsvepStop();
+                    break;
+                case EegProtocol.CMD_READY_TRAIN:
+                    Log.i(TAG, ">>> D2P READY_TRAIN");
+                    for (DataListener listener : listeners) {
+                        try { listener.onReadyTrain(); }
+                        catch (Exception e) {
+                            Log.w(TAG, "onReadyTrain listener error: " + e.getMessage());
+                        }
+                    }
+                    emitPageSwitch(2);
+                    break;
+                case EegProtocol.CMD_TRAIN_STOP:
+                    Log.i(TAG, ">>> D2P TRAIN_STOP");
+                    for (DataListener listener : listeners) {
+                        try { listener.onTrainStop(); }
+                        catch (Exception e) {
+                            Log.w(TAG, "onTrainStop listener error: " + e.getMessage());
+                        }
+                    }
+                    break;
+                case EegProtocol.CMD_READY_TEST:
+                    Log.i(TAG, ">>> D2P READY_TEST");
+                    for (DataListener listener : listeners) {
+                        try { listener.onReadyTest(); }
+                        catch (Exception e) {
+                            Log.w(TAG, "onReadyTest listener error: " + e.getMessage());
+                        }
+                    }
+                    break;
+                case EegProtocol.CMD_TASK_START:
+                    if (payloadLen >= 1) {
+                        final String side = (body[off] & 0xFF) == 0 ? "LEFT" : "RIGHT";
+                        Log.i(TAG, ">>> D2P TASK," + side + ",start");
+                        for (DataListener listener : listeners) {
+                            try { listener.onTaskStart(side); }
+                            catch (Exception e) {
+                                Log.w(TAG, "onTaskStart listener error: " + e.getMessage());
+                            }
+                        }
+                        emitPageSwitch(2);
+                    }
+                    break;
+                case EegProtocol.CMD_TASK_DONE:
+                case EegProtocol.CMD_TASK_STOPPED:
+                    Log.i(TAG, ">>> D2P " + (cmd == EegProtocol.CMD_TASK_DONE
+                            ? "TASK,DONE" : "TASK,STOPPED"));
+                    for (DataListener listener : listeners) {
+                        try { listener.onTaskDone(); }
+                        catch (Exception e) {
+                            Log.w(TAG, "onTaskDone listener error: " + e.getMessage());
+                        }
+                    }
+                    break;
+                case EegProtocol.CMD_MODE_SET_OK:
+                    if (payloadLen >= 1) {
+                        int mode = body[off] & 0xFF;
+                        Log.i(TAG, ">>> D2P MODE_SET_OK," + mode);
+                        for (DataListener listener : listeners) {
+                            try { listener.onModeSetOk(mode); }
+                            catch (Exception e) {
+                                Log.w(TAG, "onModeSetOk listener error: " + e.getMessage());
+                            }
+                        }
+                        if (mode == 2) emitPageSwitch(3);
+                    }
+                    break;
+                case EegProtocol.CMD_TARGET:
+                    if (payloadLen >= 1) {
+                        String dir = (body[off] & 0xFF) == 0 ? "LEFT" : "RIGHT";
+                        Log.i(TAG, ">>> D2P TARGET," + dir);
+                        for (DataListener listener : listeners) {
+                            try { listener.onTargetDirection(dir); }
+                            catch (Exception e) {
+                                Log.w(TAG, "onTargetDirection listener error: " + e.getMessage());
+                            }
+                        }
+                    }
+                    break;
+                case EegProtocol.CMD_RESULT_MI: {
+                    InferenceResult result = decodeResultMi(payloadLen, off);
+                    if (result != null) {
+                        Log.i(TAG, ">>> D2P RESULT");
+                        for (DataListener listener : listeners) {
+                            try { listener.onInferenceResult(result); }
+                            catch (Exception e) {
+                                Log.w(TAG, "onInferenceResult listener error: " + e.getMessage());
+                            }
+                        }
+                        emitPageSwitch(3);
+                    }
+                    break;
+                }
+                default:
+                    Log.i(TAG, "D2P unhandled cmd=0x" + Integer.toHexString(cmd)
+                            + " len=" + payloadLen);
+                    break;
+            }
+        }
+
+        private InferenceResult decodeResultMi(int payloadLen, int off) {
+            if (payloadLen < 16) return null;
+            int pred = body[off + 1] & 0xFF;
+            ByteBuffer buf = ByteBuffer.wrap(body, off + 2, 12).order(ByteOrder.LITTLE_ENDIAN);
+            int scoreL = buf.getInt();
+            int scoreR = buf.getInt();
+            int conf = buf.getInt();
+            boolean trained = (body[off + 14] & 0xFF) == 1;
+            InferenceResult result = new InferenceResult();
+            result.setIntent(pred == 0 ? "LEFT" : "RIGHT");
+            result.setScoreLeft(scoreL / 10000f);
+            result.setScoreRight(scoreR / 10000f);
+            result.setConfidence(conf / 10000f);
+            result.setTrained(trained);
+            return result;
+        }
+
+        private PatientSsvepResult decodeSsvepResult(int payloadLen, int off) {
+            if (payloadLen < EegProtocol.SSVEP_RESULT_PAYLOAD) return null;
+            int seq = (int) EegProtocol.readU32LE(body, off);
+            int freqIdx = body[off + 4] & 0xFF;
+            int rawIdx = body[off + 5] & 0xFF;
+            ByteBuffer buf = ByteBuffer.wrap(body, off + 6, 24).order(ByteOrder.LITTLE_ENDIAN);
+            float ratio = buf.getFloat();
+            float margin = buf.getFloat();
+            float[] scores = new float[4];
+            for (int i = 0; i < 4; i++) scores[i] = buf.getFloat();
+            int[] votes = new int[4];
+            for (int i = 0; i < 4; i++) votes[i] = body[off + 30 + i] & 0xFF;
+            boolean synthetic = (body[off + 34] & 0xFF) == 1;
+            boolean usable = (body[off + 35] & 0xFF) == 1;
+            String freq = freqIndexToText(freqIdx);
+            String raw = freqIndexToText(rawIdx);
+            return new PatientSsvepResult(seq, freq, raw, ratio, margin,
+                    scores, votes, synthetic, usable);
+        }
+
+        private String freqIndexToText(int idx) {
+            if (idx == 0xFF) return "UNCERTAIN";
+            String[] freqs = {"11.00", "13.00", "15.00", "17.00"};
+            if (idx >= 0 && idx < freqs.length) return freqs[idx];
+            return "UNCERTAIN";
+        }
+
+        private void handleSsvepStart(int freqIndex) {
             if (freqIndex < 0 || freqIndex > 3) {
                 Log.w(TAG, "SSVEP frequency index out of range: " + freqIndex);
                 return;
             }
-
             ssvepStateKnown = true;
             ssvepActive = true;
             ssvepFreqIndex = freqIndex;
             if (currentPatientPage != 1) dispatchPageSwitch(1, "SSVEP_START");
-
             final int finalFreqIndex = freqIndex;
             Log.i(TAG, ">>> D2P SSVEP,START freqIndex=" + finalFreqIndex);
             for (DataListener listener : listeners) {
                 try { listener.onSsvepStart(finalFreqIndex); }
                 catch (Exception e) { Log.w(TAG, "onSsvepStart listener error: " + e.getMessage()); }
             }
-            return;
         }
 
-        if (line.startsWith("SSVEP,RESULT,")) {
-            PatientSsvepResult result = PatientSsvepResult.fromCommand(line);
-            if (result == null) {
-                Log.w(TAG, "invalid SSVEP result command: " + line);
-                return;
-            }
-            for (DataListener listener : listeners) {
-                try { listener.onSsvepResult(result); }
-                catch (Exception e) { Log.w(TAG, "onSsvepResult listener error: " + e.getMessage()); }
-            }
-            return;
-        }
-
-        if (line.equals("SSVEP,STOP")) {
+        private void handleSsvepStop() {
             ssvepStateKnown = true;
             ssvepActive = false;
             ssvepFreqIndex = -1;
@@ -595,97 +847,6 @@ public class DoctorConnector {
                 try { listener.onSsvepStop(); }
                 catch (Exception e) { Log.w(TAG, "onSsvepStop listener error: " + e.getMessage()); }
             }
-            return;
-        }
-
-        if (line.equals("READY_TRAIN")) {
-            Log.i(TAG, ">>> D2P READY_TRAIN");
-            for (DataListener listener : listeners) {
-                try { listener.onReadyTrain(); }
-                catch (Exception e) { Log.w(TAG, "onReadyTrain listener error: " + e.getMessage()); }
-            }
-            emitPageSwitch(2);
-            return;
-        }
-
-        if (line.equals("TRAIN_STOP")) {
-            Log.i(TAG, ">>> D2P TRAIN_STOP");
-            for (DataListener listener : listeners) {
-                try { listener.onTrainStop(); }
-                catch (Exception e) { Log.w(TAG, "onTrainStop listener error: " + e.getMessage()); }
-            }
-            return;
-        }
-
-        if (line.equals("READY_TEST")) {
-            Log.i(TAG, ">>> D2P READY_TEST");
-            for (DataListener listener : listeners) {
-                try { listener.onReadyTest(); }
-                catch (Exception e) { Log.w(TAG, "onReadyTest listener error: " + e.getMessage()); }
-            }
-            return;
-        }
-
-        if (line.startsWith("TASK,")) {
-            if (line.startsWith("TASK,DONE") || line.startsWith("TASK,STOPPED")) {
-                Log.i(TAG, ">>> D2P " + line);
-                for (DataListener listener : listeners) {
-                    try { listener.onTaskDone(); }
-                    catch (Exception e) { Log.w(TAG, "onTaskDone listener error: " + e.getMessage()); }
-                }
-            } else {
-                java.util.regex.Matcher matcher = java.util.regex.Pattern
-                        .compile("TASK,(LEFT|RIGHT),start")
-                        .matcher(line);
-                if (matcher.matches()) {
-                    final String side = matcher.group(1);
-                    Log.i(TAG, ">>> D2P TASK," + side + ",start");
-                    for (DataListener listener : listeners) {
-                        try { listener.onTaskStart(side); }
-                        catch (Exception e) { Log.w(TAG, "onTaskStart listener error: " + e.getMessage()); }
-                    }
-                    emitPageSwitch(2);
-                }
-            }
-            return;
-        }
-
-        if (line.startsWith("MODE_SET_OK,")) {
-            try {
-                int mode = Integer.parseInt(line.substring("MODE_SET_OK,".length()).trim());
-                Log.i(TAG, ">>> D2P MODE_SET_OK," + mode);
-                for (DataListener listener : listeners) {
-                    try { listener.onModeSetOk(mode); }
-                    catch (Exception e) { Log.w(TAG, "onModeSetOk listener error: " + e.getMessage()); }
-                }
-                if (mode == 2) emitPageSwitch(3);
-            } catch (NumberFormatException ignored) {}
-            return;
-        }
-
-        if (line.startsWith("TARGET,")) {
-            String dir = line.substring("TARGET,".length()).trim();
-            if ("LEFT".equals(dir) || "RIGHT".equals(dir)) {
-                Log.i(TAG, ">>> D2P TARGET," + dir);
-                for (DataListener listener : listeners) {
-                    try { listener.onTargetDirection(dir); }
-                    catch (Exception e) { Log.w(TAG, "onTargetDirection listener error: " + e.getMessage()); }
-                }
-            }
-            return;
-        }
-
-        if (line.startsWith("RESULT,")) {
-            InferenceResult result = InferenceResult.fromResultLine(line);
-            if (result != null) {
-                Log.i(TAG, ">>> D2P RESULT");
-                for (DataListener listener : listeners) {
-                    try { listener.onInferenceResult(result); }
-                    catch (Exception e) { Log.w(TAG, "onInferenceResult listener error: " + e.getMessage()); }
-                }
-                emitPageSwitch(3);
-            }
-            return;
         }
     }
 

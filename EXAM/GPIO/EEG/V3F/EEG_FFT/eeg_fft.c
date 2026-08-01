@@ -382,8 +382,8 @@ uint8_t Process_FFT_Step (void) {
             break;
         }
         float *mags = FFT_Data_GetMags(&FFT_Data, ch);
-        CmdType cmd = DisplayConfig_GetSpectrumCmd(SPEC_TYPE_RAW, ch);
-        Send_Spectrum(cmd, mags, current_send_frag);
+        uint8_t cmd = DisplayConfig_GetSpectrumCmd(SPEC_TYPE_RAW, ch);
+        Send_Spectrum(ch, cmd, mags, current_send_frag);
         current_send_frag++;
         if (current_send_frag >= SPECTRUM_TOTAL_FRAGS) {
             current_send_frag = 0;
@@ -508,8 +508,8 @@ uint8_t Process_FFT_Step (void) {
             break;
         }
         float *mags = FFT_Data_GetMags(&FFT_Data, ch);
-        CmdType cmd = DisplayConfig_GetSpectrumCmd(SPEC_TYPE_FREQ_FILTER, ch);
-        Send_Spectrum(cmd, mags, current_send_frag);
+        uint8_t cmd = DisplayConfig_GetSpectrumCmd(SPEC_TYPE_FREQ_FILTER, ch);
+        Send_Spectrum(ch, cmd, mags, current_send_frag);
         current_send_frag++;
         if (current_send_frag >= SPECTRUM_TOTAL_FRAGS) {
             current_send_frag = 0;
@@ -609,16 +609,13 @@ uint8_t Process_FFT_Step (void) {
             s_mode_diag_count++;
             if (s_mode_diag_count >= 500u) {
                 s_mode_diag_count = 0;
-                Serial_Printf (SERIAL_PORT_DEBUG,
-                               "MODE_DIAG,app=%u,work=%u,paused=%u\r\n",
-                               (unsigned)g_eeg_app_mode,
-                               (unsigned)g_work_mode,
-                               (unsigned)g_paused);
-                Serial_Printf (SERIAL_PORT_WIFI,
-                               "MODE_DIAG,app=%u,work=%u,paused=%u\r\n",
-                               (unsigned)g_eeg_app_mode,
-                               (unsigned)g_work_mode,
-                               (unsigned)g_paused);
+                uint8_t diag_buf[4];
+                diag_buf[0] = DIAG_TYPE_MODE_DIAG;
+                diag_buf[1] = (uint8_t)g_eeg_app_mode;
+                diag_buf[2] = (uint8_t)g_work_mode;
+                diag_buf[3] = (uint8_t)(g_paused ? 1u : 0u);
+                Pack_Frame(SERIAL_PORT_DEBUG, CMD_DIAG, diag_buf, sizeof(diag_buf));
+                Pack_Frame(SERIAL_PORT_WIFI, CMD_DIAG, diag_buf, sizeof(diag_buf));
             }
         }
 
@@ -682,22 +679,17 @@ uint8_t Process_FFT_Step (void) {
                 uint32_t raw_cnt = DualCore_IPC_GetLastV5FInferCount();
                 uint32_t raw_fft = DualCore_IPC_GetLastV5FFFTCount();
                 uint32_t raw_fv = DualCore_IPC_GetLastV5FFeatureValid();
-                Serial_Printf (SERIAL_PORT_DEBUG,
-                               "V5F_RAW,app=%u,valid=%lu,cnt=%lu,fft=%lu,fv=%lu,pred=%lu\r\n",
-                               (unsigned)g_eeg_app_mode,
-                               (unsigned long)raw_valid,
-                               (unsigned long)raw_cnt,
-                               (unsigned long)raw_fft,
-                               (unsigned long)raw_fv,
-                               (unsigned long)DualCore_IPC_GetLastV5FPred());
-                Serial_Printf (SERIAL_PORT_WIFI,
-                               "V5F_RAW,app=%u,valid=%lu,cnt=%lu,fft=%lu,fv=%lu,pred=%lu\r\n",
-                               (unsigned)g_eeg_app_mode,
-                               (unsigned long)raw_valid,
-                               (unsigned long)raw_cnt,
-                               (unsigned long)raw_fft,
-                               (unsigned long)raw_fv,
-                               (unsigned long)DualCore_IPC_GetLastV5FPred());
+                uint32_t raw_pred = DualCore_IPC_GetLastV5FPred();
+                uint8_t diag_buf[22];
+                diag_buf[0] = DIAG_TYPE_V5F_RAW;
+                diag_buf[1] = (uint8_t)g_eeg_app_mode;
+                memcpy(diag_buf + 2, &raw_valid, 4);
+                memcpy(diag_buf + 6, &raw_cnt, 4);
+                memcpy(diag_buf + 10, &raw_fft, 4);
+                memcpy(diag_buf + 14, &raw_fv, 4);
+                memcpy(diag_buf + 18, &raw_pred, 4);
+                Pack_Frame(SERIAL_PORT_DEBUG, CMD_DIAG, diag_buf, sizeof(diag_buf));
+                Pack_Frame(SERIAL_PORT_WIFI, CMD_DIAG, diag_buf, sizeof(diag_buf));
             }
         }
 
@@ -781,8 +773,8 @@ uint8_t Process_FFT_Step (void) {
             break;
         }
         float *mags = FFT_Data_GetMags(&FFT_DataFiltered, ch);
-        CmdType cmd = DisplayConfig_GetSpectrumCmd(SPEC_TYPE_TIME_FILTER, ch);
-        Send_Spectrum(cmd, mags, current_filt_send_frag);
+        uint8_t cmd = DisplayConfig_GetSpectrumCmd(SPEC_TYPE_TIME_FILTER, ch);
+        Send_Spectrum(ch, cmd, mags, current_filt_send_frag);
         current_filt_send_frag++;
         if (current_filt_send_frag >= SPECTRUM_TOTAL_FRAGS) {
             current_filt_send_frag = 0;
@@ -866,20 +858,20 @@ void EEG_MI_ResultPoll (void) {
         s_v5f_diag_count++;
         if (s_v5f_diag_count >= 250u) {
             s_v5f_diag_count = 0;
-            Serial_Printf(SERIAL_PORT_DEBUG,
-                           "V5F_DIAG,valid=%lu,cnt=%lu,last_cnt=%lu,trained=%lu,pred=%lu\r\n",
-                           (unsigned long)v5f_infer_valid,
-                           (unsigned long)v5f_infer_cnt,
-                           (unsigned long)s_last_infer_cnt,
-                           (unsigned long)v5f_trained,
-                           (unsigned long)v5f_pred);
-            Serial_Printf(SERIAL_PORT_WIFI,
-                           "V5F_DIAG,valid=%lu,cnt=%lu,last_cnt=%lu,trained=%lu,pred=%lu\r\n",
-                           (unsigned long)v5f_infer_valid,
-                           (unsigned long)v5f_infer_cnt,
-                           (unsigned long)s_last_infer_cnt,
-                           (unsigned long)v5f_trained,
-                           (unsigned long)v5f_pred);
+            uint8_t diag_buf[22];
+            diag_buf[0] = DIAG_TYPE_V5F_DIAG;
+            uint32_t l0 = (uint32_t)v5f_infer_valid;
+            uint32_t l1 = (uint32_t)v5f_infer_cnt;
+            uint32_t l2 = (uint32_t)s_last_infer_cnt;
+            uint32_t l3 = (uint32_t)v5f_trained;
+            uint32_t l4 = (uint32_t)v5f_pred;
+            memcpy(diag_buf + 1, &l0, 4);
+            memcpy(diag_buf + 5, &l1, 4);
+            memcpy(diag_buf + 9, &l2, 4);
+            memcpy(diag_buf + 13, &l3, 4);
+            memcpy(diag_buf + 17, &l4, 4);
+            Pack_Frame(SERIAL_PORT_DEBUG, CMD_DIAG, diag_buf, sizeof(diag_buf));
+            Pack_Frame(SERIAL_PORT_WIFI, CMD_DIAG, diag_buf, sizeof(diag_buf));
         }
     }
 
@@ -888,33 +880,20 @@ void EEG_MI_ResultPoll (void) {
         s_infer_row_tick++;
         if (s_infer_row_tick >= DIR_DECISION_ROWS) {
             s_infer_row_tick = 0;
-            const char *pred_str;
-            if (v5f_pred == 0u) {
-                pred_str = "LEFT";
-            } else if (v5f_pred == 1u) {
-                pred_str = "RIGHT";
-            } else {
-                pred_str = (v5f_score_l >= v5f_score_r) ? "LEFT" : "RIGHT";
-            }
             uint8_t seq = Retry_GetSeq();
-            const char *model_str =
-                (v5f_model_used == DUALCORE_V5F_MODEL_CSP) ? "CSP" : "FFT24";
-            char result_buf[160];
-            snprintf(result_buf, sizeof(result_buf),
-                      "RESULT,seq=%u,src=V5F,window=%lu,dt_ms=%u,win_rows=%u,INTENT=%s,S_LEFT=%ld,S_RIGHT=%ld,CONF=%ld,trained=%d,MODEL=%s\r\n",
-                      (unsigned)seq,
-                      (unsigned long)s_result_window,
-                      (unsigned int)DIR_RESULT_DT_MS,
-                      (unsigned int)DIR_DECISION_ROWS,
-                      pred_str,
-                      (long)v5f_score_l,
-                      (long)v5f_score_r,
-                      (long)v5f_conf,
-                      (int)v5f_trained,
-                      model_str);
-            Serial_Printf(SERIAL_PORT_DEBUG, "%s", result_buf);
-            Serial_Printf(SERIAL_PORT_WIFI, "%s", result_buf);
-            Retry_Store(result_buf);
+            uint8_t pred = (v5f_pred == 0u) ? 0u : ((v5f_pred == 1u) ? 1u
+                         : ((v5f_score_l >= v5f_score_r) ? 0u : 1u));
+            uint8_t result_buf[16];
+            result_buf[0] = seq;
+            result_buf[1] = pred;
+            memcpy(result_buf + 2, &v5f_score_l, 4);
+            memcpy(result_buf + 6, &v5f_score_r, 4);
+            memcpy(result_buf + 10, &v5f_conf, 4);
+            result_buf[14] = (uint8_t)(v5f_trained ? 1 : 0);
+            result_buf[15] = (uint8_t)v5f_model_used;
+            Pack_Frame(SERIAL_PORT_DEBUG, CMD_RESULT_MI, result_buf, sizeof(result_buf));
+            Pack_Frame(SERIAL_PORT_WIFI, CMD_RESULT_MI, result_buf, sizeof(result_buf));
+            Retry_Store(result_buf, sizeof(result_buf), CMD_RESULT_MI);
             s_result_window++;
         }
     }
@@ -988,59 +967,65 @@ void EEG_SSVEP_ResultPoll (void) {
             s_ssvep_diag_tick++;
             if (s_ssvep_diag_tick >= 250u) {
                 s_ssvep_diag_tick = 0;
-                Serial_Printf(SERIAL_PORT_DEBUG,
-                    "SSVEP_DIAG,active=%u,valid=%u,seq=%lu,raw=%d,voted=%d,ratio=%ld,best=%ld,margin=%ld,s0=%ld,s1=%ld,s2=%ld,s3=%ld,o1=%ld,oz=%ld\r\n",
-                    (unsigned)g_ssvep_active,
-                    (unsigned)ssvep_valid,
-                    (unsigned long)ssvep_seq,
-                    (int)g_ipc_v3f_last_ssvep_raw_index,
-                    (int)s_voted_idx,
-                    (long)g_ipc_v3f_last_ssvep_ratio_q10000,
-                    (long)g_ipc_v3f_last_ssvep_best_score_q10000,
-                    (long)g_ipc_v3f_last_ssvep_margin_q10000,
-                    (long)g_ipc_v3f_last_ssvep_scores_q10000[0],
-                    (long)g_ipc_v3f_last_ssvep_scores_q10000[1],
-                    (long)g_ipc_v3f_last_ssvep_scores_q10000[2],
-                    (long)g_ipc_v3f_last_ssvep_scores_q10000[3],
-                    (long)g_ipc_v3f_last_ssvep_o1_uv_x1000,
-                    (long)g_ipc_v3f_last_ssvep_oz_uv_x1000);
+                int32_t ratio_q   = g_ipc_v3f_last_ssvep_ratio_q10000;
+                int32_t best_q    = g_ipc_v3f_last_ssvep_best_score_q10000;
+                int32_t margin_q  = g_ipc_v3f_last_ssvep_margin_q10000;
+                int32_t s0        = g_ipc_v3f_last_ssvep_scores_q10000[0];
+                int32_t s1        = g_ipc_v3f_last_ssvep_scores_q10000[1];
+                int32_t s2        = g_ipc_v3f_last_ssvep_scores_q10000[2];
+                int32_t s3        = g_ipc_v3f_last_ssvep_scores_q10000[3];
+                int32_t o1_uv     = g_ipc_v3f_last_ssvep_o1_uv_x1000;
+                int32_t oz_uv     = g_ipc_v3f_last_ssvep_oz_uv_x1000;
+                uint8_t diag_buf[46];
+                diag_buf[0] = DIAG_TYPE_SSVEP_DIAG;
+                diag_buf[1] = (uint8_t)(g_ssvep_active ? 1 : 0);
+                diag_buf[2] = (uint8_t)(ssvep_valid ? 1 : 0);
+                uint32_t l = (uint32_t)ssvep_seq;
+                memcpy(diag_buf + 3, &l, 4);
+                diag_buf[7] = (uint8_t)(g_ipc_v3f_last_ssvep_raw_index >= 0 ? g_ipc_v3f_last_ssvep_raw_index : 0xFF);
+                diag_buf[8] = (uint8_t)(s_voted_idx >= 0 ? s_voted_idx : 0xFF);
+                memcpy(diag_buf + 9,  &ratio_q,  4);
+                memcpy(diag_buf + 13, &best_q,   4);
+                memcpy(diag_buf + 17, &margin_q, 4);
+                memcpy(diag_buf + 21, &s0,       4);
+                memcpy(diag_buf + 25, &s1,       4);
+                memcpy(diag_buf + 29, &s2,       4);
+                memcpy(diag_buf + 33, &s3,       4);
+                memcpy(diag_buf + 37, &o1_uv,    4);
+                memcpy(diag_buf + 41, &oz_uv,    4);
+                Pack_Frame(SERIAL_PORT_DEBUG, CMD_DIAG, diag_buf, sizeof(diag_buf));
+                Pack_Frame(SERIAL_PORT_WIFI, CMD_DIAG, diag_buf, sizeof(diag_buf));
             }
         }
 
         if (ssvep_valid && ssvep_seq != s_last_ssvep_seq) {
             s_last_ssvep_seq = ssvep_seq;
-            const char *raw_str;
-            const char *voted_str;
-            static const char * const s_ssvep_freq_str[4] = {"11.00", "13.00", "15.00", "17.00"};
-            int8_t raw_idx = g_ipc_v3f_last_ssvep_raw_index;
-            if (raw_idx >= 0 && raw_idx < 4) {
-                raw_str = s_ssvep_freq_str[raw_idx];
-            } else {
-                raw_str = "UNCERTAIN";
-            }
-            if (s_voted_idx >= 0 && s_voted_idx < 4) {
-                voted_str = s_ssvep_freq_str[s_voted_idx];
-            } else {
-                voted_str = "UNCERTAIN";
-            }
-            char ssvep_buf[220];
-            snprintf(ssvep_buf, sizeof(ssvep_buf),
-                "SSVEP_RESULT,seq=%lu,raw=%s,voted=%s,ratio=%ld,best=%ld,margin=%ld,s0=%ld,s1=%ld,s2=%ld,s3=%ld,v0=%d,v1=%d,v2=%d,v3=%d\r\n",
-                (unsigned long)ssvep_seq,
-                raw_str, voted_str,
-                (long)g_ipc_v3f_last_ssvep_ratio_q10000,
-                (long)g_ipc_v3f_last_ssvep_best_score_q10000,
-                (long)g_ipc_v3f_last_ssvep_margin_q10000,
-                (long)g_ipc_v3f_last_ssvep_scores_q10000[0],
-                (long)g_ipc_v3f_last_ssvep_scores_q10000[1],
-                (long)g_ipc_v3f_last_ssvep_scores_q10000[2],
-                (long)g_ipc_v3f_last_ssvep_scores_q10000[3],
-                (int)s_vote_counts[0],
-                (int)s_vote_counts[1],
-                (int)s_vote_counts[2],
-                (int)s_vote_counts[3]);
-            Serial_Printf(SERIAL_PORT_DEBUG, "%s", ssvep_buf);
-            Serial_Printf(SERIAL_PORT_WIFI, "%s", ssvep_buf);
+            int32_t ratio_q  = g_ipc_v3f_last_ssvep_ratio_q10000;
+            int32_t best_q   = g_ipc_v3f_last_ssvep_best_score_q10000;
+            int32_t margin_q = g_ipc_v3f_last_ssvep_margin_q10000;
+            int32_t s0       = g_ipc_v3f_last_ssvep_scores_q10000[0];
+            int32_t s1       = g_ipc_v3f_last_ssvep_scores_q10000[1];
+            int32_t s2       = g_ipc_v3f_last_ssvep_scores_q10000[2];
+            int32_t s3       = g_ipc_v3f_last_ssvep_scores_q10000[3];
+            uint8_t ssvep_buf[38];
+            uint32_t l = (uint32_t)ssvep_seq;
+            memcpy(ssvep_buf, &l, 4);
+            ssvep_buf[4] = (uint8_t)(g_ipc_v3f_last_ssvep_raw_index >= 0 ? g_ipc_v3f_last_ssvep_raw_index : 0xFF);
+            ssvep_buf[5] = (uint8_t)(s_voted_idx >= 0 ? s_voted_idx : 0xFF);
+            memcpy(ssvep_buf + 6,  &ratio_q,  4);
+            memcpy(ssvep_buf + 10, &best_q,   4);
+            memcpy(ssvep_buf + 14, &margin_q, 4);
+            memcpy(ssvep_buf + 18, &s0,       4);
+            memcpy(ssvep_buf + 22, &s1,       4);
+            memcpy(ssvep_buf + 26, &s2,       4);
+            memcpy(ssvep_buf + 30, &s3,       4);
+            ssvep_buf[34] = (uint8_t)s_vote_counts[0];
+            ssvep_buf[35] = (uint8_t)s_vote_counts[1];
+            ssvep_buf[36] = (uint8_t)s_vote_counts[2];
+            ssvep_buf[37] = (uint8_t)s_vote_counts[3];
+            Pack_Frame(SERIAL_PORT_DEBUG, CMD_RESULT_SSVEP, ssvep_buf, sizeof(ssvep_buf));
+            Pack_Frame(SERIAL_PORT_WIFI, CMD_RESULT_SSVEP, ssvep_buf, sizeof(ssvep_buf));
+            Retry_Store(ssvep_buf, sizeof(ssvep_buf), CMD_RESULT_SSVEP);
         }
     }
 }

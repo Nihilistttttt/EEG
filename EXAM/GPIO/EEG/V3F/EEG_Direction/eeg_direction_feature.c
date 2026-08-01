@@ -2,11 +2,12 @@
 #include "signal_analysis.h"
 #include "algo_core.h"
 #include "Serial.h"
+#include "Message_Parser.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 
-#define DIR_PRINT_HEADER_ON_START   1
+#define DIR_PRINT_HEADER_ON_START   0
 #define DIR_FEAT_F_MIN              4
 #define DIR_FEAT_F_MAX              30
 
@@ -138,30 +139,20 @@ void Direction_PrintFeatureHeader(void)
 static void Direction_PrintIntFeatureCSV(uint8_t label,
                                          const int32_t feature[DIR_FEAT_DIM_LOCAL])
 {
-    char line[512];
-    int len = 0;
     int i;
 
     if (feature == 0) {
         return;
     }
 
-    len += snprintf(line + len, sizeof(line) - len, "DIRCSV,%d", label);
-    for (i = 0; i < DIR_FEAT_DIM_LOCAL; i++) {
-        if (len < (int)sizeof(line) - 24) {
-            len += snprintf(line + len, sizeof(line) - len,
-                            ",%ld", (long)feature[i]);
+    {
+        uint8_t payload[1 + DIR_FEAT_DIM_LOCAL * 4];
+        payload[0] = label;
+        for (i = 0; i < DIR_FEAT_DIM_LOCAL; i++) {
+            memcpy(payload + 1 + i * 4, &feature[i], 4);
         }
-    }
-
-    if (len < (int)sizeof(line) - 3) {
-        len += snprintf(line + len, sizeof(line) - len, "\r\n");
-        Serial_SendArray_DMA(SERIAL_PORT_DEBUG,
-                             (const uint8_t *)line,
-                             (uint16_t)len);
-        Serial_SendArray_DMA(SERIAL_PORT_WIFI,
-                             (const uint8_t *)line,
-                             (uint16_t)len);
+        Pack_Frame(SERIAL_PORT_DEBUG, CMD_DIRCSV, payload, sizeof(payload));
+        Pack_Frame(SERIAL_PORT_WIFI, CMD_DIRCSV, payload, sizeof(payload));
     }
 }
 

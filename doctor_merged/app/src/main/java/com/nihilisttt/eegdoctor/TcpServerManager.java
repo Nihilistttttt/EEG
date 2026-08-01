@@ -509,18 +509,168 @@ public class TcpServerManager {
 
 
 
+    /**
+     * 兼容旧文本命令入口：将文本命令映射为二进制帧后发送到设备。
+     * 协议已全链路二进制化，这里仅作过渡映射。
+     */
     public void sendToDevice(String command) {
-        if (deviceClient == null || deviceClient.isClosed() || !deviceClient.isConnected()) {
-            Log.w("TCP", "Cannot send to device (not connected): [" + command + "]");
+        byte[] payload = deviceTextToPayload(command);
+        if (payload == null) {
+            Log.w("TCP", "Unsupported text command to device: [" + command + "]");
             return;
         }
-        try {
-            byte[] data = (command + "\n").getBytes("UTF-8");
-            sendQueue.offer(data);
-            Log.i("TCP", "Queued to device: [" + command + "] bytes=" + data.length);
-        } catch (Exception e) {
-            Log.e("TCP", "Failed to queue command: [" + command + "]", e);
+        sendBinaryPayloadToDevice(payload);
+    }
+
+    /** 直接发送二进制命令帧到设备（41002）。payload = [cmd][data...] */
+    public void sendBinaryToDevice(int cmd, byte[] data) {
+        if (deviceClient == null || deviceClient.isClosed() || !deviceClient.isConnected()) {
+            Log.w("TCP", "Cannot send to device (not connected): cmd=0x"
+                    + Integer.toHexString(cmd));
+            return;
         }
+        int dLen = (data == null) ? 0 : data.length;
+        byte[] payload = new byte[dLen + 1];
+        payload[0] = (byte) cmd;
+        if (dLen > 0) {
+            System.arraycopy(data, 0, payload, 1, dLen);
+        }
+        byte[] frame = EegProtocol.packFrame(EegProtocol.ADDR_DOCTOR, cmd, payload);
+        sendQueue.offer(frame);
+        Log.i("TCP", "Queued binary frame: cmd=0x" + Integer.toHexString(cmd) + " len=" + dLen);
+    }
+
+    private void sendBinaryPayloadToDevice(byte[] payload) {
+        if (payload == null || payload.length == 0) return;
+        int cmd = payload[0] & 0xFF;
+        byte[] data = new byte[payload.length - 1];
+        System.arraycopy(payload, 1, data, 0, data.length);
+        sendBinaryToDevice(cmd, data);
+    }
+
+    /** 向设备回复二进制 ACK 帧（seq 为上行命令序列号）。 */
+    private void sendAckBinary(int seq) {
+        sendBinaryToDevice(EegProtocol.CMD_ACK, new byte[]{(byte) seq});
+    }
+
+    /** 把医生端旧文本命令解析为下行二进制 payload（[cmd][data...]）。 */
+    private static byte[] deviceTextToPayload(String command) {
+        String cmd = command == null ? "" : command.trim();
+        if (cmd.startsWith("DISPLAY_CFG,")) {
+            String[] parts = cmd.split(",");
+            if (parts.length == 13) {
+                byte[] payload = new byte[13];
+                payload[0] = (byte) EegProtocol.CMD_DISPLAY_CFG;
+                for (int i = 1; i < 13; i++) {
+                    try {
+                        payload[i] = (byte) Integer.parseInt(parts[i].trim());
+                    } catch (NumberFormatException e) {
+                        return null;
+                    }
+                }
+                return payload;
+            }
+            return null;
+        }
+        if (cmd.startsWith("MODE,SET,")) {
+            try {
+                int mode = Integer.parseInt(cmd.substring("MODE,SET,".length()).trim());
+                return new byte[]{ (byte) EegProtocol.CMD_MODE_SET, (byte) mode };
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        if (cmd.equals("MODE,TRAIN")) return new byte[]{ (byte) EegProtocol.CMD_MODE_TRAIN };
+        if (cmd.equals("MODE,TEST")) return new byte[]{ (byte) EegProtocol.CMD_MODE_TEST };
+        if (cmd.equals("TRIAL,LEFT")) return new byte[]{ (byte) EegProtocol.CMD_TRIAL, 0 };
+        if (cmd.equals("TRIAL,RIGHT")) return new byte[]{ (byte) EegProtocol.CMD_TRIAL, 1 };
+        if (cmd.equals("STOP")) return new byte[]{ (byte) EegProtocol.CMD_STOP };
+        if (cmd.equals("SSVEP,START")) return new byte[]{ (byte) EegProtocol.CMD_SSVEP_START };
+        if (cmd.equals("SSVEP,STOP")) return new byte[]{ (byte) EegProtocol.CMD_SSVEP_STOP };
+        if (cmd.startsWith("SSVEP,SELFTEST,START,")) {
+            try {
+                int idx = Integer.parseInt(cmd.substring("SSVEP,SELFTEST,START,".length()).trim());
+                return new byte[]{ (byte) EegProtocol.CMD_SSVEP_SELFTEST_START, (byte) idx };
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        if (cmd.equals("SSVEP,SELFTEST,STOP")) return new byte[]{ (byte) EegProtocol.CMD_SSVEP_SELFTEST_STOP };
+        return null;
+    }
+
+    /** 把医生端旧文本命令解析为 41004 下行二进制 payload（[cmd][data...]）。 */
+    private static byte[] patientTextToPayload(String command) {
+        String cmd = command == null ? "" : command.trim();
+        if (cmd.equals("CONTROL_READY")) return new byte[]{ (byte) EegProtocol.CMD_CONTROL_READY };
+        if (cmd.equals("PING")) return new byte[]{ (byte) EegProtocol.CMD_PING };
+        if (cmd.equals("READY_TRAIN")) return new byte[]{ (byte) EegProtocol.CMD_READY_TRAIN };
+        if (cmd.equals("READY_TEST")) return new byte[]{ (byte) EegProtocol.CMD_READY_TEST };
+        if (cmd.equals("TASK,DONE")) return new byte[]{ (byte) EegProtocol.CMD_TASK_DONE };
+        if (cmd.equals("TASK,STOPPED")) return new byte[]{ (byte) EegProtocol.CMD_TASK_STOPPED };
+        if (cmd.equals("TRAIN_STOP")) return new byte[]{ (byte) EegProtocol.CMD_TRAIN_STOP };
+        if (cmd.equals("SSVEP,STOP")) return new byte[]{ (byte) EegProtocol.CMD_SSVEP_STOP_P };
+        if (cmd.startsWith("PAGE,")) {
+            try {
+                int p = Integer.parseInt(cmd.substring("PAGE,".length()).trim());
+                return new byte[]{ (byte) EegProtocol.CMD_PAGE, (byte) p };
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        if (cmd.startsWith("SSVEP,START")) {
+            String[] parts = cmd.split(",");
+            int idx = 0;
+            if (parts.length >= 3) {
+                try {
+                    idx = Integer.parseInt(parts[2].trim());
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+            return new byte[]{ (byte) EegProtocol.CMD_SSVEP_START_P, (byte) idx };
+        }
+        if (cmd.startsWith("TARGET,")) {
+            String dir = cmd.substring("TARGET,".length()).trim();
+            return new byte[]{ (byte) EegProtocol.CMD_TARGET,
+                    "LEFT".equals(dir) ? (byte) 0 : (byte) 1 };
+        }
+        if (cmd.startsWith("MODE_SET_OK,")) {
+            try {
+                int m = Integer.parseInt(cmd.substring("MODE_SET_OK,".length()).trim());
+                return new byte[]{ (byte) EegProtocol.CMD_MODE_SET_OK, (byte) m };
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        if (cmd.startsWith("TASK,LEFT,start")) return new byte[]{ (byte) EegProtocol.CMD_TASK_START, 0 };
+        if (cmd.startsWith("TASK,RIGHT,start")) return new byte[]{ (byte) EegProtocol.CMD_TASK_START, 1 };
+        if (cmd.startsWith("SSVEP,RESULT,")) {
+            SsvepResult r = SsvepResult.fromLine(cmd);
+            if (r == null) return null;
+            ByteBuffer bb = ByteBuffer.allocate(36).order(ByteOrder.LITTLE_ENDIAN);
+            bb.putInt(r.getSeq());
+            bb.put((byte) (r.getFreqIndex() >= 0 ? r.getFreqIndex() : 0xFF));
+            bb.put((byte) (r.getRawFreqIndex() >= 0 ? r.getRawFreqIndex() : 0xFF));
+            bb.putFloat(r.getRatio());
+            bb.putFloat(r.getMargin());
+            bb.putFloat(r.getScore11());
+            bb.putFloat(r.getScore13());
+            bb.putFloat(r.getScore15());
+            bb.putFloat(r.getScore17());
+            bb.put((byte) r.getVote11());
+            bb.put((byte) r.getVote13());
+            bb.put((byte) r.getVote15());
+            bb.put((byte) r.getVote17());
+            bb.put((byte) (r.isSynthetic() ? 1 : 0));
+            bb.put((byte) (r.isChannelUsable() ? 1 : 0));
+            byte[] data = bb.array();
+            byte[] payload = new byte[data.length + 1];
+            payload[0] = (byte) EegProtocol.CMD_SSVEP_RESULT;
+            System.arraycopy(data, 0, payload, 1, data.length);
+            return payload;
+        }
+        return null;
     }
 
     // ========== V2帧下行发送（Android→ESP8266，无CRC） ==========
@@ -625,26 +775,32 @@ public class TcpServerManager {
             return false;
         }
 
-        final String normalized = command.trim();
-        // 即使当前控制通道暂未连接，也保存期望状态。患者重连后的状态快照会恢复页面/SSVEP状态。
-        updatePatientControlState(normalized);
-
-        // 未完成握手时不把命令堆积在队列中；期望状态已经保存，重连后的状态快照会自动同步。
-        if (!hasReadyPatientControlSocket()) {
-            Log.w("DOCTOR", ">>> D2P NOT ENQUEUED (control not ready): [" + normalized + "]");
+        final byte[] payload = patientTextToPayload(command);
+        if (payload == null) {
+            Log.w("DOCTOR", ">>> D2P UNSUPPORTED CMD: [" + command + "]");
             postPatientSendResult(callback, false);
             return false;
         }
 
-        Log.i("DOCTOR", ">>> D2P ENQUEUE: [" + normalized + "]");
+        // 即使当前控制通道暂未连接，也保存期望状态。患者重连后的状态快照会恢复页面/SSVEP状态。
+        updatePatientControlState(payload);
+
+        // 未完成握手时不把命令堆积在队列中；期望状态已经保存，重连后的状态快照会自动同步。
+        if (!hasReadyPatientControlSocket()) {
+            Log.w("DOCTOR", ">>> D2P NOT ENQUEUED (control not ready): [" + command + "]");
+            postPatientSendResult(callback, false);
+            return false;
+        }
+
+        Log.i("DOCTOR", ">>> D2P ENQUEUE: [" + command + "]");
         try {
             patientControlWriter.execute(() -> {
-                boolean success = sendQueuedPatientCommand(normalized, 3000L);
+                boolean success = sendQueuedPatientCommand(payload, 3000L);
                 postPatientSendResult(callback, success);
             });
             return true;
         } catch (RejectedExecutionException e) {
-            Log.e("DOCTOR", ">>> D2P QUEUE REJECTED: [" + normalized + "]", e);
+            Log.e("DOCTOR", ">>> D2P QUEUE REJECTED: [" + command + "]", e);
             postPatientSendResult(callback, false);
             return false;
         }
@@ -669,8 +825,11 @@ public class TcpServerManager {
      * 只在 doctor-patient-control-writer 后台线程执行。
      * 若连接正处于重连阶段，等待当前 generation 的可用控制通道，而不是立即判定失败。
      */
-    private boolean sendQueuedPatientCommand(String command, long waitTimeoutMs) {
+    private boolean sendQueuedPatientCommand(byte[] payload, long waitTimeoutMs) {
         long deadline = System.currentTimeMillis() + Math.max(0L, waitTimeoutMs);
+        int cmd = payload[0] & 0xFF;
+        byte[] data = new byte[payload.length - 1];
+        System.arraycopy(payload, 1, data, 0, data.length);
 
         while (running && !Thread.currentThread().isInterrupted()) {
             Socket client;
@@ -683,14 +842,14 @@ public class TcpServerManager {
             }
 
             if (client != null && !client.isClosed() && client.isConnected() && ready) {
-                if (sendLineToCurrentPatient(client, generation, command, true)) {
+                if (sendBinaryToCurrentPatient(client, generation, cmd, data, true)) {
                     return true;
                 }
-                // 写失败时 sendLineToCurrentPatient 会清理当前连接；短暂等待患者端自动重连。
+                // 写失败时 sendBinaryToCurrentPatient 会清理当前连接；短暂等待患者端自动重连。
             }
 
             if (System.currentTimeMillis() >= deadline) {
-                Log.w("DOCTOR", ">>> D2P SEND TIMEOUT: [" + command + "]");
+                Log.w("DOCTOR", ">>> D2P SEND TIMEOUT: cmd=0x" + Integer.toHexString(cmd));
                 return false;
             }
 
@@ -711,10 +870,34 @@ public class TcpServerManager {
         }
     }
 
-    private boolean sendLineToCurrentPatient(Socket client,
-                                             long generation,
-                                             String line,
-                                             boolean closeOnFailure) {
+    /** 从任意线程直接向已握手的患者端发送二进制帧（无重试）。 */
+    private boolean sendBinaryToPatientNow(int cmd, byte[] data) {
+        Socket client;
+        long generation;
+        boolean ready;
+        synchronized (this) {
+            client = doctorToPatientClient;
+            generation = currentPatientControlGeneration;
+            ready = patientControlReady;
+        }
+        if (client == null || client.isClosed() || !client.isConnected() || !ready) {
+            return false;
+        }
+        return sendBinaryToCurrentPatient(client, generation, cmd, data, true);
+    }
+
+    private boolean sendBinaryToCurrentPatient(Socket client,
+                                               long generation,
+                                               int cmd,
+                                               byte[] data,
+                                               boolean closeOnFailure) {
+        int dLen = (data == null) ? 0 : data.length;
+        byte[] payload = new byte[dLen + 1];
+        payload[0] = (byte) cmd;
+        if (dLen > 0) {
+            System.arraycopy(data, 0, payload, 1, dLen);
+        }
+        byte[] frame = EegProtocol.packFrame(EegProtocol.ADDR_DOCTOR, cmd, payload);
         synchronized (d2pWriteLock) {
             if (!isCurrentPatientControl(client, generation)
                     || client == null
@@ -723,25 +906,27 @@ public class TcpServerManager {
             }
             try {
                 OutputStream os = client.getOutputStream();
-                os.write((line + "\n").getBytes("UTF-8"));
+                os.write(frame);
                 os.flush();
-                Log.i("DOCTOR", ">>> D2P OK generation=" + generation + ": [" + line + "]");
+                Log.i("DOCTOR", ">>> D2P OK generation=" + generation + ": cmd=0x"
+                        + Integer.toHexString(cmd) + " len=" + dLen);
                 return true;
             } catch (NetworkOnMainThreadException e) {
                 // 编程线程错误不等于 Socket 失效，禁止因此主动关闭一条正常控制连接。
-                Log.e("DOCTOR", ">>> D2P PROGRAMMING ERROR: network write on main thread: ["
-                        + line + "]", e);
+                Log.e("DOCTOR", ">>> D2P PROGRAMMING ERROR: network write on main thread: cmd=0x"
+                        + Integer.toHexString(cmd), e);
                 return false;
             } catch (IOException e) {
-                Log.e("DOCTOR", ">>> D2P NETWORK FAIL generation=" + generation + ": [" + line + "] "
+                Log.e("DOCTOR", ">>> D2P NETWORK FAIL generation=" + generation + ": cmd=0x"
+                        + Integer.toHexString(cmd) + " "
                         + e.getClass().getSimpleName() + ": " + e.getMessage());
                 if (closeOnFailure) {
                     closeCurrentPatientControl(client, generation, "network write failed");
                 }
                 return false;
             } catch (RuntimeException e) {
-                Log.e("DOCTOR", ">>> D2P RUNTIME FAIL generation=" + generation + ": [" + line + "] "
-                        + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
+                Log.e("DOCTOR", ">>> D2P RUNTIME FAIL generation=" + generation + ": cmd=0x"
+                        + Integer.toHexString(cmd), e);
                 return false;
             }
         }
@@ -749,54 +934,15 @@ public class TcpServerManager {
 
     private void handlePatientControlClient(Socket client, long generation) {
         try {
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(client.getInputStream(), "UTF-8"));
-            String line;
+            InputStream in = client.getInputStream();
+            byte[] buf = new byte[512];
+            PatientFrameDecoder decoder = new PatientFrameDecoder();
+            int n;
             while (running
                     && isCurrentPatientControl(client, generation)
-                    && (line = reader.readLine()) != null) {
-                line = line.trim();
-                if (line.isEmpty()) continue;
-                Log.i("DOCTOR", ">>> D2P RECV generation=" + generation + ": [" + line + "]");
-
-                if (line.startsWith("PATIENT_READY")) {
-                    boolean becameReady = false;
-                    synchronized (this) {
-                        if (doctorToPatientClient == client
-                                && currentPatientControlGeneration == generation) {
-                            patientLastPongAt = System.currentTimeMillis();
-                            if (!patientControlReady) {
-                                patientControlReady = true;
-                                becameReady = true;
-                            }
-                        }
-                    }
-                    if (becameReady) {
-                        // 先确认握手，再发送状态快照。患者端只有收到 CONTROL_READY 才显示完整连接。
-                        if (sendLineToCurrentPatient(client, generation, "CONTROL_READY", true)
-                                && sendPatientStateSnapshot(client, generation)) {
-                            notifyPatientConnected(true);
-                        }
-                    }
-                } else if (line.equals("PONG")) {
-                    synchronized (this) {
-                        if (doctorToPatientClient == client
-                                && currentPatientControlGeneration == generation) {
-                            patientLastPongAt = System.currentTimeMillis();
-                        }
-                    }
-                } else if (line.startsWith("SSVEP,STIM_STARTED,")) {
-                    String[] parts = line.split(",");
-                    if (parts.length >= 4) {
-                        try {
-                            int freqIndex = Integer.parseInt(parts[2].trim());
-                            float refreshRate = Float.parseFloat(parts[3].trim());
-                            SsvepAnalysisManager.getInstance()
-                                    .confirmStimulusStarted(freqIndex, refreshRate);
-                        } catch (NumberFormatException e) {
-                            Log.w("DOCTOR", "Invalid SSVEP stimulus feedback: " + line);
-                        }
-                    }
+                    && (n = in.read(buf)) != -1) {
+                for (int i = 0; i < n; i++) {
+                    decoder.parse(buf[i] & 0xFF, client, generation);
                 }
             }
             Log.w("DOCTOR", ">>> Patient D2P reader ended generation=" + generation);
@@ -807,6 +953,122 @@ public class TcpServerManager {
             }
         } finally {
             closeCurrentPatientControl(client, generation, "reader ended");
+        }
+    }
+
+    /** 41004 医生→患者控制通道的二进制帧解码器。 */
+    private class PatientFrameDecoder {
+        private static final int STATE_WAIT_AA = 0;
+        private static final int STATE_WAIT_55 = 1;
+        private static final int STATE_BODY = 2;
+        private static final int STATE_ESCAPE = 3;
+
+        private int state = STATE_WAIT_AA;
+        private final byte[] body = new byte[256];
+        private int bodyLen = 0;
+
+        void parse(int rawByte, Socket client, long generation) {
+            switch (state) {
+                case STATE_WAIT_AA:
+                    if (rawByte == 0xAA) state = STATE_WAIT_55;
+                    break;
+                case STATE_WAIT_55:
+                    if (rawByte == 0x55) {
+                        state = STATE_BODY;
+                        bodyLen = 0;
+                    } else if (rawByte == 0xAA) {
+                        state = STATE_WAIT_55;
+                    } else {
+                        state = STATE_WAIT_AA;
+                    }
+                    break;
+                case STATE_BODY:
+                    if (rawByte == 0x7D) {
+                        state = STATE_ESCAPE;
+                    } else if (rawByte == 0x7E) {
+                        int minBody = EegProtocol.ADDR_LEN + EegProtocol.CMD_LEN
+                                + EegProtocol.LEN_LEN + EegProtocol.TS_LEN + EegProtocol.CRC_LEN;
+                        if (bodyLen >= minBody) {
+                            dispatch(client, generation);
+                        }
+                        state = STATE_WAIT_AA;
+                        bodyLen = 0;
+                    } else {
+                        if (bodyLen < body.length) {
+                            body[bodyLen++] = (byte) rawByte;
+                        } else {
+                            state = STATE_WAIT_AA;
+                        }
+                    }
+                    break;
+                case STATE_ESCAPE:
+                    if (bodyLen < body.length) {
+                        body[bodyLen++] = (byte) (rawByte ^ EegProtocol.ESCAPE_XOR);
+                    }
+                    state = STATE_BODY;
+                    break;
+            }
+        }
+
+        private void dispatch(Socket client, long generation) {
+            int cmd = body[1] & 0xFF;
+            int payloadLen = EegProtocol.readU16LE(body, 2);
+            int fixed = EegProtocol.ADDR_LEN + EegProtocol.CMD_LEN
+                    + EegProtocol.LEN_LEN + EegProtocol.TS_LEN;
+            if (bodyLen != fixed + payloadLen + EegProtocol.CRC_LEN) return;
+            int calc = EegProtocol.checksum16(body, 0, fixed + payloadLen);
+            int receivedCrc = EegProtocol.readU16LE(body, fixed + payloadLen);
+            if (calc != receivedCrc) return;
+            handlePatientFrame(cmd, payloadLen, fixed, client, generation);
+        }
+
+        private void handlePatientFrame(int cmd, int payloadLen, int off,
+                                        Socket client, long generation) {
+            switch (cmd) {
+                case EegProtocol.CMD_PATIENT_READY: {
+                    boolean becameReady = false;
+                    synchronized (TcpServerManager.this) {
+                        if (doctorToPatientClient == client
+                                && currentPatientControlGeneration == generation) {
+                            patientLastPongAt = System.currentTimeMillis();
+                            if (!patientControlReady) {
+                                patientControlReady = true;
+                                becameReady = true;
+                            }
+                        }
+                    }
+                    if (becameReady) {
+                        if (sendBinaryToCurrentPatient(client, generation,
+                                EegProtocol.CMD_CONTROL_READY, null, true)
+                                && sendPatientStateSnapshot(client, generation)) {
+                            notifyPatientConnected(true);
+                        }
+                    }
+                    break;
+                }
+                case EegProtocol.CMD_PONG:
+                    synchronized (TcpServerManager.this) {
+                        if (doctorToPatientClient == client
+                                && currentPatientControlGeneration == generation) {
+                            patientLastPongAt = System.currentTimeMillis();
+                        }
+                    }
+                    break;
+                case EegProtocol.CMD_SSVEP_STIM_STARTED:
+                    if (payloadLen >= 5) {
+                        int freqIndex = body[off] & 0xFF;
+                        ByteBuffer bb = ByteBuffer.wrap(body, off + 1, 4)
+                                .order(ByteOrder.LITTLE_ENDIAN);
+                        float refreshRate = bb.getFloat();
+                        SsvepAnalysisManager.getInstance()
+                                .confirmStimulusStarted(freqIndex, refreshRate);
+                    }
+                    break;
+                default:
+                    Log.i("DOCTOR", ">>> D2P RECV generation=" + generation + " cmd=0x"
+                            + Integer.toHexString(cmd) + " len=" + payloadLen);
+                    break;
+            }
         }
     }
 
@@ -841,7 +1103,7 @@ public class TcpServerManager {
                     closeCurrentPatientControl(client, generation, "heartbeat timeout");
                     continue;
                 }
-                sendLineToCurrentPatient(client, generation, "PING", true);
+                sendBinaryToCurrentPatient(client, generation, EegProtocol.CMD_PING, null, true);
             }
             Log.i("DOCTOR", "Patient control heartbeat stopped");
         }, "doctor-patient-heartbeat");
@@ -877,33 +1139,34 @@ public class TcpServerManager {
         }
     }
 
-    private void updatePatientControlState(String command) {
-        if (command.startsWith("PAGE,")) {
-            try {
-                currentDoctorPage = Integer.parseInt(command.substring("PAGE,".length()).trim());
-            } catch (NumberFormatException ignored) {}
-        } else if (command.startsWith("SSVEP,START")) {
-            String[] parts = command.split(",");
-            if (parts.length >= 3) {
-                try {
-                    ssvepFreqIndex = Integer.parseInt(parts[2].trim());
-                    ssvepActive = true;
-                } catch (NumberFormatException ignored) {}
-            }
-        } else if (command.equals("SSVEP,STOP")) {
+    private void updatePatientControlState(byte[] payload) {
+        if (payload == null || payload.length < 1) return;
+        int cmd = payload[0] & 0xFF;
+        if (cmd == EegProtocol.CMD_PAGE && payload.length >= 2) {
+            currentDoctorPage = payload[1] & 0xFF;
+        } else if (cmd == EegProtocol.CMD_SSVEP_START_P && payload.length >= 2) {
+            ssvepFreqIndex = payload[1] & 0xFF;
+            ssvepActive = true;
+        } else if (cmd == EegProtocol.CMD_SSVEP_STOP_P) {
             ssvepActive = false;
             ssvepFreqIndex = -1;
         }
     }
 
     private boolean sendPatientStateSnapshot(Socket client, long generation) {
-        if (!sendLineToCurrentPatient(client, generation,
-                "PAGE," + currentDoctorPage, true)) return false;
+        if (!sendBinaryToCurrentPatient(client, generation, EegProtocol.CMD_PAGE,
+                new byte[]{(byte) currentDoctorPage}, true)) return false;
 
-        String ssvepState = ssvepActive && ssvepFreqIndex >= 0
-                ? "SSVEP,START," + ssvepFreqIndex
-                : "SSVEP,STOP";
-        boolean ok = sendLineToCurrentPatient(client, generation, ssvepState, true);
+        int snapCmd;
+        byte[] snapData;
+        if (ssvepActive && ssvepFreqIndex >= 0) {
+            snapCmd = EegProtocol.CMD_SSVEP_START_P;
+            snapData = new byte[]{(byte) ssvepFreqIndex};
+        } else {
+            snapCmd = EegProtocol.CMD_SSVEP_STOP_P;
+            snapData = null;
+        }
+        boolean ok = sendBinaryToCurrentPatient(client, generation, snapCmd, snapData, true);
         if (ok) {
             Log.i("DOCTOR", ">>> D2P STATE SNAPSHOT generation=" + generation
                     + ": page=" + currentDoctorPage
@@ -1016,15 +1279,13 @@ public class TcpServerManager {
                 outputStreams.add(socket.getOutputStream());
                 new Thread(() -> {
                     try {
-                        BufferedReader reader = new BufferedReader(
-                                new InputStreamReader(socket.getInputStream(), "UTF-8"));
-                        String line;
-                        while ((line = reader.readLine()) != null) {
-                            line = line.trim();
-                            if (!line.isEmpty()) {
-                                sendToDevice(line);
-                                Log.i("FWD_CMD", "Python->MCU: " + line);
-                            }
+                        InputStream in = socket.getInputStream();
+                        byte[] buf = new byte[512];
+                        int n;
+                        while ((n = in.read(buf)) != -1) {
+                            byte[] chunk = new byte[n];
+                            System.arraycopy(buf, 0, chunk, 0, n);
+                            TcpServerManager.this.sendQueue.offer(chunk);
                         }
                     } catch (IOException ignored) {
                     } finally {
@@ -1145,19 +1406,18 @@ public class TcpServerManager {
     }
 
     private class FrameParser {
-        private static final int STATE_HEADER = 0;
-        private static final int STATE_PAYLOAD = 1;
-        private static final int STATE_ESCAPE = 2;
+        private static final int STATE_WAIT_AA = 0;
+        private static final int STATE_WAIT_55 = 1;
+        private static final int STATE_BODY = 2;
+        private static final int STATE_ESCAPE = 3;
 
-        private int state = STATE_HEADER;
-        private byte[] payload = new byte[1500];
-        private int payloadLen = 0;
+        private int state = STATE_WAIT_AA;
+        private byte[] body = new byte[1500];
+        private int bodyLen = 0;
         private AtomicLong framesParsed;
         private AtomicLong invalidFrames;
         private SpectrumReassembler spectrumReassembler = new SpectrumReassembler();
         private final UdpSender udpSender;
-
-        private final StringBuilder textLineBuf = new StringBuilder(512);
 
         FrameParser(AtomicLong framesParsed, AtomicLong invalidFrames, UdpSender udpSender) {
             this.framesParsed = framesParsed;
@@ -1167,133 +1427,346 @@ public class TcpServerManager {
 
         void parse(int rawByte) {
             switch (state) {
-                case STATE_HEADER:
-                    if (rawByte == 0x7E) {
-                        state = STATE_PAYLOAD;
-                        payloadLen = 0;
-                        textLineBuf.setLength(0);
-                    } else if (rawByte == '\n' || rawByte == '\r') {
-                        if (textLineBuf.length() > 0) {
-                            parseTextLine(textLineBuf.toString().trim());
-                            textLineBuf.setLength(0);
-                        }
-                    } else if (rawByte >= 0x20 && rawByte < 0x7F) {
-                        textLineBuf.append((char) rawByte);
+                case STATE_WAIT_AA:
+                    if (rawByte == 0xAA) state = STATE_WAIT_55;
+                    break;
+                case STATE_WAIT_55:
+                    if (rawByte == 0x55) {
+                        state = STATE_BODY;
+                        bodyLen = 0;
+                    } else if (rawByte == 0xAA) {
+                        state = STATE_WAIT_55;
                     } else {
-                        state = STATE_PAYLOAD;
-                        payloadLen = 0;
-                        if (payloadLen < payload.length) {
-                            payload[payloadLen++] = (byte) rawByte;
-                        }
+                        state = STATE_WAIT_AA;
                     }
                     break;
-                case STATE_PAYLOAD:
+                case STATE_BODY:
                     if (rawByte == 0x7D) {
                         state = STATE_ESCAPE;
                     } else if (rawByte == 0x7E) {
-                        if (payloadLen >= 1) {
+                        int minBody = EegProtocol.ADDR_LEN + EegProtocol.CMD_LEN
+                                + EegProtocol.LEN_LEN + EegProtocol.TS_LEN + EegProtocol.CRC_LEN;
+                        if (bodyLen >= minBody) {
                             parseBinaryFrame();
-                        }
-                        payloadLen = 0;
-                        textLineBuf.setLength(0);
-                        state = STATE_HEADER;
-                    } else {
-                        if (payloadLen < payload.length) {
-                            payload[payloadLen++] = (byte) rawByte;
                         } else {
-                            state = STATE_HEADER;
+                            invalidFrames.incrementAndGet();
+                        }
+                        state = STATE_WAIT_AA;
+                        bodyLen = 0;
+                    } else {
+                        if (bodyLen < body.length) {
+                            body[bodyLen++] = (byte) rawByte;
+                        } else {
+                            invalidFrames.incrementAndGet();
+                            state = STATE_WAIT_AA;
                         }
                     }
                     break;
                 case STATE_ESCAPE:
-                    byte unescaped = (byte) (rawByte ^ 0x20);
-                    if (payloadLen < payload.length) {
-                        payload[payloadLen++] = unescaped;
+                    byte unescaped = (byte) (rawByte ^ EegProtocol.ESCAPE_XOR);
+                    if (bodyLen < body.length) {
+                        body[bodyLen++] = unescaped;
                     } else {
-                        state = STATE_HEADER;
+                        invalidFrames.incrementAndGet();
+                        state = STATE_WAIT_AA;
                     }
-                    state = STATE_PAYLOAD;
+                    state = STATE_BODY;
                     break;
             }
         }
 
         private void parseBinaryFrame() {
-            int cmd = payload[0] & 0xFF;
-            int loadLen = payloadLen - 1;
-            boolean valid = false;
-
-            if (EegChannels.isWaveCmd(cmd)) {
-                if (loadLen == 5) {
-                    valid = true;
-                    int ch = payload[1] & 0xFF;
-                    ByteBuffer buf = ByteBuffer.wrap(payload, 2, 4).order(ByteOrder.LITTLE_ENDIAN);
-                    float val = buf.getFloat();
-                    dispatcher.postWaveData(cmd, ch, val);
-                    SsvepAnalysisManager.getInstance().offerWaveSample(cmd, ch, val);
-                    udpSender.sendWaveData(val, val);
-                } else if (loadLen == 10) {
-                    valid = true;
-                    int chA = payload[1] & 0xFF;
-                    int chB = payload[2] & 0xFF;
-                    ByteBuffer buf = ByteBuffer.wrap(payload, 3, 8).order(ByteOrder.LITTLE_ENDIAN);
-                    float valA = buf.getFloat();
-                    float valB = buf.getFloat();
-                    dispatcher.postWaveData(cmd, chA, valA);
-                    dispatcher.postWaveData(cmd, chB, valB);
-                    SsvepAnalysisManager.getInstance().offerWaveSample(cmd, chA, valA);
-                    SsvepAnalysisManager.getInstance().offerWaveSample(cmd, chB, valB);
-                    udpSender.sendWaveData(valA, valB);
-                } else if (loadLen == 8) {
-                    valid = true;
-                    ByteBuffer buf = ByteBuffer.wrap(payload, 1, 8).order(ByteOrder.LITTLE_ENDIAN);
-                    float valA = buf.getFloat();
-                    float valB = buf.getFloat();
-                    dispatcher.postWaveData(cmd, EegChannels.CH_OZ, valA);
-                    dispatcher.postWaveData(cmd, EegChannels.CH_O1, valB);
-                    SsvepAnalysisManager.getInstance().offerWaveSample(cmd, EegChannels.CH_OZ, valA);
-                    SsvepAnalysisManager.getInstance().offerWaveSample(cmd, EegChannels.CH_O1, valB);
-                    udpSender.sendWaveData(valA, valB);
-                }
-            } else if (cmd == 0x05) {
-                if (loadLen == 18) {
-                    valid = true;
-                    ByteBuffer buf = ByteBuffer.wrap(payload, 1, 16).order(ByteOrder.LITTLE_ENDIAN);
-                    float a0 = buf.getFloat(), a1 = buf.getFloat(), e0 = buf.getFloat(), e1 = buf.getFloat();
-                    int trend = payload[1 + 16] & 0xFF;
-                    int instant = payload[1 + 17] & 0xFF;
-                    dispatcher.postFocusData(a0, a1, e0, e1, trend, instant);
-                }
-            } else if (isSpectrumCmd(cmd)) {
-                if (loadLen >= 2) {
-                    int fragIdx = payload[1] & 0xFF;
-                    int totalFrags = payload[2] & 0xFF;
-                    int dataLen = loadLen - 2;
-                    if (dataLen == 16) {
-                        float[] fullMags = spectrumReassembler.addFragment(cmd, fragIdx, totalFrags,
-                                payload, 3, dataLen);
-                        if (fullMags != null) {
-                            dispatcher.postSpectrumData(cmd, fullMags);
-                        }
-                        valid = true;
-                    } else {
-                        Log.w("FrameRx", "Unexpected fragment data length: " + dataLen);
-                    }
-                } else {
-                    Log.w("FrameRx", "Fragment header missing");
-                }
-            }
-            if (!valid) {
+            int addr = body[0] & 0xFF;
+            int cmd = body[1] & 0xFF;
+            int payloadLen = EegProtocol.readU16LE(body, 2);
+            int fixed = EegProtocol.ADDR_LEN + EegProtocol.CMD_LEN + EegProtocol.LEN_LEN + EegProtocol.TS_LEN;
+            if (bodyLen != fixed + payloadLen + EegProtocol.CRC_LEN) {
                 invalidFrames.incrementAndGet();
-            } else {
+                return;
+            }
+            int calc = EegProtocol.checksum16(body, 0, fixed + payloadLen);
+            int receivedCrc = EegProtocol.readU16LE(body, fixed + payloadLen);
+            if (calc != receivedCrc) {
+                invalidFrames.incrementAndGet();
+                return;
+            }
+            boolean valid = true;
+            switch (cmd) {
+                case EegProtocol.CMD_WAVE: valid = handleWaveFrame(payloadLen); break;
+                case EegProtocol.CMD_SPECTRUM: valid = handleSpectrumFrame(payloadLen); break;
+                case EegProtocol.CMD_FOCUS: valid = handleFocusFrame(payloadLen); break;
+                case EegProtocol.CMD_RESULT_MI: valid = handleResultMiFrame(payloadLen); break;
+                case EegProtocol.CMD_RESULT_SSVEP: valid = handleResultSsvepFrame(payloadLen); break;
+                case EegProtocol.CMD_DIAG: valid = handleDiagFrame(payloadLen); break;
+                case EegProtocol.CMD_DIRCSV: valid = handleDirCsvFrame(payloadLen); break;
+                case EegProtocol.CMD_CSP: valid = handleCspFrame(payloadLen); break;
+                case EegProtocol.CMD_TASK: valid = handleTaskFrame(payloadLen); break;
+                case EegProtocol.CMD_TASK_START:
+                    if (payloadLen >= 1) {
+                        byte side = body[fixed];
+                        sendBinaryToPatientNow(EegProtocol.CMD_TASK_START, new byte[]{side});
+                    } else {
+                        valid = false;
+                    }
+                    break;
+                case EegProtocol.CMD_INTENT: valid = handleIntentFrame(payloadLen); break;
+                case EegProtocol.CMD_RESULT_DIR: valid = handleResultDirFrame(payloadLen); break;
+                case EegProtocol.CMD_ANNOUNCE: valid = handleAnnounceFrame(payloadLen); break;
+                case EegProtocol.CMD_EVENT: valid = handleEventFrame(payloadLen); break;
+                case EegProtocol.CMD_ACK: valid = payloadLen >= 1; break;
+                case EegProtocol.CMD_READY_TRAIN:
+                    dispatcher.postReadyTrain();
+                    sendBinaryToPatientNow(EegProtocol.CMD_READY_TRAIN, null);
+                    break;
+                case EegProtocol.CMD_READY_TEST:
+                    dispatcher.postReadyTest();
+                    sendBinaryToPatientNow(EegProtocol.CMD_READY_TEST, null);
+                    break;
+                case EegProtocol.CMD_TASK_DONE:
+                case EegProtocol.CMD_TASK_STOPPED:
+                    dispatcher.postTaskDone();
+                    sendBinaryToPatientNow(cmd, null);
+                    break;
+                case EegProtocol.CMD_MODE_SET_OK:
+                    if (payloadLen >= 2) {
+                        int mode = body[fixed + 1] & 0xFF;
+                        dispatcher.postModeSetOk(mode);
+                        sendBinaryToPatientNow(EegProtocol.CMD_MODE_SET_OK,
+                                new byte[]{(byte) mode});
+                    } else {
+                        valid = false;
+                    }
+                    break;
+                case EegProtocol.CMD_STATUS:
+                    valid = payloadLen >= 6;
+                    break;
+                default:
+                    Log.w("FrameRx", "Unhandled cmd=0x" + Integer.toHexString(cmd) + " len=" + payloadLen);
+                    valid = false;
+                    break;
+            }
+            if (valid) {
                 framesParsed.incrementAndGet();
+            } else {
+                invalidFrames.incrementAndGet();
             }
         }
 
-        private boolean isSpectrumCmd(int cmd) {
-            if (EegChannels.isSpectrumCmd(cmd)) return true;
-            if (cmd == 0x02 || cmd == 0x03 || cmd == 0x06 ||
-                cmd == 0x07 || cmd == 0x08 || cmd == 0x09) return true;
-            return false;
+        private int bodyPayloadOffset() {
+            return EegProtocol.ADDR_LEN + EegProtocol.CMD_LEN + EegProtocol.LEN_LEN + EegProtocol.TS_LEN;
+        }
+
+        private boolean handleWaveFrame(int payloadLen) {
+            if (payloadLen < EegProtocol.WAVE_PAYLOAD) return false;
+            int type = body[bodyPayloadOffset()] & 0xFF;
+            int uiCmd = EegChannels.waveTypeToCmd(type);
+            ByteBuffer buf = ByteBuffer.wrap(body, bodyPayloadOffset() + 1,
+                    EegProtocol.WAVE_NUM_CH * 4).order(ByteOrder.LITTLE_ENDIAN);
+            float[] vals = new float[EegProtocol.WAVE_NUM_CH];
+            for (int ch = 0; ch < EegProtocol.WAVE_NUM_CH; ch++) {
+                vals[ch] = buf.getFloat();
+                dispatcher.postWaveData(uiCmd, ch, vals[ch]);
+                SsvepAnalysisManager.getInstance().offerWaveSample(uiCmd, ch, vals[ch]);
+            }
+            udpSender.sendWaveData(vals[0], vals[1]);
+            return true;
+        }
+
+        private boolean handleSpectrumFrame(int payloadLen) {
+            if (payloadLen < EegProtocol.SPECTRUM_HEADER + 4) return false;
+            int off = bodyPayloadOffset();
+            int ch = body[off] & 0xFF;
+            int type = body[off + 1] & 0xFF;
+            int fragIdx = body[off + 2] & 0xFF;
+            int totalFrags = body[off + 3] & 0xFF;
+            int dataLen = payloadLen - EegProtocol.SPECTRUM_HEADER;
+            if (dataLen < 4 || dataLen % 4 != 0) return false;
+            int uiCmd = EegChannels.spectrumUiCmd(type, ch);
+            float[] fullMags = spectrumReassembler.addFragment(uiCmd, fragIdx, totalFrags,
+                    body, off + EegProtocol.SPECTRUM_HEADER, dataLen);
+            if (fullMags != null) {
+                dispatcher.postSpectrumData(uiCmd, fullMags);
+            }
+            return true;
+        }
+
+        private boolean handleFocusFrame(int payloadLen) {
+            if (payloadLen < EegProtocol.FOCUS_PAYLOAD) return false;
+            ByteBuffer buf = ByteBuffer.wrap(body, bodyPayloadOffset(), 16).order(ByteOrder.LITTLE_ENDIAN);
+            float a0 = buf.getFloat(), a1 = buf.getFloat(), e0 = buf.getFloat(), e1 = buf.getFloat();
+            int off = bodyPayloadOffset();
+            int trend = body[off + 16] & 0xFF;
+            int instant = body[off + 17] & 0xFF;
+            dispatcher.postFocusData(a0, a1, e0, e1, trend, instant);
+            return true;
+        }
+
+        private boolean handleResultMiFrame(int payloadLen) {
+            if (payloadLen < 16) return false;
+            int off = bodyPayloadOffset();
+            int seq = body[off] & 0xFF;
+            int pred = body[off + 1] & 0xFF;
+            ByteBuffer buf = ByteBuffer.wrap(body, off + 2, 12).order(ByteOrder.LITTLE_ENDIAN);
+            int scoreL = buf.getInt();
+            int scoreR = buf.getInt();
+            int conf = buf.getInt();
+            boolean trained = (body[off + 14] & 0xFF) == 1;
+            InferenceResult result = new InferenceResult();
+            result.setIntent(pred == 0 ? "LEFT" : "RIGHT");
+            result.setScoreLeft(scoreL / 10000f);
+            result.setScoreRight(scoreR / 10000f);
+            result.setConfidence(conf / 10000f);
+            result.setTrained(trained);
+            dispatcher.postInferenceResult(result);
+            byte[] rawPayload = new byte[payloadLen];
+            System.arraycopy(body, off, rawPayload, 0, payloadLen);
+            sendBinaryToPatientNow(EegProtocol.CMD_RESULT_MI, rawPayload);
+            sendAckBinary(seq);
+            return true;
+        }
+
+        private boolean handleResultSsvepFrame(int payloadLen) {
+            if (payloadLen < 38) return false;
+            int off = bodyPayloadOffset();
+            int seq = (int) EegProtocol.readU32LE(body, off);
+            int rawIndex = body[off + 4] & 0xFF;
+            int votedIndex = body[off + 5] & 0xFF;
+            if (rawIndex == 0xFF) rawIndex = -1;
+            if (votedIndex == 0xFF) votedIndex = -1;
+            ByteBuffer buf = ByteBuffer.wrap(body, off + 6, 28).order(ByteOrder.LITTLE_ENDIAN);
+            float ratio = buf.getInt() / 10000f;
+            float best = buf.getInt() / 10000f;
+            float margin = buf.getInt() / 10000f;
+            float[] scores = new float[4];
+            for (int i = 0; i < 4; i++) scores[i] = buf.getInt() / 10000f;
+            int[] votes = new int[4];
+            for (int i = 0; i < 4; i++) votes[i] = body[off + 34 + i] & 0xFF;
+            SsvepAnalysisManager.getInstance().onMcuSsvepResult(
+                    seq, rawIndex, votedIndex, ratio, best, margin, scores, votes);
+            sendAckBinary(seq);
+            return true;
+        }
+
+        private boolean handleDiagFrame(int payloadLen) {
+            if (payloadLen < 1) return false;
+            int off = bodyPayloadOffset();
+            int diagType = body[off] & 0xFF;
+            switch (diagType) {
+                case EegProtocol.DIAG_TYPE_IPCDIAG:
+                    if (payloadLen >= 42) {
+                        IpcDiagInfo diag = new IpcDiagInfo();
+                        ByteBuffer buf = ByteBuffer.wrap(body, off + 1, 24).order(ByteOrder.LITTLE_ENDIAN);
+                        diag.setAck(buf.getInt());
+                        diag.setNotify(buf.getInt());
+                        diag.setOk(buf.getInt());
+                        diag.setBad(buf.getInt());
+                        diag.setV5fhb(buf.getInt());
+                        diag.setEna(buf.getInt());
+                        diag.setSts(buf.getInt());
+                        diag.setIsr(buf.getInt());
+                        dispatcher.postIpcDiag(diag);
+                    }
+                    break;
+                default:
+                    Log.i("FrameRx", "DIAG type=" + diagType + " len=" + payloadLen);
+                    break;
+            }
+            return true;
+        }
+
+        private boolean handleDirCsvFrame(int payloadLen) {
+            if (payloadLen < 1 + 24 * 4) return false;
+            int off = bodyPayloadOffset();
+            int label = body[off] & 0xFF;
+            ByteBuffer buf = ByteBuffer.wrap(body, off + 1, 24 * 4).order(ByteOrder.LITTLE_ENDIAN);
+            EegFrame frame = new EegFrame();
+            frame.setLabel(Integer.toString(label));
+            for (int i = 0; i < EegFrame.FEATURE_COUNT; i++) {
+                frame.setFeature(i, buf.getInt());
+            }
+            dispatcher.postEegFrame(frame);
+            return true;
+        }
+
+        private boolean handleCspFrame(int payloadLen) {
+            if (payloadLen < 1) return false;
+            Log.i("FrameRx", "CSP stream type=" + (body[bodyPayloadOffset()] & 0xFF) + " len=" + payloadLen);
+            return true;
+        }
+
+        private boolean handleTaskFrame(int payloadLen) {
+            if (payloadLen < EegProtocol.TASK_PAYLOAD) return false;
+            int seq = body[bodyPayloadOffset()] & 0xFF;
+            dispatcher.postTaskDone();
+            sendBinaryToPatientNow(EegProtocol.CMD_TASK_DONE, null);
+            sendAckBinary(seq);
+            return true;
+        }
+
+        private boolean handleIntentFrame(int payloadLen) {
+            Log.i("FrameRx", "INTENT len=" + payloadLen);
+            return true;
+        }
+
+        private boolean handleResultDirFrame(int payloadLen) {
+            Log.i("FrameRx", "RESULT_DIR len=" + payloadLen);
+            return true;
+        }
+
+        private boolean handleAnnounceFrame(int payloadLen) {
+            if (payloadLen >= 1) {
+                Log.i("FrameRx", "ANNOUNCE mode=" + (body[bodyPayloadOffset()] & 0xFF));
+            }
+            return true;
+        }
+
+        private boolean handleEventFrame(int payloadLen) {
+            if (payloadLen < 2) return false;
+            int off = bodyPayloadOffset();
+            int seq = body[off] & 0xFF;
+            int eventType = body[off + 1] & 0xFF;
+            switch (eventType) {
+                case EegProtocol.EVENT_POSTURE_STATE: {
+                    if (payloadLen < 7) return false;
+                    String posture = postureName(body[off + 2] & 0xFF);
+                    long turns = EegProtocol.readU32LE(body, off + 3);
+                    dispatcher.postPostureState(posture, (int) turns);
+                    break;
+                }
+                case EegProtocol.EVENT_TURN: {
+                    if (payloadLen < 12) return false;
+                    String from = postureName(body[off + 6] & 0xFF);
+                    String to = postureName(body[off + 7] & 0xFF);
+                    dispatcher.postTurnEvent(from, to);
+                    break;
+                }
+                case EegProtocol.EVENT_FALL: {
+                    if (payloadLen < 15) return false;
+                    dispatcher.postFallEvent();
+                    break;
+                }
+                case EegProtocol.EVENT_NO_TURN: {
+                    if (payloadLen < 6) return false;
+                    long durationMin = EegProtocol.readU32LE(body, off + 2);
+                    dispatcher.postNoTurnAlert(durationMin);
+                    break;
+                }
+                default:
+                    return false;
+            }
+            sendAckBinary(seq);
+            return true;
+        }
+
+        private String postureName(int p) {
+            switch (p) {
+                case 1: return "SUPINE";
+                case 2: return "PRONE";
+                case 3: return "LEFT_SIDE";
+                case 4: return "RIGHT_SIDE";
+                case 5: return "SITTING";
+                default: return "UNKNOWN";
+            }
         }
 
         private int textLineLogCounter = 0;

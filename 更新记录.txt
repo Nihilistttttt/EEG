@@ -1,6 +1,97 @@
 EEG项目更新记录
 ================
-最后更新: 2026-07-31
+最后更新: 2026-08-01
+
+================================================================================
+2026-08-01  二进制协议联调修复（频谱/患者端参数/MI训练超时/MCU编译错误）
+================================================================================
+
+更新内容:
+1. 医生端(doctor_merged) FrameParser 帧完整性阈值修复:
+   - 根因: parse() 用 bodyLen >= FIXED_OVERHEAD(13) 判断帧完整，但 FIXED_OVERHEAD
+     含帧头(2)+尾(1)，而 bodyLen 不含帧头尾。最小 body = addr+cmd+len+ts+crc = 10
+   - 后果: 所有小帧(bodyLen<13)被静默丢弃: READY_TRAIN(11)/MODE_SET_OK(12)/
+     TASK_DONE(11)/TASK_START(11)/PONG(11)，导致 MI 训练等不到 READY_TRAIN 超时;
+     推理因靠 RESULT_MI(大帧)驱动故表面"正常"
+   - 修复: 阈值改为 ADDR_LEN+CMD_LEN+LEN_LEN+TS_LEN+CRC_LEN(10)，与患者端 FrameDecoder 一致
+2. 患者端(patient_merged) DoctorConnector.dispatch 偏移修复:
+   - 根因: 医生端下行帧 payload=[cmd][data...](对齐 MCU Parse_CommandBinary 约定)，
+     但患者端 dispatch() 用 off=fixed 读 data，body[off] 读到 cmd 字节而非 data
+   - 后果: SSVEP_START freqIdx 读成 0x35、TARGET side 读成 0x3E(目标不显示)、
+     PAGE 页码读成 0x34、TASK_START side 读成 0x3A、RESULT_MI/SSVEP_RESULT 偏移错一位
+   - 修复: dispatch() 改为 dataOff=fixed+1、dataLen=payloadLen-1，跳过 payload[0] 的 cmd
+3. MCU 频谱 channel 丢失修复:
+   - 根因: Send_Spectrum() 的 payload[0] 写死 0，DisplayConfig_GetSpectrumCmd() 忽略 ch，
+     导致所有通道频谱映射到 ch=0
+   - 后果: 四通道频谱对比页面只有一个通道有数据; 监测/SSVEP 页面不同 type 频谱叠加闪切换
+   - 修复: Send_Spectrum 增加 ch 参数，payload[0]=ch; eeg_fft.c 三处调用传入 ch
+4. MCU 编译错误修复:
+   - Message_Parser.c:136 get_parser(p) 类型错误(FrameParser* 传入期望 Serial_Port) → 改为 p==&parser_debug
+   - eeg_fft.c volatile int32_t 传入 memcpy 触发 -Wdiscarded-qualifiers → 先读本地非 volatile 变量再 memcpy
+   - eeg_fft.c CmdType 未定义类型(笔误) → 改为 uint8_t
+5. 医生端 FrameParser 补漏:
+   - CMD_TASK_START(0x3A) 上行帧新增处理: 转发患者端 CMD_TASK_START(载荷 side)
+   - handleTaskFrame(CMD_TASK 0x28 任务完成) 新增转发患者端 CMD_TASK_DONE
+
+意义和必要性:
+- 1: MI 训练超时的直接根因，修复后 READY_TRAIN/MODE_SET_OK/TASK_DONE 等小帧正常解析
+- 2: 患者端所有带参数下行命令(SSVEP/TARGET/PAGE/TASK_START/MODE_SET_OK/RESULT)恢复正常
+- 3: 频谱四通道对比和监测/SSVEP 页面频谱正常显示
+- 4: MCU 固件可编译通过，烧录后二进制协议完整工作
+
+================================================================================
+2026-08-01  全链路通信协议统一为二进制（AA55帧），废弃ASCII文本协议
+================================================================================
+
+更新内容:
+1. 协议规范（与MCU eeg_protocol.h/eeg_protocol.c 对齐，已在上次会话完成MCU侧）:
+   - 帧格式: AA55 + addr + cmd + len(2,LE) + ts(4,LE) + payload + crc16 + 7E
+   - 转义: 0xAA/0x55/0x7E/0x7D 前置 0x7D + (byte^0x20)
+   - 下行载荷: [cmd][data...]，payload[0] 即命令字节(MCU Parse_CommandBinary)
+   - 新增 CMD_SSVEP_RESULT=0x42(医生→患者 SSVEP分析结果，36字节载荷)
+2. 医生端(doctor_merged)发送二进制化:
+   - EegProtocol.java 新增 packFrame() 打包(与MCU Pack_Frame转义规则一致)
+   - TcpServerManager.sendToDevice(String) 内部映射文本→二进制帧(DISPLAY_CFG/MODE_SET/
+     MODE_TRAIN/MODE_TEST/TRIAL/STOP/SSVEP_START/STOP/SELFTEST)
+   - 新增 sendBinaryToDevice(cmd,data) / sendAckBinary(seq)（ACK帧=CMD_ACK+seq）
+   - 41002解析侧 FrameParser 已识别AA55帧并分发WAVE/SPECTRUM/FOCUS/RESULT_MI/RESULT_SSVEP/
+     DIAG/DIRCSV/CSP/TASK/INTENT/RESULT_DIR/ANNOUNCE/EVENT/ACK/READY_TRAIN/READY_TEST/
+     TASK_DONE/TASK_STOPPED/MODE_SET_OK/STATUS
+   - 41004患者控制通道全二进制: 握手(PATIENT_READY/CONTROL_READY)、心跳(PING/PONG)、
+     PAGE/SSVEP_START_P/SSVEP_STOP_P/TARGET/TRAIN_STOP/READY_TRAIN/READY_TEST/TASK_START/
+     TASK_DONE/TASK_STOPPED/MODE_SET_OK/SSVEP_RESULT，新增PatientFrameDecoder状态机
+   - FrameParser把READY_TRAIN/READY_TEST/TASK_DONE/TASK_STOPPED/MODE_SET_OK/RESULT_MI
+     同步转发患者端
+   - CommandSender 各命令直接发送二进制帧
+   - TcpForwardManager(Python 41003)改为原始字节透传
+3. 患者端(patient_merged)二进制化:
+   - 新增 EegProtocol.java(packFrame/checksum16/readU16LE等)
+   - DoctorConnector 新增 FrameDecoder 状态机解析41004二进制帧，
+     支持 CONTROL_READY/PING/PAGE/SSVEP_START_P/SSVEP_STOP_P/SSVEP_RESULT/READY_TRAIN/
+     TRAIN_STOP/READY_TEST/TASK_START/TASK_DONE/TASK_STOPPED/MODE_SET_OK/TARGET/RESULT_MI
+   - sendControlMessage 文本→二进制(SSVEP,STIM_STARTED→CMD_SSVEP_STIM_STARTED)
+4. ESP8266(CH32_Waveform.ino):
+   - 移除文本"PING\n"拦截，改为二进制帧状态机识别 PING 命令帧并回二进制 PONG 帧，
+     其余帧整帧透传MCU
+5. Python(train_direction_24d.py):
+   - 新增 parse_binary_log(): 扫描AA55帧，提取 CMD_DIRCSV(0x26) 帧
+     载荷[label u8][24×int32 LE]特征
+
+意义和必要性:
+- 1: 原ASCII文本协议(MODE,SET,.../RESULT,.../DIRCSV,...)与二进制帧混用，
+  文本行含逗号/换行易被TCP分帧或串口误切，且MCU已改Parse_CommandBinary只认二进制
+- 2-3: 医生端/患者端41002/41004全部改为二进制后链路统一，一端解析一处，
+  不再维护两套文本解析器(parseMcuTextResponses/parseTextLine已废弃)
+- 4: ESP8266透传时拦截PING需要知道帧边界，二进制帧状态机更健壮，
+  文本PING(5字节)在流中可能被TCP分段导致拦截失败
+- 5: 串口/TCP日志已是二进制帧，文本DIRCSV_RE不再能解析，需按协议帧提取特征
+
+对整体项目的新理解:
+- 协议统一为"帧"而非"行"后，所有端(MCU/ESP8266/医生/患者/Python)共享同一套
+  打包/解包/转义/CRC规则，跨端调试只需对照 eeg_protocol.h
+- 下行命令以 payload[0] 承载命令字节(帧cmd字段仅为调试可读性)，MCU只解析payload
+- 转发链路由FrameParser集中管理：MCU事件(READY/TASK/MODE_SET_OK/RESULT_MI)在医生端
+  收到后立即以二进制帧转发患者端，患者端无需关心MCU协议细节
 
 ================================================================================
 2026-07-31  SSVEP进度条按MCU投票驱动+运行中切换频率不中断

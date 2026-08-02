@@ -35,7 +35,7 @@ public class GameFragment extends Fragment implements DataListener {
 
         root.findViewById(R.id.btn_back).setOnClickListener(v -> {
             if (getActivity() instanceof MainActivity) {
-                ((MainActivity) getActivity()).switchToPage(0);
+                ((MainActivity) getActivity()).switchToPage(1);
             }
         });
 

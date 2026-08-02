@@ -88,6 +88,7 @@ extern "C" {
 #define ADS1299_CFG1_DATARATE_250SPS   0x96u
 #define ADS1299_CFG2_INT_TEST_OFF      0xC0u
 #define ADS1299_CFG3_BIAS_REF_INT      0xECu
+#define ADS1299_CFG3_BIAS_LOFF_SENS    0xEEu
 #define ADS1299_CFG4_SINGLE_SHOT       0x02u
 #define ADS1299_BIAS_SENSP_ALL       0xFFu
 #define ADS1299_BIAS_SENSN_ALL       0xFFu
@@ -110,6 +111,9 @@ extern "C" {
 #define ADS1299_IMPEDANCE_N_FRAMES    128u
 #define ADS1299_IMPEDANCE_I_NA        6.0f
 
+#define ADS1299_LOFF_COMP_ENABLE      0x02u
+#define ADS1299_BIAS_LOFF_SENS_BIT    0x02u
+
 /*============================ ���⺯������ ============================*/
 uint8_t   ADS1299_Init(void);
 void ADS1299_ParseRawFrame(const uint8_t *frame_buf, uint32_t *status, int32_t ch_data[ADS1299_CHANNEL_NUM]);
@@ -120,6 +124,10 @@ uint8_t ring_buffer_get_frame(uint8_t *dest);
 void ADS1299_EnterImpedanceMode(void);
 void ADS1299_ExitImpedanceMode(void);
 void ADS1299_MeasureImpedance(float out_kohm[ADS1299_CHANNEL_NUM]);
+
+void ADS1299_LeadOffInit(void);
+uint8_t ADS1299_GetLeadOffMaskFromFrame(const uint8_t *frame_buf);
+uint8_t ADS1299_GetBiasStatus(void);
 
 #ifdef __cplusplus
 }

@@ -236,11 +236,20 @@ public class DataDispatcher {
         });
     }
 
-    public void postImpedanceResult(float[] kohm) {
+    public void postImpedanceResult(float[] kohm, boolean biasConnected) {
         mainHandler.post(() -> {
             for (DataListener l : listeners) {
-                try { l.onImpedanceResult(kohm); }
+                try { l.onImpedanceResult(kohm, biasConnected); }
                 catch (Exception e) { Log.e(TAG, "onImpedanceResult error", e); }
+            }
+        });
+    }
+
+    public void postLeadOffStatus(int leadOffMask, boolean biasConnected) {
+        mainHandler.post(() -> {
+            for (DataListener l : listeners) {
+                try { l.onLeadOffStatus(leadOffMask, biasConnected); }
+                catch (Exception e) { Log.e(TAG, "onLeadOffStatus error", e); }
             }
         });
     }

@@ -3,6 +3,37 @@ EEG项目更新记录
 最后更新: 2026-08-02
 
 ================================================================================
+2026-08-02  DC导联断线检测+BIAS参考检测+主页卡片布局修复
+================================================================================
+
+更新内容:
+1. DC导联断线检测(每帧status实时):
+   - ADS1299.c: LeadOffInit配置LOFF(DC 6nA, COMP_TH 95%)+LOFF_SENSP/N全开+CONFIG4使能比较器
+   - 新增ADS1299_GetLeadOffMaskFromFrame(frame): 从每帧24bit status提取LOFF_STATP/STATN(P/N任一断线即断)
+   - Signal_Analysis.c主循环每250帧(~1s)上报CMD_LEAD_OFF_STATUS(0x45): [lead_off_mask, bias]
+2. BIAS参考电极检测:
+   - ADS1299.c: 抽出ADS1299_RecheckBias()—临时关BIAS放大器(PD_BIAS=0)读BIAS_STAT→恢复→缓存s_bias_connected
+   - eeg_cmd_parser.c: CMD_IMPEDANCE_CHECK测完8通道阻抗后调RecheckBias()，结果帧32→33字节(末尾追加bias)
+   - 点"检测"时实时重新检测参考
+3. Android侧:
+   - EegProtocol.java: 新增CMD_LEAD_OFF_STATUS(0x45)
+   - DataListener/DataDispatcher/TcpServerManager: onLeadOffStatus回调+handleLeadOffFrame
+   - MainActivity标题栏: 靠左新增"导联正常/断:OZ O1"(绿/红)；BIAS状态移至阻抗检测页面
+   - ImpedanceFragment: 状态栏新增"参考正常/参考断开"(绿/红)，检测结果帧33字节解析
+   - onImpedanceResult签名扩展为(float[] kohm, boolean biasConnected)
+4. DISPLAY_CFG 8通道修复(频谱发送错乱根因):
+   - Message_Parser.h: DISPLAY_NUM_CH 4→8 (此前声称修改未生效导致配置数组仅4槽)
+   - DisplayConfig_SetDefaults扩展到8槽位(wave_ch[i]=i, FILT, spec NONE)
+   - eeg_cmd_parser.c: CMD_DISPLAY_CFG改为循环解析24字节(每槽3字节)
+5. 主页卡片布局修复:
+   - MI训练移回第三行(原误挤入第二行导致4卡一行)
+   - 全部10张卡统一左右4dp边距，三列对齐
+   - 分布: Row1(阻抗/脑电/专注度) Row2(波形/频谱/SSVEP) Row3(MI/方向/姿态) Row4(系统配置)
+
+说明: Android编译通过(BUILD SUCCESSFUL)；MCU需Keil编译验证(CMD_LEAD_OFF_STATUS已补0x45)
+================================================================================
+
+================================================================================
 2026-08-02  电极阻抗检测页面(AC 7.8Hz Goertzel)
 ================================================================================
 

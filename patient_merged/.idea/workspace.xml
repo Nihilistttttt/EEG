@@ -9,13 +9,23 @@
   <component name="ChangeListManager">
     <list default="true" id="0b740863-50a5-4d8e-af23-d41e8bac614c" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/EEG_Protocol/eeg_cmd_parser.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/EEG_Protocol/eeg_cmd_parser.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../doctor_merged/.idea/deploymentTargetDropDown.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/ADS1299.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/ADS1299.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/ADS1299.h" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/ADS1299.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/Signal_Analysis.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/Signal_Analysis.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Protocol/Message_Parser.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Protocol/Message_Parser.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Protocol/Message_Parser.h" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Protocol/Message_Parser.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/DataDispatcher.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/DataDispatcher.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/DataListener.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/DataListener.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/EegProtocol.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/EegProtocol.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/GameFragment.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/GameFragment.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/HomeActivity.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/HomeActivity.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/ImpedanceFragment.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/ImpedanceFragment.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/MainActivity.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/MainActivity.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/MainFragment.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/MainFragment.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/TcpServerManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/TcpServerManager.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/deploymentTargetDropDown.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/res/layout/activity_home.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/res/layout/activity_home.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/res/layout/activity_main.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/res/layout/activity_main.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/res/layout/fragment_impedance.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/res/layout/fragment_impedance.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

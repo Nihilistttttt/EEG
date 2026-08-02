@@ -24,15 +24,16 @@ public class HomeActivity extends AppCompatActivity implements TcpServerManager.
         TcpServerManager.getInstance().addConnectionListener(this);
         TrainingModeCoordinator.getInstance().activate(TrainingModeCoordinator.Mode.NONE);
 
-        findViewById(R.id.card_realtime).setOnClickListener(v -> launchMonitor(0));
-        findViewById(R.id.card_focus).setOnClickListener(v -> launchMonitor(1));
-        findViewById(R.id.card_wave_compare).setOnClickListener(v -> launchMonitor(2));
-        findViewById(R.id.card_spectrum_compare).setOnClickListener(v -> launchMonitor(3));
-        findViewById(R.id.card_training).setOnClickListener(v -> launchMonitor(4));
-        findViewById(R.id.card_inference).setOnClickListener(v -> launchMonitor(6));
-        findViewById(R.id.card_mi_train).setOnClickListener(v -> launchMonitor(5));
-        findViewById(R.id.card_posture).setOnClickListener(v -> launchMonitor(7));
-        findViewById(R.id.card_system_config).setOnClickListener(v -> launchMonitor(8));
+        findViewById(R.id.card_impedance).setOnClickListener(v -> launchMonitor(0));
+        findViewById(R.id.card_realtime).setOnClickListener(v -> launchMonitor(1));
+        findViewById(R.id.card_focus).setOnClickListener(v -> launchMonitor(2));
+        findViewById(R.id.card_wave_compare).setOnClickListener(v -> launchMonitor(3));
+        findViewById(R.id.card_spectrum_compare).setOnClickListener(v -> launchMonitor(4));
+        findViewById(R.id.card_training).setOnClickListener(v -> launchMonitor(5));
+        findViewById(R.id.card_inference).setOnClickListener(v -> launchMonitor(7));
+        findViewById(R.id.card_mi_train).setOnClickListener(v -> launchMonitor(6));
+        findViewById(R.id.card_posture).setOnClickListener(v -> launchMonitor(8));
+        findViewById(R.id.card_system_config).setOnClickListener(v -> launchMonitor(9));
     }
 
     @Override

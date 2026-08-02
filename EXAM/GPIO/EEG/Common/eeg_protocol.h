@@ -81,7 +81,8 @@ typedef enum {
     CMD_SSVEP_STIM_STARTED = 0x41,
     CMD_SSVEP_RESULT       = 0x42,
     CMD_IMPEDANCE_CHECK    = 0x43,
-    CMD_IMPEDANCE_RESULT   = 0x44
+    CMD_IMPEDANCE_RESULT   = 0x44,
+    CMD_LEAD_OFF_STATUS    = 0x45
 } ProtoCmd_t;
 
 typedef enum {

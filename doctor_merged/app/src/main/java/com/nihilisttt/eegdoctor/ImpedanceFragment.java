@@ -14,6 +14,7 @@ public class ImpedanceFragment extends Fragment implements DataListener {
 
     private ImpedanceBarView barView;
     private TextView tvStatus;
+    private TextView tvBias;
     private View btnCheck;
     private boolean checking = false;
 
@@ -25,6 +26,7 @@ public class ImpedanceFragment extends Fragment implements DataListener {
         View root = inflater.inflate(R.layout.fragment_impedance, container, false);
         barView = root.findViewById(R.id.impedance_bar_view);
         tvStatus = root.findViewById(R.id.tv_imp_status);
+        tvBias = root.findViewById(R.id.tv_imp_bias);
         btnCheck = root.findViewById(R.id.btn_imp_check);
         btnCheck.setOnClickListener(v -> startCheck());
         return root;
@@ -53,7 +55,7 @@ public class ImpedanceFragment extends Fragment implements DataListener {
     }
 
     @Override
-    public void onImpedanceResult(float[] kohm) {
+    public void onImpedanceResult(float[] kohm, boolean biasConnected) {
         if (getActivity() == null) return;
         getActivity().runOnUiThread(() -> {
             barView.setImpedance(kohm);
@@ -62,6 +64,21 @@ public class ImpedanceFragment extends Fragment implements DataListener {
             int ok = 0;
             for (float v : kohm) if (v <= 10.0f) ok++;
             tvStatus.setText(ok + "/8 合格");
+            tvBias.setText(biasConnected ? "参考正常" : "参考断开");
+            tvBias.setTextColor(getResources().getColor(
+                    biasConnected ? R.color.accent_success : R.color.accent_error,
+                    getActivity().getTheme()));
+        });
+    }
+
+    @Override
+    public void onLeadOffStatus(int leadOffMask, boolean biasConnected) {
+        if (getActivity() == null || tvBias == null) return;
+        getActivity().runOnUiThread(() -> {
+            tvBias.setText(biasConnected ? "参考正常" : "参考断开");
+            tvBias.setTextColor(getResources().getColor(
+                    biasConnected ? R.color.accent_success : R.color.accent_error,
+                    getActivity().getTheme()));
         });
     }
 

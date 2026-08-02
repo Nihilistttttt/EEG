@@ -269,25 +269,21 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         break;
 
     case CMD_DISPLAY_CFG:
-        if (dlen >= 12) {
-            if (data[0] < DISPLAY_MAX_CH) g_display_config.wave_ch[0] = data[0];
-            g_display_config.wave_type[0] = data[1];
-            if (data[2] < DISPLAY_MAX_CH) g_display_config.wave_ch[1] = data[2];
-            g_display_config.wave_type[1] = data[3];
-            g_display_config.spec_type[0] = data[4];
-            g_display_config.spec_type[1] = data[5];
-            if (dlen >= 12) {
-                if (data[6] < DISPLAY_MAX_CH) g_display_config.wave_ch[2] = data[6];
-                g_display_config.wave_type[2] = data[7];
-                if (data[8] < DISPLAY_MAX_CH) g_display_config.wave_ch[3] = data[8];
-                g_display_config.wave_type[3] = data[9];
-                g_display_config.spec_type[2] = data[10];
-                g_display_config.spec_type[3] = data[11];
+        {
+            uint8_t n_slots = (dlen / 3u);
+            uint8_t s;
+            if (n_slots > DISPLAY_NUM_CH) n_slots = DISPLAY_NUM_CH;
+            for (s = 0; s < n_slots; s++) {
+                uint8_t wch = data[s * 3];
+                if (wch < DISPLAY_MAX_CH) g_display_config.wave_ch[s] = wch;
+                g_display_config.wave_type[s] = data[s * 3 + 1];
+                g_display_config.spec_type[s] = data[s * 3 + 2];
             }
             EEG_FFT_ResetSendState();
-            uint8_t resp[12];
-            memcpy(resp, data, 12);
-            Send_Resp(CMD_DISPLAY_CFG, resp, 12);
+            uint8_t resp[24];
+            uint16_t resp_len = (uint16_t)(n_slots * 3u);
+            memcpy(resp, data, resp_len);
+            Send_Resp(CMD_DISPLAY_CFG, resp, resp_len);
         }
         break;
 
@@ -344,7 +340,7 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
             ADS1299_MeasureImpedance(z_kohm);
             ADS1299_ExitImpedanceMode();
 
-            uint8_t resp[32];
+            uint8_t resp[33];
             for (int c = 0; c < 8; c++) {
                 int32_t val_i32 = (int32_t)(z_kohm[c] * 100.0f + 0.5f);
                 if (val_i32 < 0) val_i32 = 0;
@@ -353,7 +349,8 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
                 resp[c * 4 + 2] = (uint8_t)((val_i32 >> 16) & 0xFF);
                 resp[c * 4 + 3] = (uint8_t)((val_i32 >> 24) & 0xFF);
             }
-            Send_Resp(CMD_IMPEDANCE_RESULT, resp, 32);
+            resp[32] = ADS1299_RecheckBias();
+            Send_Resp(CMD_IMPEDANCE_RESULT, resp, 33);
         }
         break;
 

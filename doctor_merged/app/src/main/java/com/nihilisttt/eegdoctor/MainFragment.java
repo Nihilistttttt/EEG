@@ -72,7 +72,7 @@ public class MainFragment extends Fragment implements DataListener {
 
         btnCarGame.setOnClickListener(v -> {
             if (getActivity() instanceof MainActivity) {
-                ((MainActivity) requireActivity()).switchToPage(3);
+                ((MainActivity) requireActivity()).switchToPage(4);
             }
         });
 

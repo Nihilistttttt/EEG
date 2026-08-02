@@ -1399,6 +1399,7 @@ public class TcpServerManager {
                 case EegProtocol.CMD_ANNOUNCE: valid = handleAnnounceFrame(payloadLen); break;
                 case EegProtocol.CMD_EVENT: valid = handleEventFrame(payloadLen); break;
                 case EegProtocol.CMD_IMPEDANCE_RESULT: valid = handleImpedanceFrame(payloadLen); break;
+                case EegProtocol.CMD_LEAD_OFF_STATUS: valid = handleLeadOffFrame(payloadLen); break;
                 case EegProtocol.CMD_ACK: valid = payloadLen >= 1; break;
                 case EegProtocol.CMD_READY_TRAIN:
                     dispatcher.postReadyTrain();
@@ -1498,7 +1499,17 @@ public class TcpServerManager {
                       | ((body[off + i * 4 + 3] & 0xFF) << 24);
                 kohm[i] = v / 100.0f;
             }
-            dispatcher.postImpedanceResult(kohm);
+            boolean biasConnected = payloadLen >= 33 && body[off + 32] == 1;
+            dispatcher.postImpedanceResult(kohm, biasConnected);
+            return true;
+        }
+
+        private boolean handleLeadOffFrame(int payloadLen) {
+            if (payloadLen < 2) return false;
+            int off = bodyPayloadOffset();
+            int mask = body[off] & 0xFF;
+            int bias = body[off + 1] & 0xFF;
+            dispatcher.postLeadOffStatus(mask, bias == 1);
             return true;
         }
 

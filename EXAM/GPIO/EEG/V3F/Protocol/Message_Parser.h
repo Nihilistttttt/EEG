@@ -8,7 +8,7 @@
 
 #define TX_MESSAGE_BUF_SIZE    (2 * 1032 + 64)
 
-#define DISPLAY_NUM_CH       4
+#define DISPLAY_NUM_CH       8
 #define DISPLAY_MAX_CH       8
 
 typedef enum {

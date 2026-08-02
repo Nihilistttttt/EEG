@@ -66,6 +66,15 @@ public class MonitorFragment extends Fragment implements DataListener {
     private int[] specType = {0, 0};
     private int[] waveMode = {0, 0};
 
+    private boolean is8ChMode = false;
+    private EegStripView stripView;
+    private View btn8ch;
+    private View btnDisplayCfg;
+    private View tvSpecLabel;
+    private View tvHzLabel;
+    private int current8ChWaveType = EegChannels.WAVE_TYPE_FILT;
+    private float saved2ChXMax = DEFAULT_X_MAX;
+
 
     public MonitorFragment() {
         this.channels = ChannelConfig.getDefaultDualChannel();
@@ -130,13 +139,14 @@ public class MonitorFragment extends Fragment implements DataListener {
             updateConnectionStatus();
         });
 
-        root.findViewById(R.id.btn_set_ip).setOnClickListener(v -> showWifiConfigDialog());
-        root.findViewById(R.id.btn_display_cfg).setOnClickListener(v -> showDisplayConfigDialog());
-        root.findViewById(R.id.btn_training).setOnClickListener(v -> {
-            if (getActivity() instanceof MainActivity) {
-                ((MainActivity) requireActivity()).switchToPage(4);
-            }
-        });
+        btnDisplayCfg = root.findViewById(R.id.btn_display_cfg);
+        btnDisplayCfg.setOnClickListener(v -> showDisplayConfigDialog());
+        tvSpecLabel = root.findViewById(R.id.tv_spec_label);
+        tvHzLabel = root.findViewById(R.id.tv_hz_label);
+
+        stripView = root.findViewById(R.id.eeg_strip_view);
+        btn8ch = root.findViewById(R.id.btn_8ch);
+        btn8ch.setOnClickListener(v -> toggle8ChMode());
 
         connectionListener = new TcpServerManager.ConnectionListener() {
             @Override
@@ -347,6 +357,10 @@ public class MonitorFragment extends Fragment implements DataListener {
             wv.setYRange(halfRange);
             wv.setUnit(unit);
         }
+        if (is8ChMode) {
+            stripView.setYRange(halfRange);
+
+        }
     }
 
     private void showWaveRangeDialog() {
@@ -390,6 +404,7 @@ public class MonitorFragment extends Fragment implements DataListener {
 
     private void applyXRange(float xMax) {
         for (WaveformView wv : waveformViews) { wv.setXMax(xMax); }
+        if (is8ChMode) stripView.setXMax(xMax);
         tvXRange.setText(String.format("%.3f s", xMax));
     }
 
@@ -642,10 +657,21 @@ public class MonitorFragment extends Fragment implements DataListener {
     }
 
     private void sendDisplayConfig() {
-        byte[] data = EegChannels.buildDisplayConfigData(
-                waveCh[0], waveType[0], waveCh[1], waveType[1], specType[0], specType[1],
-                0, EegChannels.WAVE_TYPE_NONE, 0, EegChannels.WAVE_TYPE_NONE,
-                EegChannels.SPEC_TYPE_NONE, EegChannels.SPEC_TYPE_NONE);
+        byte[] data;
+        if (is8ChMode) {
+            data = EegChannels.build8ChannelDisplayConfigData(
+                    current8ChWaveType, EegChannels.SPEC_TYPE_NONE);
+        } else {
+            int[] p = new int[24];
+            p[0] = waveCh[0]; p[1] = waveType[0]; p[2] = specType[0];
+            p[3] = waveCh[1]; p[4] = waveType[1]; p[5] = specType[1];
+            for (int i = 2; i < 8; i++) {
+                p[i * 3] = 0;
+                p[i * 3 + 1] = EegChannels.WAVE_TYPE_NONE;
+                p[i * 3 + 2] = EegChannels.SPEC_TYPE_NONE;
+            }
+            data = EegChannels.buildDisplayConfigDataFromArray(p);
+        }
         TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_DISPLAY_CFG, data);
         Log.i("DisplayConfig", "Sent DISPLAY_CFG binary");
     }
@@ -802,6 +828,12 @@ public class MonitorFragment extends Fragment implements DataListener {
     @Override
     public void onWaveData(int cmd, int ch, float val) {
         if (isPaused) return;
+        if (is8ChMode) {
+            if (EegChannels.isWaveCmd(cmd) && cmd == EegChannels.waveTypeToCmd(current8ChWaveType)) {
+                stripView.addPoint(ch, val);
+            }
+            return;
+        }
         if (EegChannels.isWaveCmd(cmd)) {
             for (int i = 0; i < 2; i++) {
                 if (ch == waveCh[i] && cmd == waveTypeToCmd(waveType[i])
@@ -814,6 +846,11 @@ public class MonitorFragment extends Fragment implements DataListener {
     @Override
     public void onEegFrame(EegFrame frame) {
         if (isPaused) return;
+        if (is8ChMode) {
+            float[] ch = frame.getChannels();
+            for (int i = 0; i < ch.length; i++) stripView.addPoint(i, ch[i]);
+            return;
+        }
         if (waveformViews.isEmpty()) return;
         float[] ch = frame.getChannels();
         for (int i = 0; i < waveformViews.size() && i < ch.length; i++) {
@@ -823,7 +860,7 @@ public class MonitorFragment extends Fragment implements DataListener {
 
     @Override
     public void onSpectrumData(int cmd, float[] mags) {
-        if (isPaused) return;
+        if (isPaused || is8ChMode) return;
         int ch = EegChannels.spectrumCmdToChannel(cmd);
         int specTypeIdx = EegChannels.spectrumCmdToType(cmd);
         if (ch < 0 || specTypeIdx < 0) return;
@@ -837,6 +874,68 @@ public class MonitorFragment extends Fragment implements DataListener {
     @Override
     public void onFocusData(float attn0, float attn1, float ema0, float ema1,
                             int trend, int instant) {
+    }
+
+    private void toggle8ChMode() {
+        is8ChMode = !is8ChMode;
+        LinearLayout channelContainer = requireView().findViewById(R.id.channel_container);
+        if (is8ChMode) {
+            channelContainer.setVisibility(View.GONE);
+            stripView.setVisibility(View.VISIBLE);
+            int step = SettingsStore.getWaveStep(requireContext(), DEFAULT_STEP);
+            String stepUnit = SettingsStore.getWaveStepUnit(requireContext(), DEFAULT_STEP_UNIT);
+            int labelCount = SettingsStore.getWaveLabelCount(requireContext(), DEFAULT_LABEL_COUNT);
+            float stepVolt;
+            switch (stepUnit) {
+                case "uV": stepVolt = step / 1_000_000f; break;
+                case "mV": stepVolt = step / 1000f; break;
+                default:   stepVolt = step; break;
+            }
+            stripView.setYRange(stepVolt * ((labelCount - 1) / 2.0f));
+
+            saved2ChXMax = SettingsStore.getWaveXMax(requireContext(), DEFAULT_X_MAX);
+            float x8 = saved2ChXMax * 2f;
+            stripView.setXMax(x8);
+            tvXRange.setText(String.format("%.3f s", x8));
+
+            btnDisplayCfg.setOnClickListener(v -> toggle8ChWaveType());
+            if (btnDisplayCfg instanceof TextView) ((TextView) btnDisplayCfg).setText(
+                    current8ChWaveType == EegChannels.WAVE_TYPE_FILT ? "滤波" : "基线");
+
+            tvSpecLabel.setVisibility(View.GONE);
+            tvSpectrumRange.setVisibility(View.GONE);
+            tvHzLabel.setVisibility(View.GONE);
+            tvSpecXRange.setVisibility(View.GONE);
+            if (btn8ch instanceof TextView) ((TextView) btn8ch).setText("2CH");
+            sendDisplayConfig();
+        } else {
+            channelContainer.setVisibility(View.VISIBLE);
+            stripView.setVisibility(View.GONE);
+
+            applyXRange(saved2ChXMax);
+
+            btnDisplayCfg.setOnClickListener(v -> showDisplayConfigDialog());
+            if (btnDisplayCfg instanceof TextView) ((TextView) btnDisplayCfg).setText("通道");
+
+            tvSpecLabel.setVisibility(View.VISIBLE);
+            tvSpectrumRange.setVisibility(View.VISIBLE);
+            tvHzLabel.setVisibility(View.VISIBLE);
+            tvSpecXRange.setVisibility(View.VISIBLE);
+            if (btn8ch instanceof TextView) ((TextView) btn8ch).setText("8CH");
+            sendDisplayConfig();
+        }
+    }
+
+    private void toggle8ChWaveType() {
+        if (current8ChWaveType == EegChannels.WAVE_TYPE_FILT) {
+            current8ChWaveType = EegChannels.WAVE_TYPE_BASELINE;
+            if (btnDisplayCfg instanceof TextView) ((TextView) btnDisplayCfg).setText("基线");
+        } else {
+            current8ChWaveType = EegChannels.WAVE_TYPE_FILT;
+            if (btnDisplayCfg instanceof TextView) ((TextView) btnDisplayCfg).setText("滤波");
+        }
+        stripView.clear();
+        sendDisplayConfig();
     }
 
     private void updateConnectionStatus() {

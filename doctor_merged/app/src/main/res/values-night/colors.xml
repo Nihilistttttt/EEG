@@ -12,6 +12,12 @@
 
     <color name="wave_ch0">#4FC3F7</color>
     <color name="wave_ch1">#FF8A65</color>
+    <color name="wave_ch2">#81C784</color>
+    <color name="wave_ch3">#FFD54F</color>
+    <color name="wave_ch4">#7C4DFF</color>
+    <color name="wave_ch5">#4DD0E1</color>
+    <color name="wave_ch6">#F06292</color>
+    <color name="wave_ch7">#A1887F</color>
     <color name="wave_filtered">#81C784</color>
     <color name="spectrum_bar">#7C4DFF</color>
     <color name="spectrum_bar_end">#1A73E8</color>

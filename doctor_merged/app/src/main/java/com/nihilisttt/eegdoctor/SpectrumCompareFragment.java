@@ -375,9 +375,17 @@ public class SpectrumCompareFragment extends Fragment implements DataListener {
     }
 
     private void sendDisplayConfig() {
-        byte[] data = EegChannels.buildDisplayConfigData(
-                ch[0], EegChannels.WAVE_TYPE_RAW, ch[1], EegChannels.WAVE_TYPE_RAW, specType[0], specType[1],
-                ch[2], EegChannels.WAVE_TYPE_RAW, ch[3], EegChannels.WAVE_TYPE_RAW, specType[2], specType[3]);
+        int[] p = new int[24];
+        p[0] = ch[0]; p[1] = EegChannels.WAVE_TYPE_RAW; p[2] = specType[0];
+        p[3] = ch[1]; p[4] = EegChannels.WAVE_TYPE_RAW; p[5] = specType[1];
+        p[6] = ch[2]; p[7] = EegChannels.WAVE_TYPE_RAW; p[8] = specType[2];
+        p[9] = ch[3]; p[10] = EegChannels.WAVE_TYPE_RAW; p[11] = specType[3];
+        for (int i = 4; i < 8; i++) {
+            p[i * 3] = 0;
+            p[i * 3 + 1] = EegChannels.WAVE_TYPE_NONE;
+            p[i * 3 + 2] = EegChannels.SPEC_TYPE_NONE;
+        }
+        byte[] data = EegChannels.buildDisplayConfigDataFromArray(p);
         TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_DISPLAY_CFG, data);
         Log.d("SpectrumCompare", "Sent DISPLAY_CFG binary");
     }

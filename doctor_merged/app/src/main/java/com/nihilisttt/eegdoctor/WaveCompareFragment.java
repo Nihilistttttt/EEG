@@ -308,11 +308,17 @@ public class WaveCompareFragment extends Fragment implements DataListener {
     }
 
     private void sendDisplayConfig() {
-        byte[] data = EegChannels.buildDisplayConfigData(
-                ch[0], waveType[0], ch[1], waveType[1],
-                EegChannels.SPEC_TYPE_NONE, EegChannels.SPEC_TYPE_NONE,
-                ch[2], waveType[2], ch[3], waveType[3],
-                EegChannels.SPEC_TYPE_NONE, EegChannels.SPEC_TYPE_NONE);
+        int[] p = new int[24];
+        p[0] = ch[0]; p[1] = waveType[0]; p[2] = EegChannels.SPEC_TYPE_NONE;
+        p[3] = ch[1]; p[4] = waveType[1]; p[5] = EegChannels.SPEC_TYPE_NONE;
+        p[6] = ch[2]; p[7] = waveType[2]; p[8] = EegChannels.SPEC_TYPE_NONE;
+        p[9] = ch[3]; p[10] = waveType[3]; p[11] = EegChannels.SPEC_TYPE_NONE;
+        for (int i = 4; i < 8; i++) {
+            p[i * 3] = 0;
+            p[i * 3 + 1] = EegChannels.WAVE_TYPE_NONE;
+            p[i * 3 + 2] = EegChannels.SPEC_TYPE_NONE;
+        }
+        byte[] data = EegChannels.buildDisplayConfigDataFromArray(p);
         TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_DISPLAY_CFG, data);
         Log.d("WaveCompare", "Sent DISPLAY_CFG binary");
     }

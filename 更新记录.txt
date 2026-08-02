@@ -3,6 +3,47 @@ EEG项目更新记录
 最后更新: 2026-08-02
 
 ================================================================================
+2026-08-02  脑电监测8CH模式+EegStripView+DISPLAY_CFG 8通道适配
+================================================================================
+
+更新内容:
+1. 脑电监测页面新增8CH模式切换(8CH/2CH按钮):
+   - EegStripView: 单自定义View画8通道在同一Canvas，经典脑电图风格
+   - 8通道纵向堆叠，通道间共享空间(波形溢出15%入相邻区域)
+   - 首尾通道(OZ/C4)上下各留半个通道高边距，波形不贴边
+   - 全局统一Y轴缩放，复用脑电监测页面已有步长×标签数控件
+   - 双指缩放调节Y轴
+   - 波形类型只保留滤波(FILT)和基线修正(BASELINE)，8CH下"通道"按钮变为切换
+   - 左侧标注电极名(OZ/O1/F3/F4/CP3/CP4/C3/C4)
+   - 通道边界虚线+全局递增标尺(从底0μV到顶递增)，观察整体波形
+   - 8CH下X轴时间范围自动设为2CH的两倍，回到2CH自动还原
+   - 8CH下隐藏频谱范围控件/UDP/训练按钮
+2. UDP/训练按钮从脑电监测页面永久移除(两种模式均不需要)
+3. DISPLAY_CFG协议从4通道12字节扩展到8通道24字节:
+   - EegChannels.buildDisplayConfigData改为varargs(最多24参数)
+   - 新增build8ChannelDisplayConfigData(waveType,specType)
+   - buildAllNoneDisplayConfigData扩展到8槽位全NONE
+   - MonitorFragment/WaveCompareFragment/SpectrumCompareFragment/SsvepTrainingFragment
+     的sendDisplayConfig适配24字节
+4. 8通道颜色资源补充: colors.xml + values-night/colors.xml 新增wave_ch2~ch7
+
+说明: Android编译通过(BUILD SUCCESSFUL)
+   - 8通道各自维护环形缓冲区(5000点)，单次onDraw画完8通道，Path连线，30fps节流
+   - 布局: fragment_eeg8ch.xml (顶部控件栏 + EegStripView占满剩余空间)
+2. DISPLAY_CFG协议从4通道12字节扩展到8通道24字节:
+   - EegChannels.buildDisplayConfigData改为varargs(最多24参数)
+   - 新增build8ChannelDisplayConfigData(waveType,specType)构建8槽位配置
+   - buildAllNoneDisplayConfigData扩展到8槽位全NONE
+   - MonitorFragment/WaveCompareFragment/SpectrumCompareFragment/SsvepTrainingFragment
+     的sendDisplayConfig适配24字节(已用槽位填实际值，剩余填NONE)
+3. 8通道颜色资源补充:
+   - colors.xml + values-night/colors.xml 新增wave_ch2~ch7
+4. MainActivity注册新页面: 末尾追加"8通道脑电"(position 9)
+
+说明: Android编译通过(BUILD SUCCESSFUL)；MCU侧DISPLAY_NUM_CH已改为8(前次会话)，
+      需Keil编译验证。
+
+================================================================================
 2026-08-02  清除文本协议死代码+MI采集进度条统一15秒
 ================================================================================
 

@@ -51,6 +51,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         fragments.add(new PostureFragment());
         fragments.add(new ConfigFragment());
 
+
         viewPager.setAdapter(new FragmentStateAdapter(this) {
             @NonNull
             @Override

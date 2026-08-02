@@ -113,27 +113,35 @@ public final class EegChannels {
         return base + ch;
     }
 
-    public static String buildAllNoneDisplayConfig() {
-        return String.format("DISPLAY_CFG,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
-                0, WAVE_TYPE_NONE, 0, WAVE_TYPE_NONE, SPEC_TYPE_NONE, SPEC_TYPE_NONE,
-                0, WAVE_TYPE_NONE, 0, WAVE_TYPE_NONE, SPEC_TYPE_NONE, SPEC_TYPE_NONE);
+    public static byte[] buildDisplayConfigData(int... params) {
+        return buildDisplayConfigDataFromArray(params);
     }
 
-    /** DISPLAY_CFG 载荷（12 参数，不含 cmd 字节）。 */
-    public static byte[] buildDisplayConfigData(int p1, int p2, int p3, int p4,
-                                                int p5, int p6, int p7, int p8,
-                                                int p9, int p10, int p11, int p12) {
-        return new byte[] {
-                (byte) p1, (byte) p2, (byte) p3, (byte) p4,
-                (byte) p5, (byte) p6, (byte) p7, (byte) p8,
-                (byte) p9, (byte) p10, (byte) p11, (byte) p12
-        };
+    public static byte[] buildDisplayConfigDataFromArray(int[] params) {
+        int len = Math.min(params.length, 24);
+        byte[] data = new byte[len];
+        for (int i = 0; i < len; i++) data[i] = (byte) params[i];
+        return data;
     }
 
     public static byte[] buildAllNoneDisplayConfigData() {
-        return buildDisplayConfigData(0, WAVE_TYPE_NONE, 0, WAVE_TYPE_NONE,
-                SPEC_TYPE_NONE, SPEC_TYPE_NONE, 0, WAVE_TYPE_NONE,
-                0, WAVE_TYPE_NONE, SPEC_TYPE_NONE, SPEC_TYPE_NONE);
+        int[] p = new int[24];
+        for (int i = 0; i < 8; i++) {
+            p[i * 3] = 0;
+            p[i * 3 + 1] = WAVE_TYPE_NONE;
+            p[i * 3 + 2] = SPEC_TYPE_NONE;
+        }
+        return buildDisplayConfigDataFromArray(p);
+    }
+
+    public static byte[] build8ChannelDisplayConfigData(int waveType, int specType) {
+        int[] p = new int[24];
+        for (int i = 0; i < 8; i++) {
+            p[i * 3] = i;
+            p[i * 3 + 1] = waveType;
+            p[i * 3 + 2] = specType;
+        }
+        return buildDisplayConfigDataFromArray(p);
     }
 
     private EegChannels() {}

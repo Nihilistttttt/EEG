@@ -19,4 +19,5 @@ public interface DataListener {
     default void onPostureState(String posture, int turnCount) {}
     default void onSsvepResult(SsvepResult result) {}
     default void onSsvepProgress(SsvepProgress progress) {}
+    default void onImpedanceResult(float[] kohm) {}
 }

@@ -8,6 +8,7 @@
 #include "Serial.h"
 #include "dualcore_ipc.h"
 #include "eeg_protocol.h"
+#include "ADS1299.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -334,6 +335,26 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         DualCore_IPC_SetSsvepSelftest(0, 0);
         DualCore_IPC_RequestSsvepReset();
         Send_RespOk(CMD_SSVEP_SELFTEST_STOP);
+        break;
+
+    case CMD_IMPEDANCE_CHECK:
+        {
+            ADS1299_EnterImpedanceMode();
+            float z_kohm[8];
+            ADS1299_MeasureImpedance(z_kohm);
+            ADS1299_ExitImpedanceMode();
+
+            uint8_t resp[32];
+            for (int c = 0; c < 8; c++) {
+                int32_t val_i32 = (int32_t)(z_kohm[c] * 100.0f + 0.5f);
+                if (val_i32 < 0) val_i32 = 0;
+                resp[c * 4 + 0] = (uint8_t)(val_i32 & 0xFF);
+                resp[c * 4 + 1] = (uint8_t)((val_i32 >> 8) & 0xFF);
+                resp[c * 4 + 2] = (uint8_t)((val_i32 >> 16) & 0xFF);
+                resp[c * 4 + 3] = (uint8_t)((val_i32 >> 24) & 0xFF);
+            }
+            Send_Resp(CMD_IMPEDANCE_RESULT, resp, 32);
+        }
         break;
 
     default:

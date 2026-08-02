@@ -72,6 +72,8 @@ public final class EegProtocol {
     public static final int CMD_TARGET = 0x3E;
     public static final int CMD_SSVEP_STIM_STARTED = 0x41;
     public static final int CMD_SSVEP_RESULT = 0x42;
+    public static final int CMD_IMPEDANCE_CHECK = 0x43;
+    public static final int CMD_IMPEDANCE_RESULT = 0x44;
 
     public static final int WAVE_NUM_CH = 8;
     public static final int WAVE_HEADER = 1;

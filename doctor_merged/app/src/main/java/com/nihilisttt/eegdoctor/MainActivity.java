@@ -26,7 +26,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
 
     private ViewPager2 viewPager;
     private TcpServerManager tcpServer;
-    private final String[] pageTitles = {"脑电监测", "专注度", "波形对比", "频谱对比", "SSVEP训练", "MI训练", "方向识别", "姿态监护", "系统配置"};
+    private final String[] pageTitles = {"脑电监测", "专注度", "波形对比", "频谱对比", "SSVEP训练", "MI训练", "方向识别", "姿态监护", "阻抗检测", "系统配置"};
 
     private TextView tvBarFocus, tvBarRelax, tvBarInstant, tvBarTrend, tvBarPosture;
 
@@ -49,6 +49,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         fragments.add(new MiTrainingFragment());
         fragments.add(new InferenceFragment());
         fragments.add(new PostureFragment());
+        fragments.add(new ImpedanceFragment());
         fragments.add(new ConfigFragment());
 
 

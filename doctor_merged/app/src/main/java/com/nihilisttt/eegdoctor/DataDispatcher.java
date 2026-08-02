@@ -235,4 +235,13 @@ public class DataDispatcher {
             }
         });
     }
+
+    public void postImpedanceResult(float[] kohm) {
+        mainHandler.post(() -> {
+            for (DataListener l : listeners) {
+                try { l.onImpedanceResult(kohm); }
+                catch (Exception e) { Log.e(TAG, "onImpedanceResult error", e); }
+            }
+        });
+    }
 }

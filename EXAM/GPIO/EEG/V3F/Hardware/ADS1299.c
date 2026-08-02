@@ -3,6 +3,7 @@
 #include "Message_Parser.h"
 #include "Config.h"
 #include <string.h>
+#include <math.h>
 
 /*============================ �궨�� ============================*/
 /* ���Ų����� */
@@ -600,5 +601,100 @@ void DMA1_Channel2_IRQHandler (void) {
 
         ADS1299_DMA_StopAndReleaseCS();
         g_ads1299_spi_dma_error_count++;
+    }
+}
+
+void ADS1299_EnterImpedanceMode (void) {
+    ADS1299_SendCommand (ADS1299_CMD_SDATAC);
+    Delay_Ms (10);
+    ADS1299_START_LOW();
+    Delay_Ms (10);
+
+    ADS1299_WriteReg (ADS1299_REG_LOFF,
+        ADS1299_LOFF_COMP_TH_95 | ADS1299_LOFF_AC_7_8HZ_6NA);
+    Delay_Ms (10);
+    ADS1299_WriteReg (ADS1299_REG_LOFF_SENSP, 0xFF);
+    Delay_Ms (10);
+    ADS1299_WriteReg (ADS1299_REG_LOFF_SENSN, 0xFF);
+    Delay_Ms (10);
+    ADS1299_WriteReg (ADS1299_REG_LOFF_FLIP, 0x00);
+    Delay_Ms (10);
+    ADS1299_WriteReg (ADS1299_REG_CONFIG4, ADS1299_CFG4_LOFF_COMP_EN);
+    Delay_Ms (10);
+
+    ADS1299_SendCommand (ADS1299_CMD_RDATAC);
+    Delay_Ms (2);
+    ADS1299_START_HIGH();
+    Delay_Ms (100);
+}
+
+void ADS1299_ExitImpedanceMode (void) {
+    ADS1299_SendCommand (ADS1299_CMD_SDATAC);
+    Delay_Ms (10);
+    ADS1299_START_LOW();
+    Delay_Ms (10);
+
+    ADS1299_WriteReg (ADS1299_REG_LOFF, 0x00);
+    Delay_Ms (10);
+    ADS1299_WriteReg (ADS1299_REG_LOFF_SENSP, 0x00);
+    Delay_Ms (10);
+    ADS1299_WriteReg (ADS1299_REG_LOFF_SENSN, 0x00);
+    Delay_Ms (10);
+    ADS1299_WriteReg (ADS1299_REG_CONFIG4, ADS1299_CFG4_SINGLE_SHOT);
+    Delay_Ms (10);
+
+    ADS1299_SendCommand (ADS1299_CMD_RDATAC);
+    Delay_Ms (2);
+    ADS1299_START_HIGH();
+    Delay_Ms (100);
+}
+
+void ADS1299_MeasureImpedance (float out_kohm[ADS1299_CHANNEL_NUM]) {
+    uint8_t frame[ADS1299_FRAME_BYTE_NUM];
+    int32_t ch_data[ADS1299_CHANNEL_NUM];
+    uint8_t n = ADS1299_IMPEDANCE_N_FRAMES;
+    uint8_t ch, i;
+
+    float goertzel_s[ADS1299_CHANNEL_NUM];
+    float goertzel_c[ADS1299_CHANNEL_NUM];
+
+    float fs = 250.0f;
+    float f0 = 7.8f;
+    float omega = 2.0f * 3.14159265f * f0 / fs;
+    float coeff = 2.0f * cosf(omega);
+    float i_na = ADS1299_IMPEDANCE_I_NA;
+
+    for (ch = 0; ch < ADS1299_CHANNEL_NUM; ch++) {
+        goertzel_s[ch] = 0.0f;
+        goertzel_c[ch] = 0.0f;
+    }
+
+    for (i = 0; i < n; i++) {
+        uint32_t wait_cnt = 0;
+        while (ring_buffer_get_frame(frame) == 0) {
+            wait_cnt++;
+            if (wait_cnt > 500000UL) break;
+        }
+        ADS1299_ParseRawFrame(frame, 0, ch_data);
+
+        float angle = omega * (float)i;
+        float sin_val = sinf(angle);
+        float cos_val = cosf(angle);
+
+        for (ch = 0; ch < ADS1299_CHANNEL_NUM; ch++) {
+            float v = ADS1299_CodeToVolt(ch_data[ch],
+                        ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);
+            goertzel_s[ch] += v * sin_val;
+            goertzel_c[ch] += v * cos_val;
+        }
+    }
+
+    float i_amp = i_na * 1e-9f;
+    for (ch = 0; ch < ADS1299_CHANNEL_NUM; ch++) {
+        float mag_sq = goertzel_s[ch] * goertzel_s[ch]
+                      + goertzel_c[ch] * goertzel_c[ch];
+        float mag = sqrtf(mag_sq) * 2.0f / (float)n;
+        float z_ohm = mag / i_amp;
+        out_kohm[ch] = z_ohm / 1000.0f;
     }
 }

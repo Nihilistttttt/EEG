@@ -3,7 +3,30 @@ EEG项目更新记录
 最后更新: 2026-08-02
 
 ================================================================================
-2026-08-02  脑电监测8CH模式+EegStripView+DISPLAY_CFG 8通道适配
+2026-08-02  电极阻抗检测页面(AC 7.8Hz Goertzel)
+================================================================================
+
+更新内容:
+1. MCU侧:
+   - ADS1299.h: 新增LOFF寄存器配置常量(DC/AC模式、电流大小、比较器阈值)
+   - ADS1299.c: 新增EnterImpedanceMode/ExitImpedanceMode/MeasureImpedance
+     - Enter: STOP→切AC 7.8Hz 6nA→LOFF_SENSP/N全开→CONFIG4使能比较器→START
+     - Measure: 采128帧，Goertzel算法提取7.8Hz分量，Z=V/I算阻抗(kΩ)
+     - Exit: STOP→切回正常模式→START恢复采集
+   - eeg_protocol.h: 新增CMD_IMPEDANCE_CHECK(0x43)/CMD_IMPEDANCE_RESULT(0x44)
+   - eeg_cmd_parser.c: 收到CMD_IMPEDANCE_CHECK→Enter→Measure→Exit→发CMD_IMPEDANCE_RESULT(8×4字节int32,单位0.01kΩ)
+2. Android侧:
+   - EegProtocol.java: 新增CMD_IMPEDANCE_CHECK/RESULT
+   - DataListener: 新增onImpedanceResult(float[] kohm)
+   - DataDispatcher: 新增postImpedanceResult
+   - TcpServerManager: 新增handleImpedanceFrame解析32字节→8个float(kΩ)
+   - ImpedanceFragment+ImpedanceBarView: 阻抗检测页面
+     - 8通道柱状图，颜色标示合格(<5kΩ绿)/警告(5~10kΩ黄)/不合格(>10kΩ红)
+     - 5kΩ/10kΩ阈值虚线
+     - "检测"按钮→发CMD_IMPEDANCE_CHECK→等结果→显示
+   - MainActivity: 新增"阻抗检测"页面(position 8)
+
+说明: Android编译通过(BUILD SUCCESSFUL)；MCU需Keil编译验证
 ================================================================================
 
 更新内容:

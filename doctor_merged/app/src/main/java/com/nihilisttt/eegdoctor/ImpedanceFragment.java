@@ -62,7 +62,7 @@ public class ImpedanceFragment extends Fragment implements DataListener {
             checking = false;
             btnCheck.setEnabled(true);
             int ok = 0;
-            for (float v : kohm) if (v <= 10.0f) ok++;
+            for (float v : kohm) if (v <= 800.0f) ok++;
             tvStatus.setText(ok + "/8 合格");
             tvBias.setText(biasConnected ? "参考正常" : "参考断开");
             tvBias.setTextColor(getResources().getColor(

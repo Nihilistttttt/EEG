@@ -12,8 +12,8 @@ public class ImpedanceBarView extends View {
 
     private static final int NUM_CH = 8;
     private static final String[] CH_NAMES = EegChannels.NAMES;
-    private static final float THRESHOLD_OK = 5.0f;
-    private static final float THRESHOLD_WARN = 10.0f;
+    private static final float THRESHOLD_OK = 400.0f;
+    private static final float THRESHOLD_WARN = 800.0f;
 
     private final float[] kohm = new float[NUM_CH];
     private boolean hasData = false;
@@ -51,7 +51,7 @@ public class ImpedanceBarView extends View {
         float barLeft = labelW;
         float barRight = w - valueW;
         float barW = barRight - barLeft;
-        float maxK = 20.0f;
+        float maxK = 1000.0f;
 
         labelPaint.setTextSize(Math.min(14f, rowH * 0.35f));
         textPaint.setTextSize(Math.min(13f, rowH * 0.32f));

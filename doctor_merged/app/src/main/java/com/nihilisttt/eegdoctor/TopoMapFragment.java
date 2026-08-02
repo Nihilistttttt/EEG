@@ -80,22 +80,34 @@ public class TopoMapFragment extends Fragment implements DataListener {
     }
 
     private void showRangeDialog() {
-        String[] presets = {"10μV", "20μV", "50μV", "100μV", "200μV", "500μV"};
-        float[] values = {10f, 20f, 50f, 100f, 200f, 500f};
-        int current = 2;
-        for (int i = 0; i < values.length; i++) {
-            if (Math.abs(amplitudeMaxUv - values[i]) < 0.5f) { current = i; break; }
-        }
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_range_input, null);
+        EditText etValue = dialogView.findViewById(R.id.et_value);
+        dialogView.findViewById(R.id.unit_spinner).setVisibility(View.GONE);
+        etValue.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        etValue.setHint("例如 50");
+        etValue.setText(String.format("%.0f", amplitudeMaxUv));
         new AlertDialog.Builder(requireContext())
-                .setTitle("振幅范围")
-                .setSingleChoiceItems(presets, current, (dialog, which) -> {
-                    amplitudeMaxUv = values[which];
-                    topoMapView.setAmplitudeMaxUv(amplitudeMaxUv);
-                    tvRange.setText(presets[which]);
-                    dialog.dismiss();
+                .setTitle("振幅范围 (μV)")
+                .setView(dialogView)
+                .setPositiveButton("确定", (d, which) -> {
+                    String str = etValue.getText().toString().trim();
+                    if (str.isEmpty()) return;
+                    try {
+                        float val = Float.parseFloat(str);
+                        if (val <= 0) return;
+                        amplitudeMaxUv = val;
+                        topoMapView.setAmplitudeMaxUv(amplitudeMaxUv);
+                        tvRange.setText(formatUv(amplitudeMaxUv));
+                    } catch (NumberFormatException ignored) {}
                 })
                 .setNegativeButton("取消", null)
                 .show();
+    }
+
+    private static String formatUv(float val) {
+        if (val >= 1000f) return String.format("%.1fmV", val / 1000f);
+        if (val >= 1f) return String.format("%.0fμV", val);
+        return String.format("%.1fμV", val);
     }
 
     private void sendDisplayConfig() {

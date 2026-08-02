@@ -1,6 +1,28 @@
 EEG项目更新记录
 ================
-最后更新: 2026-08-02
+最后更新: 2026-08-03
+
+================================================================================
+2026-08-03  SSVEP界面改造(中间加OZ/O1波形部件)+地形图振幅自由输入
+================================================================================
+
+更新内容:
+1. SSVEP界面(医生端)改为三列布局, 按比例分配:
+   - 左列(weight 3.5): O1波形(上) + OZ波形(下), WaveformView实时显示滤波波形
+   - 中列(weight 3.5): O1频谱 + Oz频谱(原有SpectrumView)
+   - 右列(weight 5): 控制面板(ScrollView)放最右, 包含波形调控条+频谱调控条+状态/频率按钮/进度/结果
+2. 波形调控部件移入控制面板顶部:
+   - 波形调控条: 波形[滤波] Y轴/tv_wave_y_range X轴/tv_wave_x_range 标签/tv_wave_label_count
+   - Y轴(步长+单位uV/mV/V)、X轴(时间秒)、标签数量均可点击弹对话框设置
+   - 复用SettingsStore全局波形参数(get/setWaveStep/WaveStepUnit/WaveLabelCount/WaveXMax), 与脑电监测页联动
+3. SsvepTrainingFragment新增:
+   - waveOZ/waveO1两个WaveformView, onWaveData按CMD_WAVE_FILT匹配OZ(ch0)/O1(ch1)分发
+   - applyWaveSettings/applyWaveXRange/applyWaveStep + 三个设置对话框
+   - 沿用现有DISPLAY_CFG(O1/OZ FILT), 无需改协议
+4. TopoMapFragment振幅范围对话框: 预设列表(10/20/50/100/200/500μV)改为自由输入(μV)
+
+说明: Android编译通过(BUILD SUCCESSFUL)
+================================================================================
 
 ================================================================================
 2026-08-02  新增8通道脑电地形图Fragment + 移除DC导联断线检测

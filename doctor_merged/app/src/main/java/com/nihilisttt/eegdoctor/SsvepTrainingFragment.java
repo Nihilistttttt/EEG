@@ -29,10 +29,20 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
     private static final String[] FREQ_LABELS = {"11 Hz", "13 Hz", "15 Hz", "17 Hz"};
     private static final String[] DIRECTIONS = {"↑ 上", "↓ 下", "← 左", "→ 右"};
 
+    private static final int DEFAULT_LABEL_COUNT = 7;
+    private static final int DEFAULT_STEP = 500;
+    private static final String DEFAULT_STEP_UNIT = "uV";
+    private static final float DEFAULT_X_MAX = 2.048f;
+
     private SpectrumView spectrumO1;
     private SpectrumView spectrumOZ;
+    private WaveformView waveOZ;
+    private WaveformView waveO1;
     private TextView tvSpecYRange;
     private TextView tvSpecXRange;
+    private TextView tvWaveYRange;
+    private TextView tvWaveXRange;
+    private TextView tvWaveLabelCount;
     private TextView tvStatus;
     private TextView tvSelectedFreq;
     private TextView tvResult;
@@ -79,6 +89,14 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
 
         tvSpecYRange = view.findViewById(R.id.tv_spec_y_range);
         tvSpecXRange = view.findViewById(R.id.tv_spec_x_range);
+        tvWaveYRange = view.findViewById(R.id.tv_wave_y_range);
+        tvWaveXRange = view.findViewById(R.id.tv_wave_x_range);
+        tvWaveLabelCount = view.findViewById(R.id.tv_wave_label_count);
+        waveOZ = view.findViewById(R.id.wave_oz);
+        waveO1 = view.findViewById(R.id.wave_o1);
+        waveOZ.setWaveColor(ContextCompat.getColor(requireContext(), R.color.accent_info));
+        waveO1.setWaveColor(ContextCompat.getColor(requireContext(), R.color.spectrum_bar));
+        applyWaveSettings();
         tvStatus = view.findViewById(R.id.tv_ssvep_status);
         tvSelectedFreq = view.findViewById(R.id.tv_selected_freq);
         tvResult = view.findViewById(R.id.tv_ssvep_result);
@@ -100,6 +118,9 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
 
         tvSpecYRange.setOnClickListener(v -> showYRangeDialog());
         tvSpecXRange.setOnClickListener(v -> showXRangeDialog());
+        tvWaveYRange.setOnClickListener(v -> showWaveYRangeDialog());
+        tvWaveXRange.setOnClickListener(v -> showWaveXRangeDialog());
+        tvWaveLabelCount.setOnClickListener(v -> showLabelCountDialog());
         btnFreq11.setOnClickListener(v -> selectFreq(0));
         btnFreq13.setOnClickListener(v -> selectFreq(1));
         btnFreq15.setOnClickListener(v -> selectFreq(2));
@@ -444,6 +465,130 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         super.onDestroyView();
     }
 
-    @Override public void onWaveData(int cmd, int ch, float val) {}
+    private void applyWaveSettings() {
+        int step = SettingsStore.getWaveStep(requireContext(), DEFAULT_STEP);
+        String stepUnit = SettingsStore.getWaveStepUnit(requireContext(), DEFAULT_STEP_UNIT);
+        int labelCount = SettingsStore.getWaveLabelCount(requireContext(), DEFAULT_LABEL_COUNT);
+        float xMax = SettingsStore.getWaveXMax(requireContext(), DEFAULT_X_MAX);
+        applyWaveXRange(xMax);
+        applyWaveStep(step, stepUnit, labelCount);
+    }
+
+    private void applyWaveXRange(float xMax) {
+        if (waveOZ != null) waveOZ.setXMax(xMax);
+        if (waveO1 != null) waveO1.setXMax(xMax);
+        tvWaveXRange.setText(String.format(Locale.US, "%.2f s", xMax));
+        SettingsStore.setWaveXMax(requireContext(), xMax);
+    }
+
+    private void applyWaveStep(int step, String unit, int labelCount) {
+        float stepVolt;
+        switch (unit) {
+            case "uV": stepVolt = step / 1_000_000f; break;
+            case "mV": stepVolt = step / 1000f; break;
+            default:   stepVolt = step; break;
+        }
+        float halfRange = stepVolt * ((labelCount - 1) / 2.0f);
+        if (waveOZ != null) { waveOZ.setYRange(halfRange); waveOZ.setUnit(unit); }
+        if (waveO1 != null) { waveO1.setYRange(halfRange); waveO1.setUnit(unit); }
+        tvWaveYRange.setText(step + unit);
+        tvWaveLabelCount.setText(String.valueOf(labelCount));
+        SettingsStore.setWaveStep(requireContext(), step);
+        SettingsStore.setWaveStepUnit(requireContext(), unit);
+        SettingsStore.setWaveLabelCount(requireContext(), labelCount);
+    }
+
+    private void showWaveYRangeDialog() {
+        View dialogView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_range_input, null);
+        EditText etValue = dialogView.findViewById(R.id.et_value);
+        Spinner unitSpinner = dialogView.findViewById(R.id.unit_spinner);
+        etValue.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        ArrayAdapter<String> ua = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_item, new String[]{"uV", "mV", "V"});
+        ua.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        unitSpinner.setAdapter(ua);
+        etValue.setText(String.valueOf(SettingsStore.getWaveStep(requireContext(), DEFAULT_STEP)));
+        int pos = ua.getPosition(SettingsStore.getWaveStepUnit(requireContext(), DEFAULT_STEP_UNIT));
+        if (pos >= 0) unitSpinner.setSelection(pos);
+        new AlertDialog.Builder(requireContext())
+                .setTitle("设置波形步长")
+                .setView(dialogView)
+                .setPositiveButton("确定", (d, which) -> {
+                    String str = etValue.getText().toString().trim();
+                    if (str.isEmpty()) return;
+                    try {
+                        int si = Integer.parseInt(str);
+                        if (si <= 0) return;
+                        applyWaveStep(si, (String) unitSpinner.getSelectedItem(),
+                                SettingsStore.getWaveLabelCount(requireContext(), DEFAULT_LABEL_COUNT));
+                    } catch (NumberFormatException ignored) {}
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void showWaveXRangeDialog() {
+        View dialogView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_range_input, null);
+        EditText etValue = dialogView.findViewById(R.id.et_value);
+        Spinner unitSpinner = dialogView.findViewById(R.id.unit_spinner);
+        ArrayAdapter<String> ua = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_item, new String[]{"秒"});
+        ua.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        unitSpinner.setAdapter(ua);
+        etValue.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        etValue.setText(String.format(Locale.US, "%.2f",
+                SettingsStore.getWaveXMax(requireContext(), DEFAULT_X_MAX)));
+        new AlertDialog.Builder(requireContext())
+                .setTitle("设置波形时间范围")
+                .setView(dialogView)
+                .setPositiveButton("确定", (d, which) -> {
+                    String str = etValue.getText().toString().trim();
+                    if (str.isEmpty()) return;
+                    try {
+                        float val = Float.parseFloat(str);
+                        if (val <= 0) return;
+                        applyWaveXRange(val);
+                    } catch (NumberFormatException ignored) {}
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void showLabelCountDialog() {
+        View dialogView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_range_input, null);
+        EditText etValue = dialogView.findViewById(R.id.et_value);
+        Spinner unitSpinner = dialogView.findViewById(R.id.unit_spinner);
+        ArrayAdapter<String> ua = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_item, new String[]{"个"});
+        ua.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        unitSpinner.setAdapter(ua);
+        etValue.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        etValue.setText(String.valueOf(SettingsStore.getWaveLabelCount(requireContext(), DEFAULT_LABEL_COUNT)));
+        new AlertDialog.Builder(requireContext())
+                .setTitle("设置波形标签数量")
+                .setView(dialogView)
+                .setPositiveButton("确定", (d, which) -> {
+                    String str = etValue.getText().toString().trim();
+                    if (str.isEmpty()) return;
+                    try {
+                        int n = Integer.parseInt(str);
+                        if (n < 2) n = 2;
+                        applyWaveStep(SettingsStore.getWaveStep(requireContext(), DEFAULT_STEP),
+                                SettingsStore.getWaveStepUnit(requireContext(), DEFAULT_STEP_UNIT), n);
+                    } catch (NumberFormatException ignored) {}
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    @Override public void onWaveData(int cmd, int ch, float val) {
+        if (cmd != EegChannels.CMD_WAVE_FILT) return;
+        if (ch == EegChannels.CH_OZ && waveOZ != null) waveOZ.addPoint(val);
+        else if (ch == EegChannels.CH_O1 && waveO1 != null) waveO1.addPoint(val);
+    }
     @Override public void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {}
 }

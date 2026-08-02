@@ -1,6 +1,45 @@
 EEG项目更新记录
 ================
-最后更新: 2026-08-01
+最后更新: 2026-08-02
+
+================================================================================
+2026-08-02  MCU异步SSVEP消除IPC parse_bad + diag帧尺寸修复 + 医生/患者端二进制对齐 + D2P全二进制化
+================================================================================
+
+更新内容:
+1. MCU端 SSVEP 分析异步化（消除 IPC parse_bad 增长）:
+   - 根因: ssvep_analyze() 在 PushSample() 中同步执行约340ms(FBCCA)，期间V3F按250Hz
+     持续发IPC帧覆盖64个slot缓冲，V5F恢复后ack的slot->seq不匹配→parse_bad每轮+1
+   - 修复: dualcore_v5f_ssvep.c 将 ssvep_analyze() 改为 g_ssvep_analysis_pending=1 标志;
+     main.c 主循环 MainLoopProcess() 之后调 DualCore_V5F_SSVEP_RunPending() 执行分析;
+     ssvep_analyze 与 ProcessPreprocess 均在主循环顺序执行，中断(IPC_CH0_Handler)
+     只设pending_flag不访问SSVEP全局变量，无并发风险
+   - IPC slot 缓冲 64→128(dualcore_ipc_shared.h)，覆盖340ms×250Hz≈85帧，彻底消除覆盖
+   - RESULT_SSVEP 帧 seq 改用 Retry_GetSeq()(原用ssvep_sequence与重试序列不同源，
+     导致ACK永不匹配、MCU重发10次、上位机重复显示结果)
+2. MCU diag_buf 尺寸修复(数组比实际填充大，发送帧带未初始化栈字节):
+   - Signal_Analysis.c IPCDIAG: diag_buf[42]→[38](仅填充38字节)
+   - eeg_fft.c SSVEP_DIAG: [46]→[45]; V5F_DIAG: [22]→[21]
+3. 医生端(doctor_merged):
+   - handleDiagFrame IPCDIAG 解析对齐MCU 38字节(payloadLen>=38 + 字段偏移修正，
+     原>=42永不满足且字段错位)
+   - IpcDiagInfo 新增 wfi_wake/active 字段
+   - handleResultSsvepFrame: 非医生端SSVEP会话(如Python端控制)也转发结果给患者端
+     (原onMcuSsvepResult的!running门槛直接丢弃结果)
+   - D2P(41004)通道全二进制化: 新增 sendBinaryToPatient/sendBinaryToPatientAsync
+     (保留状态快照+排队重试)，12处 sendToPatient("TEXT") 文本调用全部改为直接发送
+     二进制帧(SSVEP结果/TARGET/PAGE/SSVEP_START_P/SSVEP_STOP_P/TRAIN_STOP)
+   - SsvepResult.toPatientData(): 36字节载荷(seq u32+freqIdx+rawIdx+ratio/margin/
+     4×score float+4×vote u8+synthetic+usable)，与患者端decodeSsvepResult匹配
+4. 患者端(patient_merged):
+   - DoctorConnector: SSVEP激活(ssvepActive)时屏蔽 READY_TRAIN/TASK_START/RESULT_MI
+     的MI切页动作和 MODE_SET_OK(2) 切页，避免SSVEP过程中跳到MI训练/测试页
+5. Python统一上位机 exercise_Data_unified.py(新建):
+   - 融合串口版/无线版/SSVEP版三个上位机，AA55二进制帧协议
+   - PyQt5重写SSVEP闪烁刺激(替代pygame)、FBCCA计算位置可选(MCU端/Python端)、
+     方向标注[↑][↓]、IPCDIAG/状态/姿态/手动命令支持
+
+说明: 本条目为代码层面完成+静态审查通过；MCU固件与Android App需重新编译烧录/安装后实机联调验证。
 
 ================================================================================
 2026-08-01  二进制协议联调修复（频谱/患者端参数/MI训练超时/MCU编译错误）

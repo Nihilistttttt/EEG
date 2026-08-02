@@ -30,6 +30,9 @@
 void DualCore_V5F_SSVEP_Init(void);
 void DualCore_V5F_SSVEP_Reset(void);
 void DualCore_V5F_SSVEP_PushSample(float o1_mv, float oz_mv);
+void DualCore_V5F_SSVEP_RunPending(void);
+
+extern volatile uint8_t  g_ssvep_analysis_pending;
 
 extern volatile uint8_t  g_ipc_ssvep_valid;
 extern volatile int8_t   g_ipc_ssvep_raw_index;

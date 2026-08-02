@@ -124,7 +124,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
             analysis.switchFrequency(index);
             TcpServerManager server = TcpServerManager.getInstance();
             server.setSsvepActive(true, index);
-            server.sendToPatientAsync("SSVEP,START," + index, null);
+            server.sendBinaryToPatientAsync(EegProtocol.CMD_SSVEP_START_P, new byte[]{(byte) index}, null);
             CommandSender.getInstance().ssvepStart();
         }
     }
@@ -168,7 +168,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
                 ? "正在启动患者刺激与无设备算法自测"
                 : "正在启动患者刺激，等待首帧回执", false);
 
-        boolean queued = server.sendToPatientAsync("SSVEP,START," + freqIndex, success -> {
+        boolean queued = server.sendBinaryToPatientAsync(EegProtocol.CMD_SSVEP_START_P, new byte[]{(byte) freqIndex}, success -> {
             if (!isAdded()) return;
             if (!success) {
                 analysis.stopSession();
@@ -211,7 +211,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         CommandSender.getInstance().ssvepStop();
         CommandSender.getInstance().ssvepSelftestStop();
         server.setSsvepActive(false, -1);
-        server.sendToPatient("SSVEP,STOP");
+        server.sendBinaryToPatient(EegProtocol.CMD_SSVEP_STOP_P, null);
         setRunningUi(false);
         setStatus("已停止", false);
         progressWindow.setProgress(0);

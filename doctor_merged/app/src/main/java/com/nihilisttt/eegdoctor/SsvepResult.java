@@ -1,5 +1,7 @@
 package com.nihilisttt.eegdoctor;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Locale;
 
 /** FBCCA result shared by the doctor UI and patient result message. */
@@ -152,11 +154,34 @@ public class SsvepResult {
 
     public String toPatientCommand() {
         return String.format(Locale.US,
-                "SSVEP,RESULT,%d,%s,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%d,%d,%d,%d,%d,%d",
+                "SSVEP,RESULT,seq=%d,freq=%s,raw=%s,ratio=%.6f,best=%.6f,margin=%.6f,"
+                        + "s11=%.6f,s13=%.6f,s15=%.6f,s17=%.6f,"
+                        + "v11=%d,v13=%d,v15=%d,v17=%d,synthetic=%d,usable=%d",
                 seq, freq, rawFreq, ratio, bestScore, margin,
                 score11, score13, score15, score17,
                 vote11, vote13, vote15, vote17,
                 synthetic ? 1 : 0, channelUsable ? 1 : 0);
+    }
+
+    /** 患者端 0x42 载荷（36 字节）：seq u32 + freqIdx u8 + rawIdx u8 + [ratio,margin,4×score] float + 4×vote u8 + synthetic + usable。 */
+    public byte[] toPatientData() {
+        ByteBuffer bb = ByteBuffer.allocate(36).order(ByteOrder.LITTLE_ENDIAN);
+        bb.putInt(seq);
+        bb.put((byte) (getFreqIndex() >= 0 ? getFreqIndex() : 0xFF));
+        bb.put((byte) (getRawFreqIndex() >= 0 ? getRawFreqIndex() : 0xFF));
+        bb.putFloat(ratio);
+        bb.putFloat(margin);
+        bb.putFloat(score11);
+        bb.putFloat(score13);
+        bb.putFloat(score15);
+        bb.putFloat(score17);
+        bb.put((byte) vote11);
+        bb.put((byte) vote13);
+        bb.put((byte) vote15);
+        bb.put((byte) vote17);
+        bb.put((byte) (synthetic ? 1 : 0));
+        bb.put((byte) (channelUsable ? 1 : 0));
+        return bb.array();
     }
 
     public int getSeq() { return seq; }

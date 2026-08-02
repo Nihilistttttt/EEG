@@ -64,7 +64,7 @@ public class CommandSender {
     }
 
     public boolean sendPage(int page) {
-        TcpServerManager.getInstance().sendToPatient("PAGE," + page);
+        TcpServerManager.getInstance().sendBinaryToPatient(EegProtocol.CMD_PAGE, new byte[]{(byte) page});
         return true;
     }
 

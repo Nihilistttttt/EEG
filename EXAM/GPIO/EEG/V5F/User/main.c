@@ -8,6 +8,7 @@
 
 #include "debug.h"
 #include "hardware.h"
+#include "dualcore_v5f_ssvep.h"
 
 int main(void)
 {
@@ -33,6 +34,7 @@ int main(void)
     while (1)
     {
         DualCore_V5F_MainLoopProcess();
+        DualCore_V5F_SSVEP_RunPending();
         __WFI();
     }
 }

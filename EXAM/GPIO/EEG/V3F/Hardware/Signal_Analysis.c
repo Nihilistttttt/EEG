@@ -126,7 +126,7 @@ void Signal_Analysis_Start (void) {
                     static uint32_t ipc_diag_count = 0;
                     ipc_diag_count++;
                     if ((ipc_diag_count % 50u) == 0u) {
-                        uint8_t diag_buf[42];
+                        uint8_t diag_buf[38];
                         uint32_t l0 = DualCore_IPC_GetAckCount();
                         uint32_t l1 = DualCore_IPC_GetNotifyCount();
                         uint32_t l2 = DualCore_IPC_GetParseOKCount();

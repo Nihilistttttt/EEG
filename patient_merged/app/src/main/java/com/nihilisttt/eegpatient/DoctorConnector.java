@@ -680,6 +680,10 @@ public class DoctorConnector {
                     handleSsvepStop();
                     break;
                 case EegProtocol.CMD_READY_TRAIN:
+                    if (ssvepActive) {
+                        Log.i(TAG, "D2P READY_TRAIN ignored (SSVEP active)");
+                        break;
+                    }
                     Log.i(TAG, ">>> D2P READY_TRAIN");
                     for (DataListener listener : listeners) {
                         try { listener.onReadyTrain(); }
@@ -708,6 +712,10 @@ public class DoctorConnector {
                     }
                     break;
                 case EegProtocol.CMD_TASK_START:
+                    if (ssvepActive) {
+                        Log.i(TAG, "D2P TASK_START ignored (SSVEP active)");
+                        break;
+                    }
                     if (payloadLen >= 1) {
                         final String side = (body[off] & 0xFF) == 0 ? "LEFT" : "RIGHT";
                         Log.i(TAG, ">>> D2P TASK," + side + ",start");
@@ -741,7 +749,7 @@ public class DoctorConnector {
                                 Log.w(TAG, "onModeSetOk listener error: " + e.getMessage());
                             }
                         }
-                        if (mode == 2) emitPageSwitch(3);
+                        if (mode == 2 && !ssvepActive) emitPageSwitch(3);
                     }
                     break;
                 case EegProtocol.CMD_TARGET:
@@ -757,6 +765,10 @@ public class DoctorConnector {
                     }
                     break;
                 case EegProtocol.CMD_RESULT_MI: {
+                    if (ssvepActive) {
+                        Log.i(TAG, "D2P RESULT_MI ignored (SSVEP active)");
+                        break;
+                    }
                     InferenceResult result = decodeResultMi(payloadLen, off);
                     if (result != null) {
                         Log.i(TAG, ">>> D2P RESULT");

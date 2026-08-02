@@ -72,6 +72,8 @@ volatile int32_t  g_ipc_ssvep_margin_q10000 = 0;
 volatile int32_t  g_ipc_ssvep_scores_q10000[SSVEP_NUM_TARGETS];
 volatile uint32_t g_ipc_ssvep_sequence = 0;
 
+volatile uint8_t  g_ssvep_analysis_pending = 0;
+
 static void ssvep_init_notch(void)
 {
     float w0 = 2.0f * SSVEP_PI * SSVEP_NOTCH_FREQ / SSVEP_FS;
@@ -503,6 +505,14 @@ void DualCore_V5F_SSVEP_PushSample(float o1_mv, float oz_mv)
 
     if (s_ssvep_ring_count >= SSVEP_WINDOW_SIZE && s_ssvep_since_last >= SSVEP_STEP_SIZE) {
         s_ssvep_since_last = 0;
+        g_ssvep_analysis_pending = 1;
+    }
+}
+
+void DualCore_V5F_SSVEP_RunPending(void)
+{
+    if (g_ssvep_analysis_pending) {
+        g_ssvep_analysis_pending = 0;
         ssvep_analyze();
     }
 }

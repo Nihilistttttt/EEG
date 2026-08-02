@@ -109,7 +109,7 @@ public class TrainingFragment extends Fragment implements DataListener {
         handler.removeCallbacksAndMessages(null);
         stopSsvepBlink();
         CommandSender.getInstance().sendCommand("STOP");
-        TcpServerManager.getInstance().sendToPatient("TRAIN_STOP");
+        TcpServerManager.getInstance().sendBinaryToPatient(EegProtocol.CMD_TRAIN_STOP, null);
 
         btnStartTraining.setEnabled(true);
         btnStopTraining.setEnabled(false);

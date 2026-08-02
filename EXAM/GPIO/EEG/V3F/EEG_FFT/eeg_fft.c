@@ -858,7 +858,7 @@ void EEG_MI_ResultPoll (void) {
         s_v5f_diag_count++;
         if (s_v5f_diag_count >= 250u) {
             s_v5f_diag_count = 0;
-            uint8_t diag_buf[22];
+            uint8_t diag_buf[21];
             diag_buf[0] = DIAG_TYPE_V5F_DIAG;
             uint32_t l0 = (uint32_t)v5f_infer_valid;
             uint32_t l1 = (uint32_t)v5f_infer_cnt;
@@ -976,7 +976,7 @@ void EEG_SSVEP_ResultPoll (void) {
                 int32_t s3        = g_ipc_v3f_last_ssvep_scores_q10000[3];
                 int32_t o1_uv     = g_ipc_v3f_last_ssvep_o1_uv_x1000;
                 int32_t oz_uv     = g_ipc_v3f_last_ssvep_oz_uv_x1000;
-                uint8_t diag_buf[46];
+                uint8_t diag_buf[45];
                 diag_buf[0] = DIAG_TYPE_SSVEP_DIAG;
                 diag_buf[1] = (uint8_t)(g_ssvep_active ? 1 : 0);
                 diag_buf[2] = (uint8_t)(ssvep_valid ? 1 : 0);
@@ -1008,7 +1008,7 @@ void EEG_SSVEP_ResultPoll (void) {
             int32_t s2       = g_ipc_v3f_last_ssvep_scores_q10000[2];
             int32_t s3       = g_ipc_v3f_last_ssvep_scores_q10000[3];
             uint8_t ssvep_buf[38];
-            uint32_t l = (uint32_t)ssvep_seq;
+            uint32_t l = (uint32_t)Retry_GetSeq();
             memcpy(ssvep_buf, &l, 4);
             ssvep_buf[4] = (uint8_t)(g_ipc_v3f_last_ssvep_raw_index >= 0 ? g_ipc_v3f_last_ssvep_raw_index : 0xFF);
             ssvep_buf[5] = (uint8_t)(s_voted_idx >= 0 ? s_voted_idx : 0xFF);

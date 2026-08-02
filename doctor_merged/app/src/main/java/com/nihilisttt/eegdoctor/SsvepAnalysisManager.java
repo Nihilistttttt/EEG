@@ -270,7 +270,8 @@ public final class SsvepAnalysisManager {
                     "FBCCA 第 " + output.sequence + " 轮完成");
             SsvepResult result = SsvepResult.fromFbcca(output, synthetic);
             DataDispatcher.getInstance().postSsvepResult(result);
-            TcpServerManager.getInstance().sendToPatient(result.toPatientCommand());
+            TcpServerManager.getInstance().sendBinaryToPatient(
+                    EegProtocol.CMD_SSVEP_RESULT, result.toPatientData());
             Log.i(TAG, "result seq=" + result.getSeq()
                     + " raw=" + result.getRawFreq()
                     + " voted=" + result.getFreq()
@@ -312,7 +313,8 @@ public final class SsvepAnalysisManager {
             SsvepResult result = SsvepResult.fromMcu(seq, rawIndex, votedIndex,
                     ratio, bestScore, margin, s, v);
             DataDispatcher.getInstance().postSsvepResult(result);
-            TcpServerManager.getInstance().sendToPatient(result.toPatientCommand());
+            TcpServerManager.getInstance().sendBinaryToPatient(
+                    EegProtocol.CMD_SSVEP_RESULT, result.toPatientData());
             Log.i(TAG, "MCU result seq=" + seq
                     + " raw=" + result.getRawFreq()
                     + " voted=" + result.getFreq()

@@ -155,7 +155,8 @@ public class InferenceFragment extends Fragment implements DataListener {
         tvTargetDir.setText(isLeft ? "◀ 左" : "右 ▶");
         tvTargetDir.setTextColor(ContextCompat.getColor(requireContext(),
                 isLeft ? R.color.direction_left : R.color.direction_right));
-        TcpServerManager.getInstance().sendToPatient("TARGET," + direction);
+        TcpServerManager.getInstance().sendBinaryToPatient(EegProtocol.CMD_TARGET,
+                new byte[]{(byte) (isLeft ? 0 : 1)});
     }
 
     private void startInference() {
@@ -186,7 +187,7 @@ public class InferenceFragment extends Fragment implements DataListener {
             nextTargetRunnable = null;
         }
         CommandSender.getInstance().sendCommand("STOP");
-        TcpServerManager.getInstance().sendToPatient("TRAIN_STOP");
+        TcpServerManager.getInstance().sendBinaryToPatient(EegProtocol.CMD_TRAIN_STOP, null);
         btnStopInfer.setEnabled(false);
         tvDirection.setText("← →");
         tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));

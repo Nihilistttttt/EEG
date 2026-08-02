@@ -6,6 +6,8 @@ public class IpcDiagInfo {
     private int ok;
     private int bad;
     private int v5fhb;
+    private int wfiWake;
+    private int active;
     private int ena;
     private int sts;
     private int isr;
@@ -29,6 +31,12 @@ public class IpcDiagInfo {
 
     public int getV5fhb() { return v5fhb; }
     public void setV5fhb(int v5fhb) { this.v5fhb = v5fhb; }
+
+    public int getWfiWake() { return wfiWake; }
+    public void setWfiWake(int wfiWake) { this.wfiWake = wfiWake; }
+
+    public int getActive() { return active; }
+    public void setActive(int active) { this.active = active; }
 
     public int getEna() { return ena; }
     public void setEna(int ena) { this.ena = ena; }

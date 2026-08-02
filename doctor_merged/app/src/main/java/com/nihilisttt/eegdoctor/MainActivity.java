@@ -79,7 +79,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         MaterialButton btnHome = findViewById(R.id.btn_home);
         btnHome.setOnClickListener(v -> {
             TrainingModeCoordinator.getInstance().activate(TrainingModeCoordinator.Mode.NONE);
-            TcpServerManager.getInstance().sendToPatient("PAGE,0");
+            TcpServerManager.getInstance().sendBinaryToPatient(EegProtocol.CMD_PAGE, new byte[]{0});
             Intent intent = new Intent(MainActivity.this, HomeActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
             startActivity(intent);
@@ -92,7 +92,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
                 updatePageTitle(position);
                 applyTrainingModeForPage(position);
                 Log.i("DOCTOR", ">>> onPageSelected: " + position + " -> sending PAGE," + position);
-                TcpServerManager.getInstance().sendToPatient("PAGE," + position);
+                TcpServerManager.getInstance().sendBinaryToPatient(EegProtocol.CMD_PAGE, new byte[]{(byte) position});
             }
         });
 
@@ -108,7 +108,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
 
         // sendToPatient also records the desired page while 41004 is offline;
         // the handshake snapshot will replay it after reconnect.
-        TcpServerManager.getInstance().sendToPatient("PAGE," + viewPager.getCurrentItem());
+        TcpServerManager.getInstance().sendBinaryToPatient(EegProtocol.CMD_PAGE, new byte[]{(byte) viewPager.getCurrentItem()});
     }
 
     private void applyTrainingModeForPage(int position) {
@@ -181,7 +181,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         if (viewPager != null) {
             int page = viewPager.getCurrentItem();
             Log.i("DOCTOR", ">>> sendCurrentPage: " + page);
-            TcpServerManager.getInstance().sendToPatient("PAGE," + page);
+            TcpServerManager.getInstance().sendBinaryToPatient(EegProtocol.CMD_PAGE, new byte[]{(byte) page});
         }
     }
 

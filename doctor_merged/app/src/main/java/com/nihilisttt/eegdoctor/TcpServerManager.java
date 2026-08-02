@@ -758,7 +758,17 @@ public class TcpServerManager {
      * @return true 表示命令已进入发送队列；false 表示命令无效或队列不可用。
      */
     public boolean sendToPatient(String command) {
-        return enqueuePatientCommand(command, null);
+        if (command == null || command.trim().isEmpty()) {
+            postPatientSendResult(null, false);
+            return false;
+        }
+        final byte[] payload = patientTextToPayload(command);
+        if (payload == null) {
+            Log.w("DOCTOR", ">>> D2P UNSUPPORTED CMD: [" + command + "]");
+            postPatientSendResult(null, false);
+            return false;
+        }
+        return enqueuePatientPayload(payload, null);
     }
 
     /**
@@ -766,18 +776,41 @@ public class TcpServerManager {
      * 控制连接短暂重连时，后台任务会在 3 秒内等待新连接并重试。
      */
     public boolean sendToPatientAsync(String command, PatientSendCallback callback) {
-        return enqueuePatientCommand(command, callback);
-    }
-
-    private boolean enqueuePatientCommand(String command, PatientSendCallback callback) {
         if (command == null || command.trim().isEmpty()) {
             postPatientSendResult(callback, false);
             return false;
         }
-
         final byte[] payload = patientTextToPayload(command);
         if (payload == null) {
             Log.w("DOCTOR", ">>> D2P UNSUPPORTED CMD: [" + command + "]");
+            postPatientSendResult(callback, false);
+            return false;
+        }
+        return enqueuePatientPayload(payload, callback);
+    }
+
+    /** 直接向患者端发送二进制帧（[cmd][data]），带状态快照与排队重试。 */
+    public boolean sendBinaryToPatient(int cmd, byte[] data) {
+        return enqueuePatientPayload(buildPatientPayload(cmd, data), null);
+    }
+
+    /** 直接异步向患者端发送二进制帧，成功后回调主线程。 */
+    public boolean sendBinaryToPatientAsync(int cmd, byte[] data, PatientSendCallback callback) {
+        return enqueuePatientPayload(buildPatientPayload(cmd, data), callback);
+    }
+
+    private static byte[] buildPatientPayload(int cmd, byte[] data) {
+        int dLen = (data == null) ? 0 : data.length;
+        byte[] payload = new byte[dLen + 1];
+        payload[0] = (byte) cmd;
+        if (dLen > 0) {
+            System.arraycopy(data, 0, payload, 1, dLen);
+        }
+        return payload;
+    }
+
+    private boolean enqueuePatientPayload(byte[] payload, PatientSendCallback callback) {
+        if (payload == null || payload.length < 1) {
             postPatientSendResult(callback, false);
             return false;
         }
@@ -787,12 +820,14 @@ public class TcpServerManager {
 
         // 未完成握手时不把命令堆积在队列中；期望状态已经保存，重连后的状态快照会自动同步。
         if (!hasReadyPatientControlSocket()) {
-            Log.w("DOCTOR", ">>> D2P NOT ENQUEUED (control not ready): [" + command + "]");
+            Log.w("DOCTOR", ">>> D2P NOT ENQUEUED (control not ready): cmd=0x"
+                    + Integer.toHexString(payload[0] & 0xFF));
             postPatientSendResult(callback, false);
             return false;
         }
 
-        Log.i("DOCTOR", ">>> D2P ENQUEUE: [" + command + "]");
+        Log.i("DOCTOR", ">>> D2P ENQUEUE BIN: cmd=0x" + Integer.toHexString(payload[0] & 0xFF)
+                + " len=" + (payload.length - 1));
         try {
             patientControlWriter.execute(() -> {
                 boolean success = sendQueuedPatientCommand(payload, 3000L);
@@ -800,7 +835,8 @@ public class TcpServerManager {
             });
             return true;
         } catch (RejectedExecutionException e) {
-            Log.e("DOCTOR", ">>> D2P QUEUE REJECTED: [" + command + "]", e);
+            Log.e("DOCTOR", ">>> D2P QUEUE REJECTED: cmd=0x"
+                    + Integer.toHexString(payload[0] & 0xFF), e);
             postPatientSendResult(callback, false);
             return false;
         }
@@ -1641,8 +1677,13 @@ public class TcpServerManager {
             for (int i = 0; i < 4; i++) scores[i] = buf.getInt() / 10000f;
             int[] votes = new int[4];
             for (int i = 0; i < 4; i++) votes[i] = body[off + 34 + i] & 0xFF;
-            SsvepAnalysisManager.getInstance().onMcuSsvepResult(
-                    seq, rawIndex, votedIndex, ratio, best, margin, scores, votes);
+            SsvepAnalysisManager mgr = SsvepAnalysisManager.getInstance();
+            if (!(mgr.isRunning() && !mgr.isSynthetic())) {
+                SsvepResult r = SsvepResult.fromMcu(seq, rawIndex, votedIndex,
+                        ratio, best, margin, scores, votes);
+                sendBinaryToPatient(EegProtocol.CMD_SSVEP_RESULT, r.toPatientData());
+            }
+            mgr.onMcuSsvepResult(seq, rawIndex, votedIndex, ratio, best, margin, scores, votes);
             sendAckBinary(seq);
             return true;
         }
@@ -1653,7 +1694,7 @@ public class TcpServerManager {
             int diagType = body[off] & 0xFF;
             switch (diagType) {
                 case EegProtocol.DIAG_TYPE_IPCDIAG:
-                    if (payloadLen >= 42) {
+                    if (payloadLen >= 38) {
                         IpcDiagInfo diag = new IpcDiagInfo();
                         ByteBuffer buf = ByteBuffer.wrap(body, off + 1, 24).order(ByteOrder.LITTLE_ENDIAN);
                         diag.setAck(buf.getInt());
@@ -1661,9 +1702,12 @@ public class TcpServerManager {
                         diag.setOk(buf.getInt());
                         diag.setBad(buf.getInt());
                         diag.setV5fhb(buf.getInt());
-                        diag.setEna(buf.getInt());
-                        diag.setSts(buf.getInt());
-                        diag.setIsr(buf.getInt());
+                        diag.setWfiWake(buf.getInt());
+                        diag.setActive(body[off + 25] & 0xFF);
+                        ByteBuffer reg = ByteBuffer.wrap(body, off + 26, 12).order(ByteOrder.LITTLE_ENDIAN);
+                        diag.setEna(reg.getInt());
+                        diag.setSts(reg.getInt());
+                        diag.setIsr(reg.getInt());
                         dispatcher.postIpcDiag(diag);
                     }
                     break;

@@ -26,10 +26,10 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
 
     private ViewPager2 viewPager;
     private TcpServerManager tcpServer;
-    private final String[] pageTitles = {"阻抗检测", "脑电监测", "专注度", "波形对比", "频谱对比", "SSVEP训练", "MI训练", "方向识别", "姿态监护", "系统配置"};
+    private final String[] pageTitles = {"阻抗检测", "脑电监测", "专注度", "波形对比", "频谱对比", "SSVEP训练", "MI训练", "方向识别", "姿态监护", "地形图", "系统配置"};
 
     private TextView tvBarFocus, tvBarRelax, tvBarInstant, tvBarTrend, tvBarPosture;
-    private TextView tvBarLeadOff, tvBarBias;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,7 +51,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         fragments.add(new MiTrainingFragment());
         fragments.add(new InferenceFragment());
         fragments.add(new PostureFragment());
-
+        fragments.add(new TopoMapFragment());
         fragments.add(new ConfigFragment());
 
 
@@ -108,7 +108,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         tvBarInstant = findViewById(R.id.tv_bar_instant);
         tvBarTrend = findViewById(R.id.tv_bar_trend);
         tvBarPosture = findViewById(R.id.tv_bar_posture);
-        tvBarLeadOff = findViewById(R.id.tv_bar_lead_off);
+
 
         DataDispatcher.getInstance().addListener(this);
 
@@ -217,31 +217,6 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
     @Override
     public void onSpectrumData(int cmd, float[] mags) {}
 
-    /* mask 位序为 ADS1299 物理通道 CH1..CH8(F4,C4,CP4,OZ,O1,CP3,C3,F3) */
-    private static final int[] LEAD_OFF_MASK_TO_CH = {3, 7, 5, 0, 1, 4, 6, 2};
-
-    @Override
-    public void onLeadOffStatus(int leadOffMask, boolean biasConnected) {
-        runOnUiThread(() -> {
-            if (tvBarLeadOff != null) {
-                StringBuilder off = new StringBuilder();
-                for (int i = 0; i < 8; i++) {
-                    if ((leadOffMask & (1 << LEAD_OFF_MASK_TO_CH[i])) != 0) {
-                        if (off.length() > 0) off.append(" ");
-                        off.append(EegChannels.NAMES[i]);
-                    }
-                }
-                if (off.length() == 0) {
-                    tvBarLeadOff.setText("导联正常");
-                    tvBarLeadOff.setTextColor(ContextCompat.getColor(this, R.color.accent_success));
-                } else {
-                    tvBarLeadOff.setText("断:" + off);
-                    tvBarLeadOff.setTextColor(ContextCompat.getColor(this, R.color.accent_error));
-                }
-            }
-
-        });
-    }
 
     @Override
     public void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {

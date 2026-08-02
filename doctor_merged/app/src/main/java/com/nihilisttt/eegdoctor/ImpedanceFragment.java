@@ -72,17 +72,7 @@ public class ImpedanceFragment extends Fragment implements DataListener {
     }
 
     @Override
-    public void onLeadOffStatus(int leadOffMask, boolean biasConnected) {
-        if (getActivity() == null || tvBias == null) return;
-        getActivity().runOnUiThread(() -> {
-            tvBias.setText(biasConnected ? "参考正常" : "参考断开");
-            tvBias.setTextColor(getResources().getColor(
-                    biasConnected ? R.color.accent_success : R.color.accent_error,
-                    getActivity().getTheme()));
-        });
-    }
 
-    @Override
     public void onWaveData(int cmd, int ch, float val) {}
     @Override
     public void onSpectrumData(int cmd, float[] mags) {}

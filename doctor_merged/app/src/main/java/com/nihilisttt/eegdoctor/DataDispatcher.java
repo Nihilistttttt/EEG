@@ -244,13 +244,5 @@ public class DataDispatcher {
             }
         });
     }
-
-    public void postLeadOffStatus(int leadOffMask, boolean biasConnected) {
-        mainHandler.post(() -> {
-            for (DataListener l : listeners) {
-                try { l.onLeadOffStatus(leadOffMask, biasConnected); }
-                catch (Exception e) { Log.e(TAG, "onLeadOffStatus error", e); }
-            }
-        });
-    }
 }
+

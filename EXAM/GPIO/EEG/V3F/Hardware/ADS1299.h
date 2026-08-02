@@ -96,22 +96,11 @@ extern "C" {
 #define ADS1299_CHSET_POWER_NORMAL     0x60u
 #define ADS1299_CHSET_POWER_DOWN       0x81u
 
-#define ADS1299_LOFF_DC_6NA            0x00u
-#define ADS1299_LOFF_DC_24NA           0x04u
-#define ADS1299_LOFF_AC_7_8HZ_6NA     0x01u
-#define ADS1299_LOFF_AC_7_8HZ_24NA    0x05u
-#define ADS1299_LOFF_AC_31_2HZ_6NA    0x02u
-#define ADS1299_LOFF_AC_31_2HZ_24NA   0x06u
-#define ADS1299_LOFF_COMP_TH_95       0x00u
-#define ADS1299_LOFF_COMP_TH_90       0x20u
-#define ADS1299_LOFF_COMP_TH_85       0x40u
-#define ADS1299_LOFF_COMP_TH_80       0x60u
-#define ADS1299_CFG4_LOFF_COMP_EN     0x02u
 
 #define ADS1299_IMPEDANCE_N_FRAMES    128u
 #define ADS1299_IMPEDANCE_I_NA        6.0f
 
-#define ADS1299_LOFF_COMP_ENABLE      0x02u
+
 #define ADS1299_BIAS_LOFF_SENS_BIT    0x02u
 
 /*============================ ���⺯������ ============================*/
@@ -125,8 +114,7 @@ void ADS1299_EnterImpedanceMode(void);
 void ADS1299_ExitImpedanceMode(void);
 void ADS1299_MeasureImpedance(float out_kohm[ADS1299_CHANNEL_NUM]);
 
-void ADS1299_LeadOffInit(void);
-uint8_t ADS1299_GetLeadOffMaskFromFrame(const uint8_t *frame_buf);
+
 uint8_t ADS1299_GetBiasStatus(void);
 
 #ifdef __cplusplus

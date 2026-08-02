@@ -80,7 +80,7 @@ uint8_t ADS1299_Init (void) {
     ADS1299_Register_Init();
 
     uint8_t id = ADS1299_ReadReg (ADS1299_REG_ID);
-    ADS1299_LeadOffInit();
+
     ADS1299_StartContinuous();
 
     return id;  // ���� ID ���ⲿ���
@@ -611,8 +611,7 @@ void ADS1299_EnterImpedanceMode (void) {
     ADS1299_START_LOW();
     Delay_Ms (10);
 
-    ADS1299_WriteReg (ADS1299_REG_LOFF,
-        ADS1299_LOFF_COMP_TH_95 | ADS1299_LOFF_AC_7_8HZ_6NA);
+    ADS1299_WriteReg (ADS1299_REG_LOFF, 0x01);
     Delay_Ms (10);
     ADS1299_WriteReg (ADS1299_REG_LOFF_SENSP, 0xFF);
     Delay_Ms (10);
@@ -620,7 +619,7 @@ void ADS1299_EnterImpedanceMode (void) {
     Delay_Ms (10);
     ADS1299_WriteReg (ADS1299_REG_LOFF_FLIP, 0x00);
     Delay_Ms (10);
-    ADS1299_WriteReg (ADS1299_REG_CONFIG4, ADS1299_CFG4_LOFF_COMP_EN);
+    ADS1299_WriteReg (ADS1299_REG_CONFIG4, 0x82u);
     Delay_Ms (10);
 
     ADS1299_SendCommand (ADS1299_CMD_RDATAC);
@@ -702,29 +701,6 @@ void ADS1299_MeasureImpedance (float out_kohm[ADS1299_CHANNEL_NUM]) {
 
 static uint8_t s_bias_connected = 1u;
 
-void ADS1299_LeadOffInit (void) {
-    ADS1299_SendCommand (ADS1299_CMD_SDATAC);
-    Delay_Ms (10);
-
-    ADS1299_WriteReg (ADS1299_REG_LOFF,
-        ADS1299_LOFF_COMP_TH_95 | ADS1299_LOFF_DC_6NA);
-    Delay_Ms (10);
-    ADS1299_WriteReg (ADS1299_REG_LOFF_SENSP, 0xFF);
-    Delay_Ms (10);
-    ADS1299_WriteReg (ADS1299_REG_LOFF_SENSN, 0xFF);
-    Delay_Ms (10);
-    ADS1299_WriteReg (ADS1299_REG_LOFF_FLIP, 0x00);
-    Delay_Ms (10);
-    ADS1299_WriteReg (ADS1299_REG_CONFIG4, ADS1299_CFG4_LOFF_COMP_EN);
-    Delay_Ms (10);
-
-    /* BIAS 电极检测：临时关闭 BIAS 放大器，读 BIAS_STAT，再恢复。
-     * BIAS_STAT 仅在 PD_BIAS=0 时有效：0=连接，1=断开。 */
-    ADS1299_RecheckBias();
-
-    ADS1299_SendCommand (ADS1299_CMD_RDATAC);
-    Delay_Ms (10);
-}
 
 uint8_t ADS1299_RecheckBias (void) {
     ADS1299_WriteReg (ADS1299_REG_CONFIG3, 0xE0u | ADS1299_BIAS_LOFF_SENS_BIT);
@@ -735,19 +711,6 @@ uint8_t ADS1299_RecheckBias (void) {
     return s_bias_connected;
 }
 
-uint8_t ADS1299_GetLeadOffMaskFromFrame (const uint8_t *frame_buf) {
-    if (frame_buf == 0) return 0;
-    uint32_t status = ((uint32_t)frame_buf[0] << 16) |
-                      ((uint32_t)frame_buf[1] << 8) |
-                      ((uint32_t)frame_buf[2]);
-    /*
-     * 24-bit status: [23:20]=1100, [19:12]=LOFF_STATP, [11:4]=LOFF_STATN,
-     * [3:0]=GPIO. 任一 P/N 侧断线即视为该通道断线。
-     */
-    uint8_t statp = (uint8_t)((status >> 12) & 0xFF);
-    uint8_t statn = (uint8_t)((status >> 4) & 0xFF);
-    return (uint8_t)(statp | statn);
-}
 
 uint8_t ADS1299_GetBiasStatus (void) {
     return s_bias_connected;

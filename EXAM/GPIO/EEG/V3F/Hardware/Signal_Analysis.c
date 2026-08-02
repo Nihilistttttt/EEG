@@ -162,18 +162,6 @@ void Signal_Analysis_Start (void) {
 
             ADS1299_ParseRawFrame (frame_buf, NULL, ch_data);
 
-            /* 每 250 帧(约1秒)上报一次导联断线状态 */
-            {
-                static uint32_t leadoff_frame_count = 0;
-                leadoff_frame_count++;
-                if ((leadoff_frame_count % 250u) == 0u) {
-                    uint8_t mask = ADS1299_GetLeadOffMaskFromFrame(frame_buf);
-                    uint8_t bias = ADS1299_GetBiasStatus();
-                    uint8_t loff_payload[2] = {mask, bias};
-                    Pack_Frame(SERIAL_PORT_DEBUG, CMD_LEAD_OFF_STATUS, loff_payload, 2);
-                    Pack_Frame(SERIAL_PORT_WIFI, CMD_LEAD_OFF_STATUS, loff_payload, 2);
-                }
-            }
 
             float raw_vals[NUM_CHANNELS];
             raw_vals[0] = ADS1299_CodeToVolt (ch_data[ADS1299_EEG_CH_OZ], ADS1299_VREF_DEFAULT, ADS1299_GAIN_DEFAULT);

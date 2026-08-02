@@ -3,6 +3,42 @@ EEG项目更新记录
 最后更新: 2026-08-02
 
 ================================================================================
+2026-08-02  新增8通道脑电地形图Fragment + 移除DC导联断线检测
+================================================================================
+
+更新内容:
+1. 新增TopoMapFragment(地形图页面):
+   - TopoMapView自定义View: 8通道电极按10-20系统标准位置布局于头顶俯视图
+   - IDW(反距离加权, power=2)插值生成64x64网格连续颜色映射
+   - Jet色图(蓝→青→绿→黄→红), 每通道EMA-RMS计算实时振幅(α=0.01, τ≈400ms@250Hz)
+   - 绘制: 头轮廓(圆+鼻+耳)、位图热力图、电极圆点+标签、右侧色条
+   - 支持滤波/基线切换(与Eeg8ChFragment一致), 振幅范围可调(10~500μV)
+   - TopoMapFragment: DataListener接收onWaveData→addSample, sendDisplayConfig请求8通道数据
+2. 移除DC导联断线检测(波形周期性归零根因):
+   - MCU ADS1299.c: 删除ADS1299_LeadOffInit()函数体和调用、删除ADS1299_GetLeadOffMaskFromFrame()
+   - MCU ADS1299.h: 删除LeadOffInit/GetLeadOffMaskFromFrame声明、删除LOFF_DC/AC/COMP_TH/CFG4_LOFF_COMP_EN等宏
+   - MCU Signal_Analysis.c: 删除每250帧上报CMD_LEAD_OFF_STATUS的整块代码
+   - MCU eeg_protocol.h: 删除CMD_LEAD_OFF_STATUS=0x45
+   - Android DataListener: 删除onLeadOffStatus默认方法
+   - Android DataDispatcher: 删除postLeadOffStatus方法
+   - Android TcpServerManager: 删除handleLeadOffFrame方法和case分支
+   - Android MainActivity: 删除tvBarLeadOff/tvBarBias、LEAD_OFF_MASK_TO_CH、onLeadOffStatus回调
+   - Android ImpedanceFragment: 删除onLeadOffStatus回调
+   - Android EegProtocol: 删除CMD_LEAD_OFF_STATUS常量
+   - activity_main.xml: 删除导联状态TextView和分隔线
+3. 主页新增"地形图"卡片(accent_info蓝色边框), 系统配置页码9→10
+4. EnterImpedanceMode中LOFF/CONFIG4改为直接写数值(0x01/0x82), 不依赖已删除宏
+
+必要性:
+- DC导联检测灌6nA直流电流→电极上产生DC偏移→两个高通滤波器(drift_remove+display_baseline)跟踪减去→
+  电极接触微变时DC偏移突变→滤波器需1~2s收敛→收敛期间输出≈0→波形全变直线
+- 改AC模式可解决但增加复杂度, 阻抗检测页面已能独立检测导联状态, DC导联检测无存在必要
+- 地形图是8通道空间分布的自然可视化需求, 与8通道波形条带互补
+
+说明: Android编译通过(BUILD SUCCESSFUL)；MCU需MounRiver编译验证
+================================================================================
+
+================================================================================
 2026-08-02  DC导联断线检测+BIAS参考检测+主页卡片布局修复
 ================================================================================
 

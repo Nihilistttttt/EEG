@@ -20,5 +20,5 @@ public interface DataListener {
     default void onSsvepResult(SsvepResult result) {}
     default void onSsvepProgress(SsvepProgress progress) {}
     default void onImpedanceResult(float[] kohm, boolean biasConnected) {}
-    default void onLeadOffStatus(int leadOffMask, boolean biasConnected) {}
+
 }

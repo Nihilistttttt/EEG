@@ -14,7 +14,8 @@ import androidx.fragment.app.Fragment;
 
 public class InferenceFragment extends Fragment implements DoctorConnector.DataListener {
 
-    private static final int HIDE_DELAY_MS = 1500;
+    private static final int COMPARE_DISPLAY_MS = 200;
+    private static final int COMPARE_GAP_MS = 200;
     private static final int COLOR_CORRECT = 0xFF00C853;
     private static final int COLOR_WRONG = 0xFFFF1744;
     private static final int COLOR_DIM = 0xFFFFFFFF;
@@ -23,7 +24,7 @@ public class InferenceFragment extends Fragment implements DoctorConnector.DataL
     private TextView tvResult;
     private Handler handler = new Handler(Looper.getMainLooper());
     private String currentTarget = null;
-    private Runnable hideRunnable = null;
+
 
     @Nullable
     @Override
@@ -47,7 +48,8 @@ public class InferenceFragment extends Fragment implements DoctorConnector.DataL
     public void onDestroyView() {
         super.onDestroyView();
         DoctorConnector.getInstance().removeListener(this);
-        if (hideRunnable != null) handler.removeCallbacks(hideRunnable);
+
+        handler.removeCallbacksAndMessages(null);
     }
 
     @Override
@@ -58,8 +60,7 @@ public class InferenceFragment extends Fragment implements DoctorConnector.DataL
             boolean isLeft = "LEFT".equals(direction);
             tvTarget.setText(isLeft ? "◀" : "▶");
             tvTarget.setTextColor(COLOR_DIM);
-            tvResult.setText("--");
-            tvResult.setTextColor(COLOR_DIM);
+
         });
     }
 
@@ -67,28 +68,30 @@ public class InferenceFragment extends Fragment implements DoctorConnector.DataL
     public void onInferenceResult(InferenceResult result) {
         if (getActivity() == null || tvResult == null) return;
         getActivity().runOnUiThread(() -> {
+            if (currentTarget == null) return;
+            handler.removeCallbacksAndMessages(null);
+
             String intent = result.getIntent();
             boolean isLeft = "LEFT".equals(intent);
+            boolean correct = currentTarget.equals(intent);
+            int color = correct ? COLOR_CORRECT : COLOR_WRONG;
+            tvTarget.setTextColor(color);
             tvResult.setText(isLeft ? "◀" : "▶");
+            tvResult.setTextColor(color);
+            tvResult.setVisibility(View.VISIBLE);
 
-            if (currentTarget != null) {
-                boolean correct = currentTarget.equals(intent);
-                tvResult.setTextColor(correct ? COLOR_CORRECT : COLOR_WRONG);
-                tvTarget.setTextColor(correct ? COLOR_CORRECT : COLOR_WRONG);
-            } else {
-                tvResult.setTextColor(COLOR_DIM);
-            }
-
-            if (hideRunnable != null) handler.removeCallbacks(hideRunnable);
-            hideRunnable = () -> {
-                tvTarget.setText("--");
+            handler.postDelayed(() -> {
+                if (getActivity() == null) return;
+                tvTarget.setVisibility(View.INVISIBLE);
+                tvResult.setVisibility(View.INVISIBLE);
                 tvTarget.setTextColor(COLOR_DIM);
-                tvResult.setText("--");
-                tvResult.setTextColor(COLOR_DIM);
-                currentTarget = null;
-                hideRunnable = null;
-            };
-            handler.postDelayed(hideRunnable, HIDE_DELAY_MS);
+            }, COMPARE_DISPLAY_MS);
+
+            handler.postDelayed(() -> {
+                if (getActivity() == null) return;
+                tvTarget.setVisibility(View.VISIBLE);
+                tvResult.setVisibility(View.INVISIBLE);
+            }, COMPARE_DISPLAY_MS + COMPARE_GAP_MS);
         });
     }
 
@@ -97,14 +100,14 @@ public class InferenceFragment extends Fragment implements DoctorConnector.DataL
         if (getActivity() == null || tvTarget == null) return;
         getActivity().runOnUiThread(() -> {
             currentTarget = null;
-            if (hideRunnable != null) {
-                handler.removeCallbacks(hideRunnable);
-                hideRunnable = null;
-            }
+
+            handler.removeCallbacksAndMessages(null);
             tvTarget.setText("--");
             tvTarget.setTextColor(COLOR_DIM);
+            tvTarget.setVisibility(View.VISIBLE);
             tvResult.setText("--");
             tvResult.setTextColor(COLOR_DIM);
+            tvResult.setVisibility(View.INVISIBLE);
         });
     }
 

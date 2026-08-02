@@ -35,14 +35,30 @@
                     android:orientation="vertical"
                     android:gravity="center">
 
-                    <TextView
-                        android:id="@+id/tv_direction"
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="← →"
-                        android:textSize="56sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text_secondary" />
+                        android:orientation="horizontal"
+                        android:gravity="center">
+
+                        <TextView
+                            android:id="@+id/tv_direction"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="← →"
+                            android:textSize="56sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_secondary" />
+
+                        <TextView
+                            android:id="@+id/tv_result_dir"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textSize="56sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
+
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/tv_target_dir"

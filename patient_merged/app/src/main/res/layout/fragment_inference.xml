@@ -58,7 +58,8 @@
             android:text="--"
             android:textSize="200sp"
             android:textStyle="bold"
-            android:textColor="#FFFFFFFF" />
+            android:textColor="#FFFFFFFF"
+            android:visibility="invisible" />
     </LinearLayout>
 
 </LinearLayout>

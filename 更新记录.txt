@@ -3,6 +3,39 @@ EEG项目更新记录
 最后更新: 2026-08-02
 
 ================================================================================
+2026-08-02  方向推理UI流程重构+sendToDevice二进制化+推理卡住修复
+================================================================================
+
+更新内容:
+1. 医生端(doctor_merged) 方向推理UI流程重构:
+   - 新增tvResultDir结果大箭头(56sp)，与tvDirection目标大箭头并排显示
+   - RESULT_MI到来时: 两个箭头同时标色(对=绿accent_success,错=红accent_error)0.2s
+   - 0.2s后两个箭头INVISIBLE，在隐藏期切换目标方向文字+颜色+发CMD_TARGET
+   - 0.4s后目标箭头VISIBLE(已是新方向白色，无闪烁)
+   - 方向在隐藏期切换避免可见时闪烁
+   - 去掉targetScheduled标志，改用removeCallbacksAndMessages(null)每次重新调度，消除死锁
+2. 医生端 sendToDevice文本入口全改二进制:
+   - EegChannels新增buildDisplayConfigData()/buildAllNoneDisplayConfigData()返回byte[]
+   - 5处buildAllNoneDisplayConfig调用改sendBinaryToDevice(CMD_DISPLAY_CFG,data)
+   - 4处sendDisplayConfig文本构造改二进制
+   - 3处STOP命令改sendBinaryToDevice(CMD_STOP,null)
+3. 推理卡住根因修复(3个):
+   a. 主线程I/O阻塞(最严重): 每次RESULT_MI同步执行addRecord(SharedPreferences
+      读写+JSON全量序列化)+refreshStats(又读一遍+RecyclerView刷新)，记录多时
+      严重卡顿主线程导致delayed runnable无法执行
+      → addRecord移到后台线程recordWriter; refreshStats降频到每5次结果刷新一次
+   b. targetScheduled/compareScheduled死锁: runnable中if(!isInferencing)return
+      提前退出时标志不重置
+      → 去掉标志位，改用removeCallbacksAndMessages(null)每次重新调度
+   c. 患者端dispatchPageSwitch无去重: 每次RESULT_MI触发switchToPage主线程开销
+      → dispatchPageSwitch加if(currentPatientPage==page)return去重
+4. 患者端(patient_merged)方向推理UI同步重构:
+   - 同样的比较显示0.2s→隐藏0.2s→目标箭头出现流程
+   - tvResult全用INVISIBLE代替GONE，消除"结果"标签上下跳动
+   - onTargetDirection不再强制VISIBLE(可能在隐藏期)，只更新文字和颜色
+5. 规范性要求.txt新增第6、7条: 更新上传边界规则(只覆盖已验证修改)
+
+================================================================================
 2026-08-02  MCU异步SSVEP消除IPC parse_bad + diag帧尺寸修复 + 医生/患者端二进制对齐 + D2P全二进制化
 ================================================================================
 

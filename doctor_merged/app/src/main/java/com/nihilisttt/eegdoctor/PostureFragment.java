@@ -156,7 +156,8 @@ public class PostureFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        TcpServerManager.getInstance().sendToDevice(EegChannels.buildAllNoneDisplayConfig());
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_DISPLAY_CFG,
+                EegChannels.buildAllNoneDisplayConfigData());
         updatePostureDisplay();
         refreshLogView();
     }

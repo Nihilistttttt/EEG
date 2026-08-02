@@ -863,6 +863,7 @@ public class DoctorConnector {
     }
 
     private void dispatchPageSwitch(int page, String source) {
+        if (currentPatientPage == page) return;
         currentPatientPage = page;
         Log.i(TAG, ">>> " + source + " PAGE -> patient=" + page);
         for (DataListener listener : listeners) {

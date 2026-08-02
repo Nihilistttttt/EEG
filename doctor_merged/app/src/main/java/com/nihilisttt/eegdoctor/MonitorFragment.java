@@ -642,13 +642,12 @@ public class MonitorFragment extends Fragment implements DataListener {
     }
 
     private void sendDisplayConfig() {
-        String cmd = String.format(Locale.US,
-                "DISPLAY_CFG,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+        byte[] data = EegChannels.buildDisplayConfigData(
                 waveCh[0], waveType[0], waveCh[1], waveType[1], specType[0], specType[1],
                 0, EegChannels.WAVE_TYPE_NONE, 0, EegChannels.WAVE_TYPE_NONE,
                 EegChannels.SPEC_TYPE_NONE, EegChannels.SPEC_TYPE_NONE);
-        TcpServerManager.getInstance().sendToDevice(cmd);
-        Log.i("DisplayConfig", "Sent: " + cmd);
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_DISPLAY_CFG, data);
+        Log.i("DisplayConfig", "Sent DISPLAY_CFG binary");
     }
 
     private void rebuildChannelsList() {

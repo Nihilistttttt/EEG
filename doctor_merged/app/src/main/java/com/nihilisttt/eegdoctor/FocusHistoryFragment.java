@@ -114,7 +114,8 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
         super.onResume();
         DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
-        TcpServerManager.getInstance().sendToDevice(EegChannels.buildAllNoneDisplayConfig());
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_DISPLAY_CFG,
+                EegChannels.buildAllNoneDisplayConfigData());
         if (focusChart != null) focusChart.loadFromStore();
         Log.d("FocusHistory", "onResume: listener refreshed");
     }

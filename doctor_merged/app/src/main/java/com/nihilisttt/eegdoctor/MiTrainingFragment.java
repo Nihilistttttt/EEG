@@ -113,7 +113,7 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
         currentState = STATE_IDLE;
         handler.removeCallbacksAndMessages(null);
         if (wasActive) {
-            CommandSender.getInstance().sendCommand("STOP");
+            TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_STOP, null);
             TcpServerManager.getInstance().sendBinaryToPatient(EegProtocol.CMD_TRAIN_STOP, null);
         }
         if (updateUi && getView() != null) {
@@ -253,7 +253,8 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
         super.onResume();
         DataDispatcher.getInstance().removeListener(this);
         DataDispatcher.getInstance().addListener(this);
-        TcpServerManager.getInstance().sendToDevice(EegChannels.buildAllNoneDisplayConfig());
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_DISPLAY_CFG,
+                EegChannels.buildAllNoneDisplayConfigData());
     }
 
     @Override

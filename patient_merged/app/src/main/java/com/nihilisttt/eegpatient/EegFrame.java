@@ -41,21 +41,5 @@ public class EegFrame {
     public long getTimestamp() { return timestamp; }
     public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
 
-    public static EegFrame fromDirCsv(String line) {
-        String[] parts = line.split(",");
-        if (parts.length < 1) return null;
-        EegFrame frame = new EegFrame();
-        int idx = 0;
-        if (parts[0].equals("DIRCSV")) idx = 1;
-        if (idx < parts.length) frame.setLabel(parts[idx++]);
-        for (int i = 0; i < CHANNEL_COUNT && idx < parts.length; i++) {
-            try { frame.setChannel(i, Float.parseFloat(parts[idx++])); }
-            catch (NumberFormatException e) { frame.setChannel(i, 0f); }
-        }
-        for (int i = 0; i < FEATURE_COUNT && idx < parts.length; i++) {
-            try { frame.setFeature(i, Float.parseFloat(parts[idx++])); }
-            catch (NumberFormatException e) { frame.setFeature(i, 0f); }
-        }
-        return frame;
-    }
+
 }

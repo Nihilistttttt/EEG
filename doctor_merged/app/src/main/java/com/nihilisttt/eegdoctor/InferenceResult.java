@@ -42,30 +42,4 @@ public class InferenceResult {
     public long getTimestamp() { return timestamp; }
     public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
 
-    public static InferenceResult fromResultLine(String line) {
-        String prefix = "RESULT,";
-        if (!line.startsWith(prefix)) return null;
-        String body = line.substring(prefix.length());
-        String[] pairs = body.split(",");
-        InferenceResult r = new InferenceResult();
-        for (String pair : pairs) {
-            String[] kv = pair.split("=", 2);
-            if (kv.length != 2) continue;
-            String key = kv[0].trim();
-            String val = kv[1].trim();
-            try {
-                switch (key) {
-                    case "window": r.setWindow(Integer.parseInt(val)); break;
-                    case "dt_ms": r.setDtMs(Integer.parseInt(val)); break;
-                    case "win_rows": r.setWinRows(Integer.parseInt(val)); break;
-                    case "INTENT": r.setIntent(val); break;
-                    case "S_LEFT": r.setScoreLeft(Float.parseFloat(val) / 10000.0f); break;
-                    case "S_RIGHT": r.setScoreRight(Float.parseFloat(val) / 10000.0f); break;
-                    case "CONF": r.setConfidence(Float.parseFloat(val) / 10000.0f); break;
-                    case "trained": r.setTrained(!val.equals("0")); break;
-                }
-            } catch (NumberFormatException ignored) {}
-        }
-        return r;
-    }
 }

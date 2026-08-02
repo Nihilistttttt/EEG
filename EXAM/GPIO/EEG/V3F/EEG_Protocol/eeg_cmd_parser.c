@@ -342,17 +342,3 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
     }
 }
 
-void Parse_CommandEx(const char *cmd, const char *source)
-{
-    char clean_cmd[64];
-    strncpy(clean_cmd, cmd, sizeof(clean_cmd) - 1);
-    clean_cmd[sizeof(clean_cmd) - 1] = '\0';
-    size_t len = strlen(clean_cmd);
-    while (len > 0 && (clean_cmd[len-1] == '\r' || clean_cmd[len-1] == '\n')) {
-        clean_cmd[len-1] = '\0';
-        len--;
-    }
-    if (len == 0) return;
-    Serial_Printf(SERIAL_PORT_DEBUG, "RX[%s]: %s\r\n", source, clean_cmd);
-    Serial_Printf(SERIAL_PORT_WIFI, "RX[%s]: %s\r\n", source, clean_cmd);
-}

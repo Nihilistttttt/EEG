@@ -46,30 +46,4 @@ public class IpcDiagInfo {
         return total > 0 ? (float) ok / total * 100f : 0f;
     }
 
-    public static IpcDiagInfo fromLine(String line) {
-        String prefix = "IPCDIAG,";
-        if (!line.startsWith(prefix)) return null;
-        String body = line.substring(prefix.length());
-        String[] pairs = body.split(",");
-        IpcDiagInfo d = new IpcDiagInfo();
-        for (String pair : pairs) {
-            String[] kv = pair.split("=", 2);
-            if (kv.length != 2) continue;
-            String key = kv[0].trim();
-            String val = kv[1].trim();
-            try {
-                switch (key) {
-                    case "ack": d.setAck(Integer.parseInt(val)); break;
-                    case "notify": d.setNotify(Integer.parseInt(val)); break;
-                    case "ok": d.setOk(Integer.parseInt(val)); break;
-                    case "bad": d.setBad(Integer.parseInt(val)); break;
-                    case "v5fhb": d.setV5fhb(Integer.parseInt(val)); break;
-                    case "ENA": d.setEna(Integer.parseInt(val, 16)); break;
-                    case "STS": d.setSts(Integer.parseInt(val, 16)); break;
-                    case "ISR": d.setIsr(Integer.parseInt(val, 16)); break;
-                }
-            } catch (NumberFormatException ignored) {}
-        }
-        return d;
-    }
 }

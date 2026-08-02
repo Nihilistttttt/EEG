@@ -3,6 +3,22 @@ EEG项目更新记录
 最后更新: 2026-08-02
 
 ================================================================================
+2026-08-02  清除文本协议死代码+MI采集进度条统一15秒
+================================================================================
+
+更新内容:
+1. 医生端/患者端删除文本协议死代码解析器(8处):
+   - TcpServerManager: parseMcuTextResponses()+parseTextLine()+parseSsvepResultLine()
+     +isDuplicateSeq()+sendAckForSeq()+ssvepFreqToIndex()+textLineLogCounter
+   - InferenceResult.fromResultLine() (医生+患者)
+   - EegFrame.fromDirCsv() (医生+患者)
+   - IpcDiagInfo.fromLine() (医生+患者)
+2. MCU端删除文本命令解析器:
+   - eeg_cmd_parser.c: Parse_CommandEx()
+   - eeg_cmd_parser.h: Parse_CommandEx声明
+3. 患者端MI采集进度条: 25000→15000ms，与医生端统一为15秒
+
+================================================================================
 2026-08-02  方向推理UI流程重构+sendToDevice二进制化+推理卡住修复
 ================================================================================
 

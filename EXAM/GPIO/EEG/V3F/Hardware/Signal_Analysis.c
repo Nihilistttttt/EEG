@@ -11,6 +11,9 @@
 #include "Message_Parser.h"
 #include "debug.h"
 #include "ADS1299.h"
+#include "blink_detector.h"
+
+extern BlinkDetector_t g_blink_detector;
 
 #include "hardware.h"
 #include "W25Q64.h"
@@ -270,6 +273,8 @@ void Signal_Analysis_Start (void) {
             RingBuf.CH6[RingBuf.WriteIdx] = ab_pre_vals[6];
             RingBuf.CH7[RingBuf.WriteIdx] = ab_pre_vals[7];
             RingBuf.WriteIdx = (RingBuf.WriteIdx + 1) % FFT_SIZE;
+
+            blink_detector_process_sample(&g_blink_detector, ab_pre_vals[2] * 1e6f, 0.0f, 1u);
 
             Update_Waveform (baseline_vals[g_display_config.wave_ch[0]]);
 

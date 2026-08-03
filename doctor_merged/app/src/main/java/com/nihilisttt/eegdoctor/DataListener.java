@@ -3,7 +3,7 @@ package com.nihilisttt.eegdoctor;
 public interface DataListener {
     void onWaveData(int cmd, int ch, float val);
     void onSpectrumData(int cmd, float[] mags);
-    void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant);
+    void onFocusData(float attn0, float attn1, float ema0, float ema1, float blinkCount, int trend, int instant);
     default void onEegFrame(EegFrame frame) {}
     default void onInferenceResult(InferenceResult result) {}
     default void onIpcDiag(IpcDiagInfo diag) {}

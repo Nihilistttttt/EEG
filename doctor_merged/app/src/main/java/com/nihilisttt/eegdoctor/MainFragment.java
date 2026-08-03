@@ -38,6 +38,7 @@ public class MainFragment extends Fragment implements DataListener {
     private TextView tvStatus;
     private TextView tvInstantState;
     private TextView tvTrendState;
+
     private Button btnCarGame;
     private Button btnSetIp;
     private TextView tvWaveLabelCount;   // 标签数量显示
@@ -64,6 +65,7 @@ public class MainFragment extends Fragment implements DataListener {
         tvStatus = root.findViewById(R.id.tv_status);
         tvInstantState = root.findViewById(R.id.tv_instant_state);
         tvTrendState = root.findViewById(R.id.tv_trend_state);
+
         btnCarGame = root.findViewById(R.id.btn_car_game);
         tvWaveLabelCount = root.findViewById(R.id.tv_wave_label_count);
         tvWaveRange = root.findViewById(R.id.tv_wave_range);
@@ -357,7 +359,7 @@ public class MainFragment extends Fragment implements DataListener {
 
     @Override
     public void onFocusData(float attn0, float attn1, float ema0, float ema1,
-                            int trend, int instant) {
+                            float blinkCount, int trend, int instant) {
         if (attnCh0 == null || attnCh1 == null || tvInstantState == null || tvTrendState == null) return;
         String[] stateText = {"放松", "平静", "专注"};
         int[] stateColors = {
@@ -373,6 +375,7 @@ public class MainFragment extends Fragment implements DataListener {
         attnCh1.setText(String.format(Locale.getDefault(), "Ch1 Focus: %.3f (EMA: %.3f)", attn1, ema1));
         tvInstantState.setText("瞬时: " + instantStr);
         tvTrendState.setText("趋势: " + trendStr);
+
 
         if (instant >= 0 && instant < stateColors.length) {
             tvInstantState.setTextColor(stateColors[instant]);

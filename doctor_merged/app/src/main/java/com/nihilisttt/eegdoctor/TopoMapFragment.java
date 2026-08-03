@@ -154,5 +154,5 @@ public class TopoMapFragment extends Fragment implements DataListener {
 
     @Override
     public void onFocusData(float attn0, float attn1, float ema0, float ema1,
-                            int trend, int instant) {}
+                            float blinkCount, int trend, int instant) {}
 }

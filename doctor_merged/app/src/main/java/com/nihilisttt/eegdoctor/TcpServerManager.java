@@ -1479,12 +1479,13 @@ public class TcpServerManager {
 
         private boolean handleFocusFrame(int payloadLen) {
             if (payloadLen < EegProtocol.FOCUS_PAYLOAD) return false;
-            ByteBuffer buf = ByteBuffer.wrap(body, bodyPayloadOffset(), 16).order(ByteOrder.LITTLE_ENDIAN);
+            ByteBuffer buf = ByteBuffer.wrap(body, bodyPayloadOffset(), 20).order(ByteOrder.LITTLE_ENDIAN);
             float a0 = buf.getFloat(), a1 = buf.getFloat(), e0 = buf.getFloat(), e1 = buf.getFloat();
+            float blinkCount = buf.getFloat();
             int off = bodyPayloadOffset();
-            int trend = body[off + 16] & 0xFF;
-            int instant = body[off + 17] & 0xFF;
-            dispatcher.postFocusData(a0, a1, e0, e1, trend, instant);
+            int trend = body[off + 20] & 0xFF;
+            int instant = body[off + 21] & 0xFF;
+            dispatcher.postFocusData(a0, a1, e0, e1, blinkCount, trend, instant);
             return true;
         }
 

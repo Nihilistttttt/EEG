@@ -130,7 +130,7 @@ typedef enum {
 #define PROTO_SPECTRUM_FRAG_SIZE      (PROTO_SPECTRUM_FLOAT_PER_FRAG * 4)
 #define PROTO_SPECTRUM_HEADER         4
 
-#define PROTO_FOCUS_PAYLOAD 18
+#define PROTO_FOCUS_PAYLOAD 22
 
 uint16_t Proto_Checksum16(const uint8_t *data, uint16_t len);
 uint32_t Proto_GetTimestampMs(void);

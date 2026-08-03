@@ -10,6 +10,7 @@
 #include "OLED.h"
 #include "Serial.h"
 #include "dualcore_ipc.h"
+#include "blink_detector.h"
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -35,7 +36,7 @@ extern volatile int32_t  g_ipc_v3f_last_ssvep_oz_uv_x1000;
 #define DIR_RESULT_DT_MS 2000
 
 #define ARTIFACT_THRESHOLD_V 200.0e-6f
-#define ARTIFACT_DETECT_ALL_CH 0
+#define ARTIFACT_DETECT_ALL_CH 1
 #define BAD_WINDOW_THRESHOLD 0.3f
 #define BAD_WINDOW_LIMIT 5
 
@@ -85,7 +86,8 @@ static const float HF_Window[7] = {
 
 const float eps = 1e-6f;
 
-static BlinkStatistics_t dummy_blink_stats = {0};
+BlinkDetector_t g_blink_detector;
+static BlinkStatistics_t g_blink_stats = {0};
 
 static uint8_t current_send_frag;
 static uint8_t current_filt_send_frag;
@@ -294,6 +296,8 @@ void EEG_FFT_Init (void) {
     memset (relax_ema, 0, sizeof (relax_ema));
 
     attention_engine_init (&g_attn_engine, NULL);
+    blink_detector_init (&g_blink_detector, 250.0);
+    memset (&g_blink_stats, 0, sizeof (g_blink_stats));
     memset (&g_attn_output, 0, sizeof (g_attn_output));
     g_raw_attn_scores[0] = 50.0f;
     g_raw_attn_scores[1] = 50.0f;
@@ -647,10 +651,12 @@ uint8_t Process_FFT_Step (void) {
             W_F3 * beta_pow_ch2 + W_F4 * beta_pow_ch3 +
             W_CP3 * beta_pow_ch4 + W_CP4 * beta_pow_ch5 +
             W_C3 * beta_pow_ch6 + W_C4 * beta_pow_ch7;
+        blink_detector_finish_block (&g_blink_detector, 0.0, FFT_SIZE);
+        blink_detector_get_statistics (&g_blink_detector, &g_blink_stats);
         g_attn_output = attention_engine_process (&g_attn_engine,
                                                   &fused_powers,
                                                   artifact_ratio,
-                                                  &dummy_blink_stats,
+                                                  &g_blink_stats,
                                                   BAD_WINDOW_THRESHOLD,
                                                   BAD_WINDOW_LIMIT,
                                                   0.0f);
@@ -799,6 +805,7 @@ uint8_t Process_FFT_Step (void) {
     case FFT_STEP_SEND_FOCUS:
         Send_Focus (g_attn_output.attention_score, g_attn_output.relaxation_score,
                     g_attn_output.attention_confidence, g_attn_output.relaxation_confidence,
+                    (float)g_blink_stats.recent_count,
                     trend_state, instant_state);
         Update_OLED_Scores (g_attn_output.attention_score, g_attn_output.relaxation_score, g_attn_output.blink_score,
                             g_attn_output.attention_confidence, g_attn_output.relaxation_confidence, g_attn_output.blink_score);

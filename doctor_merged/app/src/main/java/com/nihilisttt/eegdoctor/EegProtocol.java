@@ -114,7 +114,7 @@ public final class EegProtocol {
     public static final int SPECTRUM_FRAG_SIZE = SPECTRUM_FLOAT_PER_FRAG * 4;
     public static final int SPECTRUM_HEADER = 4;
 
-    public static final int FOCUS_PAYLOAD = 18;
+    public static final int FOCUS_PAYLOAD = 22;
 
     private EegProtocol() {}
 

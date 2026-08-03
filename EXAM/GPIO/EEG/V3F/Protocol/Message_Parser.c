@@ -290,6 +290,7 @@ void Send_Spectrum(uint8_t ch, uint8_t spectrum_type, float *mag, uint8_t frag_i
 }
 
 void Send_Focus(float attn0, float attn1, float ema0, float ema1,
+                float blink_score,
                 uint8_t trend_state, uint8_t instant_state) {
     uint8_t payload[PROTO_FOCUS_PAYLOAD];
     uint16_t off = 0;
@@ -297,6 +298,7 @@ void Send_Focus(float attn0, float attn1, float ema0, float ema1,
     memcpy(payload + off, &attn1, 4); off += 4;
     memcpy(payload + off, &ema0,  4); off += 4;
     memcpy(payload + off, &ema1,  4); off += 4;
+    memcpy(payload + off, &blink_score, 4); off += 4;
     memcpy(payload + off, &trend_state, 1); off += 1;
     memcpy(payload + off, &instant_state, 1);
     Pack_Frame(SERIAL_PORT_WIFI, CMD_FOCUS, payload, PROTO_FOCUS_PAYLOAD);

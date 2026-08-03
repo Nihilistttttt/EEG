@@ -28,7 +28,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
     private TcpServerManager tcpServer;
     private final String[] pageTitles = {"阻抗检测", "脑电监测", "专注度", "波形对比", "频谱对比", "SSVEP训练", "MI训练", "方向识别", "姿态监护", "地形图", "系统配置"};
 
-    private TextView tvBarFocus, tvBarRelax, tvBarInstant, tvBarTrend, tvBarPosture;
+    private TextView tvBarFocus, tvBarRelax, tvBarInstant, tvBarTrend, tvBarBlink, tvBarPosture;
 
 
     @Override
@@ -107,6 +107,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         tvBarRelax = findViewById(R.id.tv_bar_relax);
         tvBarInstant = findViewById(R.id.tv_bar_instant);
         tvBarTrend = findViewById(R.id.tv_bar_trend);
+        tvBarBlink = findViewById(R.id.tv_bar_blink);
         tvBarPosture = findViewById(R.id.tv_bar_posture);
 
 
@@ -219,7 +220,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
 
 
     @Override
-    public void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {
+    public void onFocusData(float attn0, float attn1, float ema0, float ema1, float blinkCount, int trend, int instant) {
         runOnUiThread(() -> {
             float focus = ema0;
             float relax = ema1;
@@ -236,6 +237,9 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
                 tvBarTrend.setText("趋势:" + trendStr);
                 if (trend >= 0 && trend < STATE_COLORS_RES.length)
                     tvBarTrend.setTextColor(getResources().getColor(STATE_COLORS_RES[trend]));
+            }
+            if (tvBarBlink != null) {
+                tvBarBlink.setText("眨眼:" + (int)blinkCount);
             }
         });
     }

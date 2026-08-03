@@ -590,5 +590,5 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         if (ch == EegChannels.CH_OZ && waveOZ != null) waveOZ.addPoint(val);
         else if (ch == EegChannels.CH_O1 && waveO1 != null) waveO1.addPoint(val);
     }
-    @Override public void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {}
+    @Override public void onFocusData(float attn0, float attn1, float ema0, float ema1, float blinkCount, int trend, int instant) {}
 }

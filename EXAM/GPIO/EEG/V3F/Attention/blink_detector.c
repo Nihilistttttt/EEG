@@ -89,9 +89,19 @@ int blink_detector_init(BlinkDetector_t *bd, double sample_rate) {
 void blink_detector_process_sample(BlinkDetector_t *bd,
                                    real_t raw_sample, real_t filt_sample,
                                    uint8_t valid) {
-    // ���뻺�壨�������ƶ�����ʱ������ɣ�
+    (void)filt_sample;
+    real_t filt = raw_sample;
+    {
+        real_t wn0 = raw_sample - bd->bp_a1[0] * bd->bp_w1[0] - bd->bp_a2[0] * bd->bp_w2[0];
+        real_t out0 = bd->bp_b0[0] * wn0 + bd->bp_b1[0] * bd->bp_w1[0] + bd->bp_b2[0] * bd->bp_w2[0];
+        bd->bp_w2[0] = bd->bp_w1[0]; bd->bp_w1[0] = wn0;
+        real_t wn1 = out0 - bd->bp_a1[1] * bd->bp_w1[1] - bd->bp_a2[1] * bd->bp_w2[1];
+        real_t out1 = bd->bp_b0[1] * wn1 + bd->bp_b1[1] * bd->bp_w1[1] + bd->bp_b2[1] * bd->bp_w2[1];
+        bd->bp_w2[1] = bd->bp_w1[1]; bd->bp_w1[1] = wn1;
+        filt = out1;
+    }
     if (bd->buf_count < bd->buffer_capacity) {
-        bd->filt_buffer[bd->buf_count] = filt_sample;
+        bd->filt_buffer[bd->buf_count] = filt;
         bd->raw_buffer[bd->buf_count]  = raw_sample;
         bd->valid_buffer[bd->buf_count] = valid;
         bd->buf_count++;
@@ -102,12 +112,13 @@ void blink_detector_process_sample(BlinkDetector_t *bd,
                 (bd->buffer_capacity - 1) * sizeof(real_t));
         memmove(bd->valid_buffer, bd->valid_buffer + 1,
                 (bd->buffer_capacity - 1) * sizeof(uint8_t));
-        bd->filt_buffer[bd->buffer_capacity - 1] = filt_sample;
+        bd->filt_buffer[bd->buffer_capacity - 1] = filt;
         bd->raw_buffer[bd->buffer_capacity - 1]  = raw_sample;
         bd->valid_buffer[bd->buffer_capacity - 1] = valid;
     }
     bd->global_sample_index++;
 }
+
 
 void blink_detector_finish_block(BlinkDetector_t *bd,
                                  double block_timestamp_ms, int block_len) {

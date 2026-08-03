@@ -80,11 +80,11 @@ public class DataDispatcher {
         });
     }
 
-    public void postFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {
+    public void postFocusData(float attn0, float attn1, float ema0, float ema1, float blinkCount, int trend, int instant) {
         FocusHistoryStore.getInstance().addPoint(ema0, ema1);
         mainHandler.post(() -> {
             for (DataListener l : listeners) {
-                try { l.onFocusData(attn0, attn1, ema0, ema1, trend, instant); }
+                try { l.onFocusData(attn0, attn1, ema0, ema1, blinkCount, trend, instant); }
                 catch (Exception e) { Log.e(TAG, "onFocusData error in " + l.getClass().getSimpleName(), e); }
             }
         });

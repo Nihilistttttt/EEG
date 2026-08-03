@@ -87,6 +87,16 @@
             android:textSize="11sp"
             android:textStyle="bold" />
 
+        <TextView
+            android:id="@+id/tv_bar_blink"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:text="眨眼:0"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
         <View
             android:layout_width="1dp"
             android:layout_height="14dp"

@@ -47,6 +47,7 @@ void Pack_Frame(Serial_Port port, uint8_t cmd, const uint8_t *payload, uint16_t 
 void Send_WaveformBatch(uint8_t wave_type, const float vals[DISPLAY_MAX_CH]);
 void Send_Spectrum(uint8_t ch, uint8_t spectrum_type, float *mag, uint8_t frag_idx);
 void Send_Focus(float attn0, float attn1, float ema0, float ema1,
+                float blink_score,
                 uint8_t trend_state, uint8_t instant_state);
 void Send_RespCommand(uint8_t cmd, const uint8_t *payload, uint16_t len);
 

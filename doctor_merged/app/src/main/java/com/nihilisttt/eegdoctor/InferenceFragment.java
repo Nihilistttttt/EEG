@@ -369,5 +369,5 @@ public class InferenceFragment extends Fragment implements DataListener {
     @Override
     public void onSpectrumData(int cmd, float[] mags) {}
     @Override
-    public void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {}
+    public void onFocusData(float attn0, float attn1, float ema0, float ema1, float blinkCount, int trend, int instant) {}
 }

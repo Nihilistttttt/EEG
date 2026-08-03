@@ -58,15 +58,19 @@ void Signal_Analysis_Start (void) {
     ICM42605_Status icm_status = ICM42605_BCI_Init();
     Timer_1ms_Init();
     Serial_Printf (SERIAL_PORT_DEBUG, "ICM42605_INIT=%d\r\n", (int)icm_status);
+#ifndef EEG_OLED_DISABLED
     OLED_ShowString(SPI,0,0,"ICM42605 = ");
     OLED_ShowNum(SPI,1,0,(int)icm_status,4);
+#endif
 #endif
 
     // Serial_Printf (SERIAL_PORT_DEBUG, "ADS1299_Init start\r\n");
     uint8_t id = ADS1299_Init();
     Serial_Printf (SERIAL_PORT_DEBUG, "ADS1299_Init done, id=%d\r\n", id);
+#ifndef EEG_OLED_DISABLED
     OLED_ShowString(SPI,3,0,"ADS1299 id = ");
     OLED_ShowNum(SPI,3,13,id,2);
+#endif
 
     
     W25Q64_Init();   // ������Ҫ Flash
@@ -74,10 +78,12 @@ void Signal_Analysis_Start (void) {
     uint16_t did;
     W25Q64_ReadID(&mid, &did);
 
+#ifndef EEG_OLED_DISABLED
     OLED_ShowString(SPI, 1, 0, "MID:");
     OLED_ShowNum(SPI, 1, 4, mid, 2);    // �� "0xEF"
     OLED_ShowString(SPI, 2, 0, "DID:");
     OLED_ShowNum(SPI, 2, 4, did, 4);    // �� "0x4018"
+#endif
 
 #if AB_EXTRACT_PRINT_ENABLE
     Serial_Printf (DIR_TEXT_PORT, "ABCFG,fs=%d,fft=%d,step=%d,alpha=8-13Hz,beta=13-30Hz,drift_k=9960/10000,notch=%d,detrend=%d,power_scale=1e15,pct_scale=10000,db_scale=100\r\n",

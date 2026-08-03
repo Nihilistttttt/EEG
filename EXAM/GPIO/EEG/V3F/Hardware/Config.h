@@ -155,6 +155,8 @@
  *============================================================================*/
 #elif defined(BOARD_V2)
 
+#define EEG_OLED_DISABLED
+
 #ifdef __ADS1299_H
 /* ADS1299 EEG ADC */
 #define ADS1299_CS_PORT          0
@@ -319,6 +321,28 @@
 #define ICM42605_RAW_DATA_SIZE          12U
 #endif /* __ICM42605_H */
 #define HAS_ICM42605
+
+#ifdef __SD_CARD_H
+#define SD_SPI_INSTANCE         SPI1
+#define SD_SCK_PORT             0
+#define SD_SCK_PIN              5
+#define SD_SCK_PIN_ENC          HAL_GPIO_PIN(SD_SCK_PORT, SD_SCK_PIN)
+#define SD_SCK_AF               GPIO_AF5
+#define SD_MISO_PORT            5
+#define SD_MISO_PIN             9
+#define SD_MISO_PIN_ENC         HAL_GPIO_PIN(SD_MISO_PORT, SD_MISO_PIN)
+#define SD_MISO_AF              GPIO_AF3
+#define SD_MOSI_PORT            0
+#define SD_MOSI_PIN             7
+#define SD_MOSI_PIN_ENC         HAL_GPIO_PIN(SD_MOSI_PORT, SD_MOSI_PIN)
+#define SD_MOSI_AF              GPIO_AF5
+#define SD_CS_PORT              1
+#define SD_CS_PIN               0
+#define SD_CS_PIN_ENC           HAL_GPIO_PIN(SD_CS_PORT, SD_CS_PIN)
+#define SD_CD_PORT              2
+#define SD_CD_PIN               3
+#define SD_CD_PIN_ENC           HAL_GPIO_PIN(SD_CD_PORT, SD_CD_PIN)
+#endif /* __SD_CARD_H */
 
 /*============================================================================
  ******************************************************************************

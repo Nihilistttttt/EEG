@@ -785,6 +785,7 @@ static int32_t ICM42605_AngleNumeratorToDeg10(int32_t numerator)
     return angle_deg10;
 }
 
+#ifndef EEG_OLED_DISABLED
 /**
  * @brief  OLED显示一轴角度。
  * @note   显示格式：X:+0123.4deg
@@ -825,11 +826,13 @@ static void ICM42605_OLED_ShowAngleAxis(
     OLED_ShowNum(SPI, line, 8, absolute_value % 10U, 1);
     OLED_ShowString(SPI, line, 9, "deg   ");
 }
+#endif /* EEG_OLED_DISABLED */
 
 /**
  * @brief  OLED低频显示当前角度。
  * @note   只能在主循环里调用，不能放进中断。
  */
+#ifndef EEG_OLED_DISABLED
 static void ICM42605_OLED_ShowAngle(void)
 {
     OLED_ShowString(SPI, 0, 0, "ANGLE OFFSET    ");
@@ -837,6 +840,7 @@ static void ICM42605_OLED_ShowAngle(void)
     ICM42605_OLED_ShowAngleAxis(2, 'Y', icm42605_angle_y_deg10);
     ICM42605_OLED_ShowAngleAxis(3, 'Z', icm42605_angle_z_deg10);
 }
+#endif /* EEG_OLED_DISABLED */
 
 /**
  * @brief  校准陀螺仪零偏。
@@ -853,10 +857,12 @@ static ICM42605_Status ICM42605_CalibrateGyroZero(void)
     int32_t sum_y = 0;
     int32_t sum_z = 0;
 
+#ifndef EEG_OLED_DISABLED
     OLED_Clear(SPI);
     OLED_ShowString(SPI, 0, 0, "SET ZERO POINT");
     OLED_ShowString(SPI, 1, 0, "KEEP STILL");
     OLED_ShowString(SPI, 2, 0, "ABOUT 2 SECOND");
+#endif
 
     Delay_Ms(100);
 
@@ -1115,16 +1121,19 @@ ICM42605_Status ICM42605_BCI_Init(void)
         return ICM42605_OK;
     }
 
+#ifndef EEG_OLED_DISABLED
     OLED_Init();
     OLED_Clear(SPI);
     OLED_ShowString(SPI, 0, 0, "ICM INIT...");
     OLED_ShowString(SPI, 1, 0, "PLEASE WAIT");
+#endif
 
     status = ICM42605_Init();
     (void)ICM42605_ReadWhoAmI(&who_am_i);
 
     if(status != ICM42605_OK)
     {
+#ifndef EEG_OLED_DISABLED
         OLED_Clear(SPI);
         OLED_ShowString(SPI, 0, 0, "ICM INIT ERROR");
         OLED_ShowString(SPI, 1, 0, "STATUS:");
@@ -1132,15 +1141,18 @@ ICM42605_Status ICM42605_BCI_Init(void)
         OLED_ShowString(SPI, 2, 0, "WHOAMI:0x");
         OLED_ShowHexNum(SPI, 2, 9, who_am_i, 2);
         OLED_ShowString(SPI, 3, 0, "CHECK WIRING");
+#endif
         return status;
     }
 
     status = ICM42605_CalibrateGyroZero();
     if(status != ICM42605_OK)
     {
+#ifndef EEG_OLED_DISABLED
         OLED_Clear(SPI);
         OLED_ShowString(SPI, 0, 0, "ICM CAL ERROR");
         OLED_ShowString(SPI, 1, 0, "KEEP STILL");
+#endif
         return status;
     }
 
@@ -1164,8 +1176,10 @@ ICM42605_Status ICM42605_BCI_Init(void)
 
     g_icm42605_initialized = 1U;
 
+#ifndef EEG_OLED_DISABLED
     OLED_Clear(SPI);
     ICM42605_OLED_ShowAngle();
+#endif
 
     return ICM42605_OK;
 }
@@ -1284,11 +1298,13 @@ void ICM42605_Task(void)
      * OLED低频刷新。
      * OLED是最低优先级，只在主循环里执行。
      */
+#ifndef EEG_OLED_DISABLED
     if(g_icm42605_oled_request != 0U)
     {
         g_icm42605_oled_request = 0U;
         ICM42605_OLED_ShowAngle();
     }
+#endif
 }
 
 /**

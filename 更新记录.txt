@@ -1,6 +1,57 @@
 EEG项目更新记录
 ================
-最后更新: 2026-08-03
+最后更新: 2026-08-04
+
+================================================================================
+2026-08-04  SD卡SPI驱动实现(初始化/写/读/校验全通过)
+================================================================================
+
+更新内容:
+1. SD卡SPI驱动完整实现(sd_card.c/h), 基于SPI1, 引脚: SCK=PA5 AF5, MOSI=PA7 AF5,
+   MISO=PF9 AF3, CS=PB0(软件管理), CD=PC3(卡插入检测,低有效)
+2. SPI模式: Mode3(CPOL=High, CPHA=2Edge), 初始化阶段Mode7(低速≤400kHz),
+   初始化完成后切换Mode4(6.25MHz)
+3. MOSI空闲管理(关键修复):
+   - 新增SD_MOSI_ToAF()/SD_MOSI_ToIdle(): 不发数据时MOSI切为INPUT_PU保持高电平,
+     只在发命令/数据字节时切回AF_PP
+   - SD卡SPI协议要求MOSI空闲必须为高; CH32H417的SPI外设在AF模式下MOSI输出
+     可能在字节间隙出现低电平毛刺, 导致卡状态机错乱
+   - 教程源码同样采用此方案: TF_Send_clocks()先将MOSI切Input再发0xFF时钟脉冲
+4. SD_SendClocks(): 发送n×8个空闲时钟脉冲(MOSI保持高), 用于:
+   - 上电同步(≥74个时钟, 实发30×8=240个)
+   - 命令间隔离(CS释放后补2×8=16个)
+   - ACMD41成功后补50×8=400个(卡内部状态切换需要时钟)
+   - 提速后补50×8=400个(卡适应新时钟频率)
+5. 命令发送流程(SD_SendCmd/SD_SendCmdRaw):
+   - CS_LOW → MOSI切AF → 发6字节命令 → MOSI切Idle → 1字节空闲时钟 → 读R1响应
+   - CS_HIGH → SendClocks(2)
+   - CMD0 CRC=0x95, CMD8 CRC=0x87, 其余命令CRC=0x01(正点原子风格)
+6. 写单块时序(SD_ReadWriteBlock, is_write=1):
+   - CMD24响应0x00后: SendClocks(2) → MOSI切AF → 0xFE起始token → 512字节数据
+     → 2字节CRC(0xFF) → MOSI切Idle → 读数据响应(XXX00101=成功) → 忙检测(读到0xFF=完成)
+   - 教程明确要求CMD24响应后、发0xFE前补时钟脉冲, 缺失则卡不响应写数据阶段
+7. 初始化流程(SD_Init):
+   - GPIO/SPI初始化 → 卡插入检测 → MISO线路诊断(INPUT_PU读确认线通→切回AF_INPUT)
+   - GoIdle: 240个同步时钟 → CMD0(0x01=空闲) → CMD8(0x01+01AA=SD V2.0)
+   - CMD55+ACMD41循环(最多10000次, HCS=1), 成功后SendClocks(50)
+   - SDHC类型判定: ACMD41(HCS=1)被接受即SDHC, 不依赖CMD58
+   - 去掉CMD59(关CRC)和CMD16(设块长度): SPI模式CRC默认关闭, SDHC块长度固定512
+8. 自检(SD_SelfTest): 初始化→写扇区0x003FFFFF(32GB卡倒数第一扇区,不破坏MBR)
+   →读回→512字节逐字节校验, 实测PASS
+9. 多扇区读写(SD_ReadMultiSector/SD_WriteMultiSector): CMD18/CMD25, 同样MOSI管理
+
+关键发现:
+- SPI Mode0(CPOL_Low,CPHA_1Edge)下CMD24返回0xFF(无响应), 切Mode3后立即正常
+  → CH32H417 SPI外设Mode0时序与SD卡SPI协议不兼容, 必须用Mode3
+- MOSI空闲管理是SD卡SPI驱动的核心要点: AF模式下MOSI在字节间隙可能被拉低,
+  违反SD卡"Din无数据时应保持高电平"的要求, 导致卡状态机错乱不响应命令
+- ACMD41循环次数不稳定(1~42次), 说明卡初始化耗时变化大, 循环上限必须足够大
+
+必要性:
+- BOARD_V2硬件已预留SD卡座(SPI1复用OLED引脚+新增MISO/CD), 驱动是硬件验证前提
+- SD卡存储是EEG数据本地记录的基础功能, 规范性要求第8条"SD卡尚未实现"需更新
+
+说明: V3F实机编译烧录验证通过, 自检PASS(写/读/校验512字节一致)
 
 ================================================================================
 2026-08-03  SSVEP界面改造(中间加OZ/O1波形部件)+地形图振幅自由输入

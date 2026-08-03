@@ -6,6 +6,7 @@
  *******************************************************************************/
 
 #include "hardware.h"
+#include "sd_card.h"
 
 #if defined(Core_V3F)
 #include "OLED.h"
@@ -17,14 +18,17 @@
 
 #define MODE_EEG_ANALYSIS    1
 #define MODE_SPI_TEST        2
+#define MODE_SD_TEST         3
 #define ICM_42605_Mode       4
-#define SYSTEM_MODE          1
+#define SYSTEM_MODE          MODE_SD_TEST
 
 void Hardware(void)
 {
 #if defined(Core_V3F)
+#ifndef EEG_OLED_DISABLED
     OLED_Init();
     OLED_Clear_All();
+#endif
 
 #if (SYSTEM_MODE == MODE_EEG_ANALYSIS)
     Signal_Analysis_Start();
@@ -42,6 +46,16 @@ void Hardware(void)
             Serial_Printf(SERIAL_PORT_DEBUG, "ch0_v=%d\r\n", ch_raw[0]);
             Serial_Printf(SERIAL_PORT_DEBUG, "ch1_v=%d\r\n", ch_raw[1]);
         }
+    }
+
+#elif (SYSTEM_MODE == MODE_SD_TEST)
+    Serial_Printf(SERIAL_PORT_DEBUG, "[SD] start self test\r\n");
+    {
+        int ret = SD_SelfTest();
+        Serial_Printf(SERIAL_PORT_DEBUG, "[SD] self test result: %s (ret=%d)\r\n",
+                      ret == 0 ? "PASS" : "FAIL", ret);
+    }
+    while (1) {
     }
 
 #elif (SYSTEM_MODE == ICM_42605_Mode)

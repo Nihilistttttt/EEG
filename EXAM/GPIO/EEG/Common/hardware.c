@@ -6,20 +6,24 @@
  *******************************************************************************/
 
 #include "hardware.h"
-#include "sd_card.h"
 
 #if defined(Core_V3F)
+#include "sd_card.h"
 #include "OLED.h"
 #include "signal_analysis.h"
 #include "ADS1299.h"
 #include "Serial.h"
 #include "ICM42605.h"
+#include "glxss_me.h"
+#include "glxss_sd_fw.h"
 #endif
 
 #define MODE_EEG_ANALYSIS    1
 #define MODE_SPI_TEST        2
 #define MODE_SD_TEST         3
 #define ICM_42605_Mode       4
+#define MODE_GLXSS           5
+#define MODE_GLXSS_BURN      6
 #define SYSTEM_MODE          MODE_SD_TEST
 
 void Hardware(void)
@@ -60,6 +64,45 @@ void Hardware(void)
 
 #elif (SYSTEM_MODE == ICM_42605_Mode)
     ICM_42605_Read();
+
+#elif (SYSTEM_MODE == MODE_GLXSS_BURN)
+    {
+        int ret = SD_Init();
+        Serial_Init(SERIAL_PORT_DEBUG);
+        if (ret != 0) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS_BURN] SD init FAIL\r\n");
+            while (1);
+        }
+        glxss_sd_fw_burn();
+    }
+    while (1) {
+    }
+
+#elif (SYSTEM_MODE == MODE_GLXSS)
+    Serial_Init(SERIAL_PORT_DEBUG);
+    {
+        int ret = SD_Init();
+        if (ret != 0) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] SD init FAIL, aborting\r\n");
+            while (1);
+        }
+
+        uint32_t fw_size = glxss_sd_fw_get_size();
+        if (fw_size == 0) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] No FW on SD, aborting\r\n");
+            while (1);
+        }
+        Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] FW %lu bytes, starting glasses...\r\n",
+                      (unsigned long)fw_size);
+        glxss_err_t err = glxss_init(glxss_sd_fw_read, fw_size, 10000);
+        if (err == GLXSS_OK) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] Glasses ready!\r\n");
+        } else {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] Init failed: %d\r\n", err);
+        }
+    }
+    while (1) {
+    }
 #endif
 
 #elif defined(Core_V5F)

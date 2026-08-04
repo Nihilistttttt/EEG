@@ -195,7 +195,8 @@
 							"${project}/Peripheral/inc",
 							"${project}/Common",
 							"${project}/FFT",
-							"${project}/Hardware"
+							"${project}/Hardware",
+							"${project}/USB_Host"
 						],
 						"include_system_paths": [],
 						"include_files": []

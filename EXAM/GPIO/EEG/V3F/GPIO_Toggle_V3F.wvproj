@@ -293,7 +293,8 @@
 							"${project}/EEG_Direction",
 							"${project}/EEG_FFT",
 							"${project}/EEG_Filter",
-							"${project}/EEG_Protocol"
+							"${project}/EEG_Protocol",
+							"${project}/USB_Host"
 						],
 						"include_system_paths": [],
 						"include_files": []

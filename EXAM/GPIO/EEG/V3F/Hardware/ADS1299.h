@@ -116,7 +116,7 @@ void ADS1299_MeasureImpedance(float out_kohm[ADS1299_CHANNEL_NUM]);
 
 
 uint8_t ADS1299_GetBiasStatus(void);
-
+uint8_t ADS1299_RecheckBias (void);
 #ifdef __cplusplus
 }
 #endif

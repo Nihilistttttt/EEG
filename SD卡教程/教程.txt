@@ -1,0 +1,563 @@
+SPI驱动(TF)SD卡
+四线要求，全部外接上拉电阻，建议软件管理片选方便操作
+
+对于SD卡的SPI模式在上电同步后应该马上进行CM0复位进入SPI模式，SDIO模式这步非必要，复位时序在正常情况下都是要求四线都是高电平，这也是为什么外接上拉电阻的原因，如果CS交给硬件管理，那么只会在发送数据的时候拉低CS，完成马上拉高CS，所以不符合这里的时序，还有一个问题就是MOSI在空闲时必须保持高电平，这点非常重要，就算外接上拉电阻复用后也会被拉下来，因为是输出，默认是输出低电平的，所以在发送时钟脉冲的时候MOSI初始为输入IO口就好了，在需要发送数据之前在复用到SPI上
+
+     时钟脉冲：想一下SPI发送数据的时候是不是SCK,MOSI,MISO这几根线都会跳动，但是这里需要的始终脉冲期间MOSI和CS必须保持高电平，所以是不是我们只要不复用MOSI然后发数据是不是就可以实现SCK的跳动达到脉冲
+
+      SD 卡在初始化的时候，SPI_CLK 的时钟频率不能超过 400KHz（这里非常重要,已经实践过频率过大确实会初始化失败）
+
+3.SPI必须MODE3  初始化的时候 MOSI 和 CS需要自己管理  初始化的话有三种协议 SD V2.0  SD V1.0  MMC
+
+其中 SD V2.0最常见也是目前用的比较多的
+1c6554c47b1767a2d644c5f8281da0fb.png 64b61c25f79adf4f056d50a6eb52484d.png SD2.0初始化
+
+1、先对从机 SD 卡发送至少 74 个以上的同步时钟，在上电同步期间，片选 CS 引脚和 MOSI 引脚必须为高电平（MOSI 引脚除发送命令或数据外，其余时刻都为高电平）
+
+2，拉低片选 CS 引脚，发送命令 CMD0（0x40）复位 SD 卡，等待返回数据
+
+3，在接收返回信息期间片选 CS 为低电平，判断数据为复位完成信号 0x01，SD 卡返回响应数据的 8 个时钟周期后再拉高片选 CS 信号，SD 卡进入 SPI 模式。如果返回其他值，重新上一步。
+
+4，拉低片选 CS 引脚，发送命令 CMD8（0x48）查询 SD 卡的版本号，等待返回数据。
+
+5，SD 卡返回响应数据后，先等待 8 个时钟周期再拉高片选 CS 信号，此时判断返回的响应数据，如果为4'b0001,(即2.7V~3.6V), SD卡位2.0版本，否则上一步。
+
+6、拉低片选 CS 引脚，发送命令 CMD55（0x77）告诉 SD 卡下一次发送的命令是应用相关命令，等待返回数据。
+
+7、SD 卡返回响应数据后，先等待 8 个时钟周期再拉高片选 CS 信号，此时判断返回的响应数据。如果返
+
+回的数据为空闲信号 0x01，开始进行下一步
+
+8、拉低片选 CS 引脚，发送命令 ACMD41（0x69）查询 SD 卡是否初始化完成，等待返回数据。
+
+9、SD 卡返回响应数据后，先等待 8 个时钟周期再拉高片选 CS 信号，此时判断返回的响应数据若为0x00,则初始化完成。否则第6步。
+
+SD 卡在初始化的时候，SPI_CLK 的时钟频率不能超过 400KHz，在初始化完成之后，再将 SPI_CLK 的时钟频率切换至SD 卡的最大时钟频率。
+
+以下为复位初始化用到的指令以及对应的返回数据743d91000a6c257420f938e5cc3f3722.png 以下为读数据用到的指令  单块读   
+
+CMD17:
+
+    17|0X40, 块地址，块地址，块地址，块地址，0x01    返回 0x00  其中块地址32位，寻址范围4G多，符合逻辑
+
+多块读
+
+CMD18:
+
+    18|0X40, 块地址，块地址，块地址，块地址，0x01    返回 0x00
+
+停止命令
+
+CMD12:
+
+   12|0x40,0x00,0x00,0x00,0x00,0x01
+
+以下为写数据常用的指令 单块写
+
+CMD24:
+
+24|0X40, 块地址，块地址，块地址，块地址，0x01    返回 0x00
+
+多块写
+
+CMD25:
+
+         25|0X40, 块地址，块地址，块地址，块地址，0x01    返回 0x00
+
+32MB以下的为标准容量 
+
+32MB-4GB为大容量 
+
+这里我驱动的是4GB的大容量TF卡  里面是以块进行区分 一个块占 512byte  地址以此对齐 可以直接写入不需要擦除，数据会自动覆盖  SPI的通信速率最高到12M
+
+写单块方法：
+
+1.发送CMD24，收到0x00表示成功
+
+2.发送若干时钟
+
+3.发送写单块开始字节0xFE
+
+4.发送512个字节数据
+
+5.发送2字节CRC（可以均为0xff）
+
+6.连续读直到读到XXX00101表示数据写入成功
+
+7.继续读进行忙检测（读到0x00表示SD卡正忙），当读到0xff表示写操作完成
+
+写单块时序图：b8e919053f3000c5a9dee446e92cfee3.png e84cbd889988242315eacb7ea2d4c714.png 源码：//***************************************************************************************************************************
+//TF卡  SPI通信读取  MISO - PC4  SD_CLK - PC3  MOSI - PC5  CS - PC2  SPI1(1-2)     SPI0(0开头)
+ 
+SPI_Handle_T hSPI;//SPI句柄
+SPI_TransferConfig_T pTransferConfig;//通信参数配置句柄
+void SPI0_Init(void)
+{
+    HAL_CLOCK_PeripheralClockEnable0(SYS_ENCLK0_GPIO);
+    HAL_CLOCK_PeripheralClockEnable1(SYS_ENCLK1_SPI1);
+    //片选脚自己管理
+    HAL_GPIO_Init_Output(GPIOC,GPIO_PIN_2,GPIO_DRIVING_LEVEL0);
+    HAL_GPIO_Init_Alternate(GPIOC,GPIO_PIN_3,GPIOC3_AF3_SPI0_SCK);
+    HAL_GPIO_Init_Alternate(GPIOC,GPIO_PIN_4,GPIOC4_AF3_SPI0_MISO);
+    //SPI控制器配置  MODE 3
+    SPI_Config_T pConfig = {0};
+    HAL_SPI_GetDefaultConfig(&pConfig,&pTransferConfig,SPI_MASTER_MODE);
+ 
+    pConfig.mode = SPI_MASTER_MODE;//主模式
+    pConfig.format = SPI_FORMAT_MOTOLORA;//SPI模式
+    pConfig.polarity = SPI_CLOCK_POLARITY_HIGH;//时钟极性
+    pConfig.phase = SPI_CLOCK_PHASE_START;//时钟相位
+    pConfig.bitOrder = SPI_BIT_ORDER_MSB;
+    pConfig.singleWire = SPI_FULL_DUPLEX;//双线
+    pConfig.baudRate = 1000000;//时钟分频 = 200M/50M  SPI输出时钟 = 48/时钟分频  SD 卡在初始化的时候，SPI_CLK 的时钟频率不能超过 400KHz
+    HAL_SPI_Init(SPI0_DEV,&pConfig,&hSPI);
+    HAL_SPI_TransferConfig(&hSPI,&pTransferConfig);//更新通信配置
+    //SPI传输配置
+    SPI0_DEV->CTRL &= ~(1<<4);//MSB
+    SPI0_DEV->CTRL |= 1;//SPI使能
+    hSPI.dataWidth = 1;//数据帧字节大小S
+    //hSPI.frameDelay = 1;//延迟帧
+    SPI0_NSS_H;
+}
+//发送1byte数据的同时接收1byte
+uint8_t SPI0_Sendread(uint8_t data)
+{
+    uint32_t count = 200;
+    while(!(SPI0_DEV->SR & (1<<8)))//等待发送FIFO为空
+    {
+        count--;
+        TIM2_Delay_ms(1);
+        if(count == 0) return 0xaa;
+    }
+    SPI0_DEV->DR = data & 0xff;
+    while(!(SPI0_DEV->SR & (1<<19)))//等待接受FIFO非空
+    {
+        count--;
+        TIM2_Delay_ms(1);
+        if(count == 0) return 0xaa;//超时错误值
+    }
+    return SPI0_DEV->DR & 0xff;
+}
+ 
+ 
+//命令数据格式   uint8_t *buff传入装一帧数据的数组地址   
+// uint8_t CMD_value 指定命令的序号 比如CMD0就填0  不支持的命令将打印错误
+// 返回填充好命令的数据地址
+uint8_t * TF_CMD(uint8_t *buff,uint8_t CMD_value)
+{
+    switch(CMD_value)
+    {
+    case 0:
+        *buff = 0x00 | 0x40;
+        *(buff + 1) = 0x00;
+        *(buff + 2) = 0x00;
+        *(buff + 3) = 0x00;
+        *(buff + 4) = 0x00;
+        *(buff + 5) = 0x95;
+        break; // The CMD res 0X01 (复位成功)
+    case 1:
+        *buff = 1 | 0x40;
+        *(buff + 1) = 0x00;
+        *(buff + 2) = 0x00;
+        *(buff + 3) = 0x00;
+        *(buff + 4) = 0x00;
+        *(buff + 5) = 0xff;
+        break; // The CMD res 0X01 (复位成功)
+    case 8:
+        *buff = 8 | 0x40;
+        *(buff + 1) = 0x00;
+        *(buff + 2) = 0x00;
+        *(buff + 3) = 0x01;
+        *(buff + 4) = 0xAA;
+        *(buff + 5) = 0x87;
+        break;//  The CMD res 0X01 0x00 0x00 0x01 0xaa
+    case 12:
+        *buff = 12 | 0x40;
+        *(buff + 1) = 0x00;
+        *(buff + 2) = 0x00;
+        *(buff + 3) = 0x00;
+        *(buff + 4) = 0x00;
+        *(buff + 5) = 0x01;
+        break;//  停止命令 用来停止多块读
+    case 17:
+        *buff = 17 | 0x40;
+        *(buff + 1) = 0x00;
+        *(buff + 2) = 0x00;
+        *(buff + 3) = 0x00;
+        *(buff + 4) = 0x00;
+        *(buff + 5) = 0x01;
+        break;//  单块读  中间4字节参数为地址，这里只是初始化  返回0x00
+    case 18:
+        *buff = 18 | 0x40;
+        *(buff + 1) = 0x00;
+        *(buff + 2) = 0x00;
+        *(buff + 3) = 0x00;
+        *(buff + 4) = 0x00;
+        *(buff + 5) = 0x01;
+        break;//  多块读  中间4字节参数为地址，这里只是初始化  返回0x00
+    case 24:
+        *buff = 24 | 0x40;
+        *(buff + 1) = 0x00;
+        *(buff + 2) = 0x00;
+        *(buff + 3) = 0x00;
+        *(buff + 4) = 0x00;
+        *(buff + 5) = 0x01;
+        break;//  单块写  中间4字节参数为地址，这里只是初始化  返回0x00
+    case 25:
+        *buff = 25 | 0x40;
+        *(buff + 1) = 0x00;
+        *(buff + 2) = 0x00;
+        *(buff + 3) = 0x00;
+        *(buff + 4) = 0x00;
+        *(buff + 5) = 0x01;
+        break;//  多块写  中间4字节参数为地址，这里只是初始化  返回0x00
+    case 55:
+        *buff = 55 | 0x40;
+        *(buff + 1) = 0x00;
+        *(buff + 2) = 0x00;
+        *(buff + 3) = 0x00;
+        *(buff + 4) = 0x00;
+        *(buff + 5) = 0x01;
+        break;//  send ACMD41 之前必须发送该命令
+    case 58:
+        *buff = 58 | 0x40;
+        *(buff + 1) = 0x00;
+        *(buff + 2) = 0x00;
+        *(buff + 3) = 0x00;
+        *(buff + 4) = 0x00;
+        *(buff + 5) = 0x01;
+        break;//  The CMD res 0X00 0xc0 0xff 0x080 0x00   电压范围 2.7-3.6V
+    case 41:      
+        *buff = 41 | 0x40;
+        *(buff + 1) = 0x40;//高容量40  标准容量 00
+        *(buff + 2) = 0x00;
+        *(buff + 3) = 0x00;
+        *(buff + 4) = 0x00;
+        *(buff + 5) = 0x01;
+        break;//  The CMD res 0x00 初始化完成  ACMD41发送之前需要发送 CMD55
+    default:printf("CMD ERROE!\n");break;
+    }
+    return buff;
+}
+//TF卡发送时钟脉冲 同步上电 时钟脉冲个数  时钟脉冲期间CS和MOSI必须为高电平 1num = 8个时钟脉冲
+void TF_Send_clocks(uint8_t num)
+{
+    uint8_t txbuff = 0xff;
+    uint8_t rxbuff = 0;
+    HAL_GPIO_Init_Input(GPIOC,GPIO_PIN_5,GPIO_NOPULL);//输入模式拉高MOSI
+    for(uint8_t i = 0;i < num;i++)
+    {
+        //HAL_SPI_TransmitReceive(&hSPI,&txbuff,&rxbuff,1,1,TIMEOUT_WAIT_FOREVER);
+        SPI0_Sendread(0xff);
+    }
+}
+//TF卡发送命令 并接收相对应的数据  如果匹配则表示命令成功 
+// uint8_t CMDNum为命令序号  返回接收到的数据 第一个数据在低位
+uint32_t TF_Send_CMD(uint8_t CMDNum)
+{
+    uint8_t Txbuff[6] = {0};
+    uint32_t data = 0;
+    
+    TF_CMD(Txbuff,CMDNum);//命令填充
+    SPI0_NSS_L;//片选拉低开始建立通信
+    HAL_GPIO_Init_Alternate(GPIOC,GPIO_PIN_5,GPIOC5_AF3_SPI0_MOSI);//MOSI复用
+    for(uint8_t i = 0;i<6;i++)
+    {
+        SPI0_Sendread(Txbuff[i]);
+    }
+    HAL_GPIO_Init_Input(GPIOC,GPIO_PIN_5,GPIO_NOPULL);//输入模式拉高MOSI
+    SPI0_Sendread(0x00);//等待一个8位数据后接收数据
+    data |= SPI0_Sendread(0x00) & 0xff;
+    data |= (SPI0_Sendread(0x00) & 0xff) << 8;
+    data |= (SPI0_Sendread(0x00) & 0xff) << 16;
+    data |= (SPI0_Sendread(0x00) & 0xff) << 24;
+    SPI0_NSS_H;//CS拉高后给时钟脉冲
+    TF_Send_clocks(2);
+    return data;
+}
+//TF卡一帧数据为6byte   上电初始化复位TF卡  SPI的输入输出脚已经被外接上拉电阻 还有CS也被上拉
+void TF_RES_Init(void)
+{
+    uint32_t data = 0;
+    uint8_t num = 250;
+    uint8_t res = 0;
+    uint8_t count = 0;
+    SPI0_Init();
+    L:
+    TIM2_Delay_ms(300);//等待上电稳定
+    //发送大于74个时钟脉冲
+    TF_Send_clocks(30);
+    data = TF_Send_CMD(0);//发送命令0
+    if((data & 0xff) == 0x01)
+    {
+        res = 1;
+    }
+    //复位成功 进入IDLE状态
+    if(res)
+    {
+        data = TF_Send_CMD(8);//CMD 8 查询是否2.0SD卡还是MMC卡
+        if((data & 0x0f) == 0x01)//SD V2.0
+        {
+            while(num--)
+            {
+                data = TF_Send_CMD(55);
+                if((data & 0xff) == 0x01)//表示使用ACMD命令
+                {
+                    data = TF_Send_CMD(41);
+                    if((data & 0xff) == 0x00)
+                    {
+                          printf("SD-SPI V2.0 Init 0K  2.7~3.3V!\n");
+                          //初始化完可以进行提速
+                          SPI0_DEV->CTRL &= ~1;//SPI失能能
+                          SPI0_DEV->BR = 4;// 总线48Mhz 这里是分频 如果通信不稳定就降低速率 这里只能填偶数
+                          SPI0_DEV->CTRL |= 1;//SPI使能
+                          TF_Send_clocks(50);//时钟脉冲
+                        return;
+                    }
+                }
+            }
+            printf("SD V2.0 ERROR!\n");
+        }
+        else//SD V1.X/MMC V3
+        {
+             TF_Send_CMD(55);
+             data = TF_Send_CMD(41);
+             if((data & 0xff) <= 0x01)// 1 || 0 表示进入 SD V1.0
+             {
+                while(num--)
+                {
+                    data = TF_Send_CMD(55);
+                    if((data & 0xff) == 0x01)//表示使用ACMD命令
+                    {
+                        data = TF_Send_CMD(41);
+                        if((data & 0xff) == 0x00)
+                        {
+                            printf("SD-SPI V1.0 Init 0K!\n");
+                            return;
+                        }
+                    }
+                }
+                printf("SD V1.0 ERROR!\n");
+            }
+            else//MMC卡不支持 CMD55 + CMD41
+            {
+                 data = TF_Send_CMD(1);//CMD1
+                 while(num--)
+                 {
+                    if(data == 0x00)
+                    {
+                        printf("MMC-SPI Init 0K!\n");
+                        return;
+                    }
+                    data = TF_Send_CMD(1);
+                 }
+                 printf("MMC ERROR!\n");
+            }
+         }
+    }
+    else
+    {
+        count++;
+        if(count < 3)
+        {
+            goto L;
+        }
+        else
+        {
+            SPI0_NSS_H;
+            TF_Send_clocks(2);
+            printf("RES_ERROR\n");
+        }
+    }
+}
+ 
+//读取块数据  一块读 512byte  返回0读取成功
+//uint32_t chunkaddr 要读取的块地址 1表示块1的地址   
+//uint8_t *Rbuff 读取数据的缓冲区
+uint8_t TF_Readdata(uint32_t chunkaddr,uint8_t *Rxbuff)
+{
+    uint8_t Tbuff[6] = {0};
+    uint8_t data = 0xff;
+    uint8_t num = 20;
+    uint16_t delay = 500;//超时判断值
+    
+    chunkaddr *= 512;
+    
+    TF_CMD(Tbuff,17);//CMD17填充
+    Tbuff[1] = chunkaddr >> 24;//地址参数填充
+    Tbuff[2] = chunkaddr >> 16;
+    Tbuff[3] = chunkaddr >> 8;
+    Tbuff[4] = chunkaddr & 0xff;
+    // 读取命令填充完毕
+    SPI0_NSS_L;//CS拉低开始通信
+    HAL_GPIO_Init_Alternate(GPIOC,GPIO_PIN_5,GPIOC5_AF3_SPI0_MOSI);//MOSI复用
+    for(uint8_t i = 0;i < 6;i++)
+    {
+        SPI0_Sendread(Tbuff[i]);
+    }
+    HAL_GPIO_Init_Input(GPIOC,GPIO_PIN_5,GPIO_NOPULL);//输入模式拉高MOSI
+    SPI0_Sendread(0x00);//等待一个8位数据后接收数据（提速后需要思考这里）
+    while(num--)
+    {
+        data = SPI0_Sendread(0x00);
+        if(data == 0)//CMD生效
+        {
+            while(delay)//开始读
+            {
+                 data = SPI0_Sendread(0x00);
+                 if(data == 0xfe)//数据起始字节
+                 {
+                     for(uint16_t i = 0;i < 512;i++)
+                     {
+                         Rxbuff[i] = SPI0_Sendread(0x00);
+                     }
+                     SPI0_Sendread(0x00);//两个CRC直接忽略
+                     SPI0_Sendread(0x00);//两个CRC直接忽略
+                     break;
+                 }
+                 delay--;
+            }
+            SPI0_NSS_H;//CS拉高结束通信
+            TF_Send_clocks(2);//时钟脉冲
+            if(delay == 0) return 1;
+            else return 0;
+        }
+    }
+    SPI0_NSS_H;//CS拉高结束通信
+    TF_Send_clocks(2);//时钟脉冲
+    return 1;
+}
+//写入数据到块  一次写一块 512byte  返回0写入成功
+//uint32_t chunkaddr 要写入的块地址 1表示块1的地址   
+//uint8_t *Rbuff 写入数据的缓冲区 最少512
+uint8_t TF_Writedata(uint32_t chunkaddr,uint8_t *Txbuff)
+{
+    uint8_t Tbuff[6] = {0};
+    uint8_t data = 0xff;
+    uint8_t num = 20;
+    uint16_t delay = 500;//超时判断值
+    chunkaddr *= 512;
+    
+    TF_CMD(Tbuff,24);//CMD24填充
+    Tbuff[1] = chunkaddr >> 24;//地址参数填充
+    Tbuff[2] = chunkaddr >> 16;
+    Tbuff[3] = chunkaddr >> 8;
+    Tbuff[4] = chunkaddr & 0xff;
+    // 读取命令填充完毕
+    SPI0_NSS_L;//CS拉低开始通信
+    HAL_GPIO_Init_Alternate(GPIOC,GPIO_PIN_5,GPIOC5_AF3_SPI0_MOSI);//MOSI复用
+    for(uint8_t i = 0;i < 6;i++)
+    {
+        SPI0_Sendread(Tbuff[i]);
+    }
+    HAL_GPIO_Init_Input(GPIOC,GPIO_PIN_5,GPIO_NOPULL);//输入模式拉高MOSI
+    SPI0_Sendread(0x00);//等待一个8位数据后接收数据（提速后需要思考这里）
+    while(num--)
+    {
+        data = SPI0_Sendread(0x00);
+        if(data == 0)//CMD生效
+        {
+            TF_Send_clocks(2);//发送一点时钟脉冲
+            HAL_GPIO_Init_Alternate(GPIOC,GPIO_PIN_5,GPIOC5_AF3_SPI0_MOSI);//MOSI复用
+            SPI0_Sendread(0xFE);//开始字节
+            for(uint16_t i = 0;i<512;i++)
+            {
+                SPI0_Sendread(Txbuff[i]);
+            }
+            SPI0_Sendread(0xff);//两个CRC
+            SPI0_Sendread(0xff);//两个CRC
+            HAL_GPIO_Init_Input(GPIOC,GPIO_PIN_5,GPIO_NOPULL);//输入模式拉高MOSI
+            while(delay)
+            {
+                data = SPI0_Sendread(0xff);//连续读
+                if((data & 0x1f) == 0x05)//表示写操作成功
+                {
+                    while(delay)
+                    {
+                        data = SPI0_Sendread(0xff);//连续读
+                        if(data == 0xff)//直到不忙碌
+                        {
+                            break;
+                        }
+                        delay--;
+                    }
+                    break;
+                }
+                delay--;
+            }
+            SPI0_NSS_H;//CS拉高结束通信
+            TF_Send_clocks(2);//时钟脉冲
+            if(delay == 0) return 1;
+            else return 0;
+        }
+    }
+    printf("CMD ERROR\n");
+    SPI0_NSS_H;//CS拉高结束通信
+    TF_Send_clocks(2);//时钟脉冲
+    return 1;
+}
+//读取块数据  一块读 512byte  返回0读取成功
+//uint32_t chunkaddr 要读取的块地址 1表示块1的地址   
+//uint8_t *Rbuff 读取数据的缓冲区
+//uint32_t chunklen 为要读取的块数量
+uint8_t TF_ReadSector(uint32_t chunkaddr,uint8_t *Rxbuff,uint32_t chunklen)
+{
+    uint8_t res = 1;
+    if(chunklen == 0) return 1;
+    while(chunklen)
+    {
+       res = TF_Readdata(chunkaddr,Rxbuff);
+       chunkaddr += 1;
+       Rxbuff += 512;
+       chunklen--;
+    }
+    
+    return res;
+}
+//写入数据到块  一次写一块 512byte  返回0写入成功
+//uint32_t chunkaddr 要写入的块地址 1表示块1的地址   
+//uint8_t *Rbuff 写入数据的缓冲区 最少512
+//chunklen 要写入块的数量
+uint8_t TF_WriteSector(uint32_t chunkaddr,uint8_t *Txbuff,uint32_t chunklen)
+{
+    uint8_t res = 1;
+    if(chunklen == 0) return 1;
+    while(chunklen)
+    {
+       res = TF_Writedata(chunkaddr,Txbuff);
+       chunkaddr += 1;
+       Txbuff += 512;
+       chunklen--;
+    }
+    return res;
+}
+//******************************************************************************************************************************************************补充：
+
+后续使用功能的时候发现了一个BUG，就是写好的读写函数在访问14000以上的块地址时失败，且固定失败 返回0x08，但是在这个快地址以下是没有一点问题的，我寻思不是有700多万块嘛，后来找到了原因，寻址方式不同，我的卡是SDHC大容量卡   之前按字节去寻址 块地址默认乘了一个512                       
+
+
+
+
+
+
+参考如上教程试试，上次的结果：
+[V3F] boot
+[V3F] SystemCoreClk:100000000
+[V3F] RSTSCKR=0x10000000 SFT
+[V3F] wake V5F...
+[V3F] V5F HSEM released
+[V3F] IPC EEG dual-core v2.7 structured enabled
+[V3F] Select mode in V3F/Hardware/Signal_Analysis.c: EEG_APP_MODE
+[SD] start self test
+[SD] card present: 1
+[SD] MISO pullup read=1
+[SD] idle read=FF
+[SD] CMD0 ret=01
+[SD] CMD8 ret=01
+[SD] D8 resp=00 00 01 AA
+[SD] loop0 CMD55=01 ACMD41=01
+[SD] ACMD41 er 1 loops
+[SD] init ok, type=4
+[SD] CMD24 ret=FF addr=0
+[SD] write sector0 ret=-1
+[SD] self test result: FAIL (ret=-1)

@@ -22,7 +22,9 @@ static volatile uint32_t g_ipc_v5f_ack_data = 0;
 
 volatile uint32_t g_ipc_v5f_wfi_wake_count = 0;
 
+#ifndef V5F_MODE_GLXSS
 void IPC_CH0_Handler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
+#endif
 
 static void DualCore_V5F_SendAckNow(void)
 {
@@ -301,6 +303,7 @@ void DualCore_IPC_Init_V5F(void)
     g_ipc_v5f_ready = 1;
 }
 
+#ifndef V5F_MODE_GLXSS
 void IPC_CH0_Handler(void)
 {
     if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit1) != RESET) {
@@ -319,5 +322,6 @@ void IPC_CH0_Handler(void)
 
     DualCore_V5F_SendAckNow();
 }
+#endif
 
 #endif

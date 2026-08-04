@@ -63,7 +63,9 @@ static volatile uint16_t g_ipc_v3f_tx_checksum_hist[DUALCORE_IPC_TX_HISTORY_SIZE
 static volatile uint32_t g_ipc_v3f_tx_status_hist[DUALCORE_IPC_TX_HISTORY_SIZE];
 static volatile int32_t  g_ipc_v3f_tx_ch_hist[DUALCORE_IPC_TX_HISTORY_SIZE][DUALCORE_ADS1299_ACTIVE_CH_NUM];
 
+#ifndef GLXSS_ENABLED
 void IPC_CH0_Handler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
+#endif
 
 void DualCore_IPC_SetModelSelect(uint8_t model_select)
 {
@@ -308,6 +310,7 @@ void DualCore_IPC_SendFrameFromV3F(const uint8_t *frame, uint16_t len)
     IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, ENABLE);
 }
 
+#ifndef GLXSS_ENABLED
 void IPC_CH0_Handler(void)
 {
     if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit0) != RESET) {
@@ -397,5 +400,6 @@ void IPC_CH0_Handler(void)
         IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, DISABLE);
     }
 }
+#endif
 
 #endif

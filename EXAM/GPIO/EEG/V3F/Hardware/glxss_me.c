@@ -64,6 +64,11 @@ glxss_err_t glxss_load_firmware(glxss_fw_read_t fw_read, uint32_t fw_size)
     }
 
     GLXSS_LOG("Uploading firmware...");
+    if (fw_read(0, buf, 16) == 16) {
+        GLXSS_LOG("FW head: %02X %02X %02X %02X %02X %02X %02X %02X",
+                  buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]);
+    }
+    offset = 0;
     while (offset < fw_size) {
         chunk = fw_size - offset;
         if (chunk > GLXSS_FW_CHUNK_SIZE)

@@ -114,7 +114,7 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
         handler.removeCallbacksAndMessages(null);
         if (wasActive) {
             TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_STOP, null);
-            TcpServerManager.getInstance().sendBinaryToPatient(EegProtocol.CMD_TRAIN_STOP, null);
+            TcpServerManager.getInstance().sendDisplayToOutput(EegProtocol.CMD_TRAIN_STOP, null);
         }
         if (updateUi && getView() != null) {
             btnStartTraining.setEnabled(true);

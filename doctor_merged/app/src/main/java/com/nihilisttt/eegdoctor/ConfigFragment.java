@@ -15,6 +15,8 @@ import androidx.fragment.app.Fragment;
 
 import com.google.android.material.textfield.TextInputEditText;
 
+import com.google.android.material.button.MaterialButtonToggleGroup;
+
 public class ConfigFragment extends Fragment {
 
     @Nullable
@@ -49,6 +51,24 @@ public class ConfigFragment extends Fragment {
             TcpServerManager.getInstance().sendWifiDelete(ssid);
             Toast.makeText(requireContext(), "WiFi删除已发送: " + ssid, Toast.LENGTH_SHORT).show();
         });
+
+        MaterialButtonToggleGroup tgDisplay = root.findViewById(R.id.tg_display_output);
+        if (tgDisplay != null) {
+            int current = SettingsStore.getDisplayOutput(requireContext());
+            if (current == SettingsStore.DISPLAY_OUTPUT_GLXSS) {
+                tgDisplay.check(R.id.btn_display_glxss);
+            } else {
+                tgDisplay.check(R.id.btn_display_patient);
+            }
+            tgDisplay.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+                if (!isChecked) return;
+                if (checkedId == R.id.btn_display_glxss) {
+                    SettingsStore.setDisplayOutput(requireContext(), SettingsStore.DISPLAY_OUTPUT_GLXSS);
+                } else {
+                    SettingsStore.setDisplayOutput(requireContext(), SettingsStore.DISPLAY_OUTPUT_PATIENT);
+                }
+            });
+        }
 
         return root;
     }

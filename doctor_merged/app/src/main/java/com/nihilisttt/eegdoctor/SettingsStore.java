@@ -30,6 +30,11 @@ public class SettingsStore {
     private static final String KEY_FOCUS_Y_RANGE = "focus_y_range";
     private static final String KEY_FOCUS_X_POINTS = "focus_x_points";
 
+    private static final String KEY_DISPLAY_OUTPUT = "display_output";
+
+    public static final int DISPLAY_OUTPUT_PATIENT = 0;
+    public static final int DISPLAY_OUTPUT_GLXSS = 1;
+
     private static SharedPreferences getPrefs(Context ctx) {
         return ctx.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
@@ -179,5 +184,16 @@ public class SettingsStore {
     }
     public static void setScChB(Context ctx, int val) {
         getPrefs(ctx).edit().putInt(KEY_SC_CH_B, val).apply();
+    }
+
+    public static int getDisplayOutput(Context ctx) {
+        return getPrefs(ctx).getInt(KEY_DISPLAY_OUTPUT, DISPLAY_OUTPUT_PATIENT);
+    }
+    public static void setDisplayOutput(Context ctx, int val) {
+        getPrefs(ctx).edit().putInt(KEY_DISPLAY_OUTPUT, val).apply();
+    }
+
+    public static boolean isGlxssOutput(Context ctx) {
+        return getDisplayOutput(ctx) == DISPLAY_OUTPUT_GLXSS;
     }
 }

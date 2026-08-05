@@ -172,7 +172,7 @@ public class InferenceFragment extends Fragment implements DataListener {
         tvTargetDir.setText(isLeft ? "◀ 左" : "右 ▶");
         tvTargetDir.setTextColor(ContextCompat.getColor(requireContext(),
                 isLeft ? R.color.direction_left : R.color.direction_right));
-        TcpServerManager.getInstance().sendBinaryToPatient(EegProtocol.CMD_TARGET,
+        TcpServerManager.getInstance().sendDisplayToOutput(EegProtocol.CMD_TARGET,
                 new byte[]{(byte) (isLeft ? 0 : 1)});
     }
 
@@ -201,7 +201,7 @@ public class InferenceFragment extends Fragment implements DataListener {
         currentTarget = null;
         targetHandler.removeCallbacksAndMessages(null);
         TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_STOP, null);
-        TcpServerManager.getInstance().sendBinaryToPatient(EegProtocol.CMD_TRAIN_STOP, null);
+        TcpServerManager.getInstance().sendDisplayToOutput(EegProtocol.CMD_TRAIN_STOP, null);
         btnStopInfer.setEnabled(false);
         tvDirection.setText("← →");
         tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary));
@@ -352,7 +352,7 @@ public class InferenceFragment extends Fragment implements DataListener {
                 tvTargetDir.setText(isLeft ? "◀ 左" : "右 ▶");
                 tvTargetDir.setTextColor(ContextCompat.getColor(requireContext(),
                         isLeft ? R.color.direction_left : R.color.direction_right));
-                TcpServerManager.getInstance().sendBinaryToPatient(EegProtocol.CMD_TARGET,
+                TcpServerManager.getInstance().sendDisplayToOutput(EegProtocol.CMD_TARGET,
                         new byte[]{(byte) (isLeft ? 0 : 1)});
             }, COMPARE_DISPLAY_MS);
 

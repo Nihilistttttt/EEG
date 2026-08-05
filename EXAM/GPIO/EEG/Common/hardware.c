@@ -29,7 +29,7 @@
 #define ICM_42605_Mode       4
 #define MODE_GLXSS           5
 #define MODE_GLXSS_BURN      6
-#define SYSTEM_MODE          MODE_EEG_ANALYSIS
+#define SYSTEM_MODE          MODE_GLXSS
 
 #ifdef GLXSS_ENABLED
 #define AA55_HDR0   0xAA
@@ -233,6 +233,7 @@ void Hardware(void)
 
 #elif (SYSTEM_MODE == MODE_GLXSS)
     Serial_Init(SERIAL_PORT_DEBUG);
+
     {
         int ret = SD_Init();
         if (ret != 0) {

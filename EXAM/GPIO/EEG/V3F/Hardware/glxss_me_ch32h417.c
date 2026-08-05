@@ -32,6 +32,10 @@ static uint32_t glxss_get_ms(void)
 
 int glxss_usb_host_init(void)
 {
+    Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] USB Host init in 5s (window for MCU flash)...\r\n");
+    Delay_Ms(5000);
+    Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] USB Host init starting\r\n");
+
     RCC_HB2PeriphClockCmd(RCC_HB2Periph_AFIO | RCC_HB2Periph_GPIOB, ENABLE);
 
     GPIO_PinAFConfig(GPIOB, GPIO_PinSource8, GPIO_AF10);

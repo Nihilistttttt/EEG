@@ -104,10 +104,12 @@ int glxss_sd_fw_burn(void)
         }
 
         if (SD_WriteSector(cur_sector, sec_buf) != 0) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] Write fail at sector %lu\r\n", (unsigned long)cur_sector);
             Serial_SendByte(SERIAL_PORT_DEBUG, 0xE2);
             return -2;
         }
         cur_sector++;
+        Delay_Ms(5);
 
         Serial_SendByte(SERIAL_PORT_DEBUG, 0xEE);
     }

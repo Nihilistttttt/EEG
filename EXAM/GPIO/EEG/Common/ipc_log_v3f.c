@@ -70,10 +70,7 @@ void IPC_Cmd_Send_V3F(uint32_t cmd, uint32_t param)
     shared->cmd_param = param;
     __asm volatile ("fence iorw, iorw" ::: "memory");
     shared->cmd_seq = s_v3f_cmd_seq;
-
-    IPC_WriteMSG(IPC_MSG0, (uint32_t)shared);
     __asm volatile ("fence iorw, iorw" ::: "memory");
-    IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, ENABLE);
 }
 
 void IPC_Ctrl_SetFlags_V3F(uint32_t flags)

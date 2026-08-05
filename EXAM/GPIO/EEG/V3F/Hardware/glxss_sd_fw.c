@@ -104,14 +104,31 @@ int glxss_sd_fw_burn(void)
         }
 
         if (SD_WriteSector(cur_sector, sec_buf) != 0) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] Write fail at sector %lu\r\n", (unsigned long)cur_sector);
             Serial_SendByte(SERIAL_PORT_DEBUG, 0xE2);
             return -2;
         }
         cur_sector++;
+        Delay_Ms(5);
 
         Serial_SendByte(SERIAL_PORT_DEBUG, 0xEE);
     }
 
     Serial_SendByte(SERIAL_PORT_DEBUG, 0xFF);
+
+    Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] Verifying %lu sectors...\r\n", (unsigned long)total_sectors);
+    cur_sector = GLXSS_FW_START_SECTOR;
+    for (uint32_t sec = 0; sec < total_sectors; sec++) {
+        if (SD_ReadSector(cur_sector, sec_buf) != 0) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] Verify read fail sector %lu\r\n", (unsigned long)cur_sector);
+            return -3;
+        }
+        cur_sector++;
+        if ((sec + 1) % 500 == 0) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] Verify %lu/%lu\r\n", (unsigned long)(sec+1), (unsigned long)total_sectors);
+        }
+    }
+    Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] Verify read OK (all sectors readable)\r\n");
+
     return 0;
 }

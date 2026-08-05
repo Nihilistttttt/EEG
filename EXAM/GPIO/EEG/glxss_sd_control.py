@@ -180,6 +180,8 @@ def burn_firmware(ser, fw_path):
             print(f"\n[烧录] 扇区 {sec} 写入失败")
             return False
 
+        time.sleep(0.002)
+
         if (sec + 1) % 100 == 0 or sec == total_sectors - 1:
             pct = (sec + 1) * 100 // total_sectors
             elapsed = time.time() - t_start

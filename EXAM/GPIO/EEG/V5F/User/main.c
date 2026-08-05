@@ -7,12 +7,18 @@
 #include "debug.h"
 #include "hardware.h"
 
-#ifdef V5F_MODE_GLXSS
+#if defined(V5F_MODE_GLXSS) || defined(GLXSS_ENABLED)
 #include "ipc_log.h"
 #include "glxss_me.h"
 #include "usb_host_config.h"
 #include "ch32h417_usbhs_host.h"
 #include <string.h>
+#ifdef GLXSS_ENABLED
+#include "dualcore_ipc.h"
+#endif
+#endif
+
+#if defined(V5F_MODE_GLXSS) || defined(GLXSS_ENABLED)
 
 #define MODE_IDLE        0
 #define MODE_SSVEP       1
@@ -819,7 +825,7 @@ int main(void)
     }
     while (1) {}
 
-#else /* !V5F_MODE_GLXSS */
+#else /* !(V5F_MODE_GLXSS || GLXSS_ENABLED) */
 #if (Run_Core == Run_Core_V3FandV5F)
     HSEM_FastTake(HSEM_ID0);
     HSEM_ReleaseOneSem(HSEM_ID0, 0);
@@ -829,11 +835,48 @@ int main(void)
     Hardware();
 #endif
 
+#ifdef GLXSS_ENABLED
+    {
+        glxss_err_t err = glxss_usb_host_init();
+        if (err != GLXSS_OK) {
+            while (1) {}
+        }
+        err = glxss_usb_wait_device(15000);
+        if (err != GLXSS_OK) {
+            while (1) {}
+        }
+        glxss_usb_clear_halt(GLXSS_EP_DATA_OUT);
+        g_endp_tog = 0;
+        tick_init();
+        ssvep_precompute();
+        IPC_Log_Init_V5F();
+        IPC_Log_SetStatus_V5F(IPC_LOG_STATUS_IDLE);
+
+        while (1)
+        {
+            DualCore_V5F_MainLoopProcess();
+            DualCore_V5F_SSVEP_RunPending();
+            handle_ipc_cmd();
+            mi_sim_step();
+            ssvep_sim_step();
+            collect_sim_step();
+            err = GLXSS_OK;
+            switch (g_mode) {
+            case MODE_IDLE:        err = idle_mode_step(); break;
+            case MODE_SSVEP:       err = ssvep_mode_step(); break;
+            case MODE_ARROW:       err = arrow_mode_step(); break;
+            case MODE_ARROW_TRAIN: err = train_mode_step(); break;
+            }
+            if (err != GLXSS_OK) break;
+        }
+    }
+#else
     while (1)
     {
         DualCore_V5F_MainLoopProcess();
         DualCore_V5F_SSVEP_RunPending();
         __WFI();
     }
-#endif /* V5F_MODE_GLXSS */
+#endif
+#endif /* V5F_MODE_GLXSS || GLXSS_ENABLED */
 }

@@ -4,6 +4,8 @@
 #include "Serial.h"
 #include <string.h>
 
+extern volatile uint32_t g_icm42605_ms_tick;
+
 #define SD_CS_LOW()     Hal_GPIO_Write(SD_CS_PIN_ENC, 0)
 #define SD_CS_HIGH()    Hal_GPIO_Write(SD_CS_PIN_ENC, 1)
 
@@ -107,6 +109,22 @@ static uint8_t SD_SendCmd(uint8_t cmd, uint32_t arg, uint8_t crc) {
 
 
 
+static void SD_WaitNotBusy(void)
+{
+    SD_CS_LOW();
+    SD_MOSI_ToIdle();
+    uint32_t start = g_icm42605_ms_tick;
+    uint8_t r;
+    while (1) {
+        r = SD_SPI_Transfer(0xFF);
+        if (r == 0xFF) break;
+        if ((g_icm42605_ms_tick - start) > 3000u) break;
+    }
+    SD_CS_HIGH();
+    SD_SendClocks(1);
+}
+
+
 static int SD_GoIdle(void) {
     uint8_t r;
     int i;
@@ -199,10 +217,11 @@ static int SD_ReadWriteBlock(uint8_t cmd, uint32_t addr,
     uint8_t r, token;
     uint32_t i;
 
+    if (is_write) SD_WaitNotBusy();
     SD_CS_LOW();
     r = SD_SendCmdRaw(cmd, addr, 0x01);
-    Serial_Printf(SERIAL_PORT_DEBUG, "[SD] CMD%d ret=%02X addr=%lu\r\n", cmd, r, (unsigned long)addr);
     if (r != 0x00) {
+        Serial_Printf(SERIAL_PORT_DEBUG, "[SD] CMD%d ret=%02X addr=%lu\r\n", cmd, r, (unsigned long)addr);
         SD_CS_HIGH();
         SD_SendClocks(2);
         return -1;
@@ -235,15 +254,22 @@ static int SD_ReadWriteBlock(uint8_t cmd, uint32_t addr,
             if ((r & 0x1F) == 0x05) break;
         } while (--timeout);
         if ((r & 0x1F) != 0x05) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[SD] data_resp=0x%02X (exp 0x05)\r\n", r);
             SD_CS_HIGH();
             SD_SendClocks(2);
             return -3;
         }
-        timeout = 500000u;
-        do {
+        uint32_t busy_start = g_icm42605_ms_tick;
+        while (1) {
             r = SD_SPI_Transfer(0xFF);
             if (r == 0xFF) break;
-        } while (--timeout);
+            if ((g_icm42605_ms_tick - busy_start) > 3000u) {
+                Serial_Printf(SERIAL_PORT_DEBUG, "[SD] busy_timeout 3s after write addr=%lu\r\n", (unsigned long)addr);
+                SD_CS_HIGH();
+                SD_SendClocks(2);
+                return -4;
+            }
+        }
     }
     SD_CS_HIGH();
     SD_SendClocks(2);
@@ -369,12 +395,12 @@ int SD_SelfTest(void) {
 
     for (i = 0; i < SD_SECTOR_SIZE; i++) buf[i] = (uint8_t)(i & 0xFF);
 
-    ret = SD_WriteSector(0x003FFFFF, buf);
+    ret = SD_WriteSector(1, buf);
     Serial_Printf(SERIAL_PORT_DEBUG, "[SD] write ret=%d\r\n", ret);
     if (ret != 0) return ret;
 
     memset(buf, 0, SD_SECTOR_SIZE);
-    ret = SD_ReadSector(0x003FFFFF, buf);
+    ret = SD_ReadSector(1, buf);
     Serial_Printf(SERIAL_PORT_DEBUG, "[SD] read ret=%d\r\n", ret);
     if (ret != 0) return ret;
 

@@ -29,7 +29,7 @@
 #define ICM_42605_Mode       4
 #define MODE_GLXSS           5
 #define MODE_GLXSS_BURN      6
-#define SYSTEM_MODE          MODE_EEG_ANALYSIS
+#define SYSTEM_MODE          MODE_GLXSS
 
 #ifdef GLXSS_ENABLED
 #define AA55_HDR0   0xAA
@@ -188,6 +188,37 @@ void Hardware(void)
 #endif
 
 #if (SYSTEM_MODE == MODE_EEG_ANALYSIS)
+#ifdef GLXSS_ENABLED
+    Serial_Init(SERIAL_PORT_DEBUG);
+    {
+        int ret = SD_Init();
+        if (ret != 0) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] SD init FAIL, skipping glasses\r\n");
+        } else {
+            uint32_t fw_size = glxss_sd_fw_get_size();
+            if (fw_size == 0) {
+                Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] No FW on SD, skipping glasses\r\n");
+            } else {
+                Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] FW %lu bytes, uploading...\r\n",
+                              (unsigned long)fw_size);
+                glxss_err_t err = glxss_init(glxss_sd_fw_read, fw_size, 15000);
+                if (err != GLXSS_OK) {
+                    Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] Init failed: %d, skipping\r\n", err);
+                } else {
+                    Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] Glasses ready!\r\n");
+                    glxss_set_brightness(200);
+                    Delay_Ms(500);
+                    glxss_power_switch(1);
+                    Delay_Ms(200);
+                    glxss_set_display_mode(0);
+                    Delay_Ms(200);
+                    IPC_Log_Init_V3F();
+                    Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] IPC log bridge ready\r\n");
+                }
+            }
+        }
+    }
+#endif
     Signal_Analysis_Start();
 
 #elif (SYSTEM_MODE == MODE_SPI_TEST)

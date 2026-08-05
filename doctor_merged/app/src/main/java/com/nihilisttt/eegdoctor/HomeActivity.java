@@ -21,6 +21,7 @@ public class HomeActivity extends AppCompatActivity implements TcpServerManager.
         setContentView(R.layout.activity_home);
 
         TcpServerManager.getInstance().start();
+        TcpServerManager.getInstance().setAppContext(getApplicationContext());
         TcpServerManager.getInstance().addConnectionListener(this);
         TrainingModeCoordinator.getInstance().activate(TrainingModeCoordinator.Mode.NONE);
 

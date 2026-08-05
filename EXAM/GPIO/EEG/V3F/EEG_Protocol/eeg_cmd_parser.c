@@ -9,6 +9,9 @@
 #include "dualcore_ipc.h"
 #include "eeg_protocol.h"
 #include "ADS1299.h"
+#ifdef GLXSS_ENABLED
+#include "ipc_log.h"
+#endif
 
 #include <string.h>
 #include <stdlib.h>
@@ -131,6 +134,9 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         if (g_eeg_app_mode == EEG_APP_MODE_COLLECT_CSP) {
             Direction_CSPStreamReset();
         }
+#ifdef GLXSS_ENABLED
+        IPC_Cmd_Send_V3F(IPC_CMD_COLLECT, 1);
+#endif
         Send_RespOk(CMD_READY_TRAIN);
         break;
 
@@ -139,6 +145,9 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         g_trial_state = TRIAL_IDLE;
         g_paused = 0;
         EEG_FFT_ResetInferState();
+#ifdef GLXSS_ENABLED
+        IPC_Cmd_Send_V3F(IPC_CMD_MI_INFER, 0);
+#endif
         Send_RespOk(CMD_READY_TEST);
         break;
 
@@ -172,8 +181,14 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
                 if (mode == EEG_APP_MODE_INFER) {
                     g_v5f_active = V5F_ACTIVE_INFER;
                     DualCore_IPC_RequestV5FReset();
+#ifdef GLXSS_ENABLED
+                    IPC_Cmd_Send_V3F(IPC_CMD_MI_INFER, 0);
+#endif
                 } else {
                     g_v5f_active = V5F_ACTIVE_IDLE;
+#ifdef GLXSS_ENABLED
+                    IPC_Cmd_Send_V3F(IPC_CMD_COLLECT, mode == EEG_APP_MODE_COLLECT_CSP ? 3 : 1);
+#endif
                 }
                 if (mode == EEG_APP_MODE_COLLECT || mode == EEG_APP_MODE_COLLECT_CSP) {
                     g_ipc_diag_enable = 0;
@@ -218,6 +233,9 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
             g_v5f_active = V5F_ACTIVE_COLLECT;
             DualCore_IPC_RequestV5FReset();
             Direction_ResetTaskZero();
+#ifdef GLXSS_ENABLED
+            IPC_Cmd_Send_V3F(IPC_CMD_ARROW, side);
+#endif
             uint8_t resp[1] = {side};
             Send_Resp(CMD_TASK_START, resp, 1);
         }
@@ -234,6 +252,10 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         EEG_FFT_ResetInferState();
         Direction_Infer1sReset();
         Direction_CSPStreamReset();
+#ifdef GLXSS_ENABLED
+        IPC_Ctrl_SetFlags_V3F(0);
+        IPC_Cmd_Send_V3F(IPC_CMD_RESET, 0);
+#endif
         Send_RespOk(CMD_TASK_STOPPED);
         break;
 
@@ -280,6 +302,14 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
                 g_display_config.spec_type[s] = data[s * 3 + 2];
             }
             EEG_FFT_ResetSendState();
+#ifdef GLXSS_ENABLED
+            if (dlen >= 1) {
+                uint8_t display_mode = data[0];
+                if (display_mode == 0) IPC_Cmd_Send_V3F(IPC_CMD_SSVEP, 0);
+                else if (display_mode == 1) IPC_Cmd_Send_V3F(IPC_CMD_ARROW, 0);
+                else if (display_mode == 2) IPC_Cmd_Send_V3F(IPC_CMD_ARROW_TRAIN, 0);
+            }
+#endif
             uint8_t resp[24];
             uint16_t resp_len = (uint16_t)(n_slots * 3u);
             memcpy(resp, data, resp_len);
@@ -295,6 +325,14 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
             g_v5f_active = V5F_ACTIVE_INFER;
             DualCore_IPC_RequestV5FReset();
         }
+#ifdef GLXSS_ENABLED
+        {
+            uint8_t freq_idx = 0;
+            if (dlen >= 1 && data[0] <= 3) freq_idx = data[0];
+            IPC_Ctrl_SetFlags_V3F(IPC_CTRL_SSVEP_ENABLE);
+            IPC_Cmd_Send_V3F(IPC_CMD_SSVEP, freq_idx);
+        }
+#endif
         Send_RespOk(CMD_SSVEP_START);
         break;
 
@@ -307,6 +345,10 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
             && g_eeg_app_mode != EEG_APP_MODE_INFER) {
             g_v5f_active = V5F_ACTIVE_IDLE;
         }
+#ifdef GLXSS_ENABLED
+        IPC_Ctrl_SetFlags_V3F(0);
+        IPC_Cmd_Send_V3F(IPC_CMD_RESET, 0);
+#endif
         Send_RespOk(CMD_SSVEP_STOP);
         break;
 

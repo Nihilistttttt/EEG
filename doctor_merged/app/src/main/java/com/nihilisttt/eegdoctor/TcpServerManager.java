@@ -648,6 +648,50 @@ public class TcpServerManager {
         return enqueuePatientPayload(buildPatientPayload(cmd, data), callback);
     }
 
+    private android.content.Context mAppContext;
+
+    public void setAppContext(android.content.Context ctx) {
+        mAppContext = ctx.getApplicationContext();
+    }
+
+    public boolean isGlxssOutput() {
+        return mAppContext != null && SettingsStore.isGlxssOutput(mAppContext);
+    }
+
+    private static final java.util.Set<Integer> GLXSS_DISPLAY_CMDS = java.util.Collections.unmodifiableSet(
+        new java.util.HashSet<>(java.util.Arrays.asList(
+            EegProtocol.CMD_SSVEP_START_P,
+            EegProtocol.CMD_SSVEP_STOP_P,
+            EegProtocol.CMD_TARGET,
+            EegProtocol.CMD_TRAIN_STOP,
+            EegProtocol.CMD_PAGE,
+            EegProtocol.CMD_READY_TRAIN,
+            EegProtocol.CMD_READY_TEST,
+            EegProtocol.CMD_TASK_START,
+            EegProtocol.CMD_TASK_DONE,
+            EegProtocol.CMD_TASK_STOPPED,
+            EegProtocol.CMD_MODE_SET_OK,
+            EegProtocol.CMD_RESULT_MI,
+            EegProtocol.CMD_SSVEP_RESULT
+        )));
+
+    public void sendDisplayToOutput(int cmd, byte[] data) {
+        if (isGlxssOutput() && GLXSS_DISPLAY_CMDS.contains(cmd)) {
+            return;
+        }
+        sendBinaryToPatient(cmd, data);
+    }
+
+    public boolean sendDisplayToOutputAsync(int cmd, byte[] data, PatientSendCallback callback) {
+        if (isGlxssOutput() && GLXSS_DISPLAY_CMDS.contains(cmd)) {
+            if (callback != null) {
+                new Handler(Looper.getMainLooper()).post(() -> callback.onResult(true));
+            }
+            return true;
+        }
+        return sendBinaryToPatientAsync(cmd, data, callback);
+    }
+
     private static byte[] buildPatientPayload(int cmd, byte[] data) {
         int dLen = (data == null) ? 0 : data.length;
         byte[] payload = new byte[dLen + 1];
@@ -769,6 +813,13 @@ public class TcpServerManager {
             return false;
         }
         return sendBinaryToCurrentPatient(client, generation, cmd, data, true);
+    }
+
+    private void sendDisplayToOutputNow(int cmd, byte[] data) {
+        if (isGlxssOutput() && GLXSS_DISPLAY_CMDS.contains(cmd)) {
+            return;
+        }
+        sendBinaryToPatientNow(cmd, data);
     }
 
     private boolean sendBinaryToCurrentPatient(Socket client,
@@ -1389,7 +1440,7 @@ public class TcpServerManager {
                 case EegProtocol.CMD_TASK_START:
                     if (payloadLen >= 1) {
                         byte side = body[fixed];
-                        sendBinaryToPatientNow(EegProtocol.CMD_TASK_START, new byte[]{side});
+                        sendDisplayToOutputNow(EegProtocol.CMD_TASK_START, new byte[]{side});
                     } else {
                         valid = false;
                     }
@@ -1403,22 +1454,22 @@ public class TcpServerManager {
                 case EegProtocol.CMD_ACK: valid = payloadLen >= 1; break;
                 case EegProtocol.CMD_READY_TRAIN:
                     dispatcher.postReadyTrain();
-                    sendBinaryToPatientNow(EegProtocol.CMD_READY_TRAIN, null);
+                    sendDisplayToOutputNow(EegProtocol.CMD_READY_TRAIN, null);
                     break;
                 case EegProtocol.CMD_READY_TEST:
                     dispatcher.postReadyTest();
-                    sendBinaryToPatientNow(EegProtocol.CMD_READY_TEST, null);
+                    sendDisplayToOutputNow(EegProtocol.CMD_READY_TEST, null);
                     break;
                 case EegProtocol.CMD_TASK_DONE:
                 case EegProtocol.CMD_TASK_STOPPED:
                     dispatcher.postTaskDone();
-                    sendBinaryToPatientNow(cmd, null);
+                    sendDisplayToOutputNow(cmd, null);
                     break;
                 case EegProtocol.CMD_MODE_SET_OK:
                     if (payloadLen >= 2) {
                         int mode = body[fixed + 1] & 0xFF;
                         dispatcher.postModeSetOk(mode);
-                        sendBinaryToPatientNow(EegProtocol.CMD_MODE_SET_OK,
+                        sendDisplayToOutputNow(EegProtocol.CMD_MODE_SET_OK,
                                 new byte[]{(byte) mode});
                     } else {
                         valid = false;
@@ -1524,7 +1575,7 @@ public class TcpServerManager {
             dispatcher.postInferenceResult(result);
             byte[] rawPayload = new byte[payloadLen];
             System.arraycopy(body, off, rawPayload, 0, payloadLen);
-            sendBinaryToPatientNow(EegProtocol.CMD_RESULT_MI, rawPayload);
+            sendDisplayToOutputNow(EegProtocol.CMD_RESULT_MI, rawPayload);
             sendAckBinary(seq);
             return true;
         }
@@ -1549,7 +1600,7 @@ public class TcpServerManager {
             if (!(mgr.isRunning() && !mgr.isSynthetic())) {
                 SsvepResult r = SsvepResult.fromMcu(seq, rawIndex, votedIndex,
                         ratio, best, margin, scores, votes);
-                sendBinaryToPatient(EegProtocol.CMD_SSVEP_RESULT, r.toPatientData());
+                sendDisplayToOutput(EegProtocol.CMD_SSVEP_RESULT, r.toPatientData());
             }
             mgr.onMcuSsvepResult(seq, rawIndex, votedIndex, ratio, best, margin, scores, votes);
             sendAckBinary(seq);

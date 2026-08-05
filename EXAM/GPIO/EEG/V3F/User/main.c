@@ -5,6 +5,7 @@
  * Date               : 2026/07/01
  * Description        : Dual-core EEG v2.7 structure-optimized build. V3F handles acquisition
  *                      and peripherals; V5F handles feature/inference backend.
+ *                      GLXSS mode: all logic lives in Common/hardware.c MODE_GLXSS.
  *******************************************************************************/
 
 #include "debug.h"
@@ -17,35 +18,21 @@ int main(void)
     SystemAndCoreClockUpdate();
     Delay_Init();
 
-    /*
-     * Use the user's own DEBUG serial configuration instead of WCH default printf UART.
-     * This matches the custom board wiring and avoids invisible/garbled boot logs.
-     */
     Serial_Init(SERIAL_PORT_DEBUG);
     Delay_Ms(200);
 
     Serial_Printf(SERIAL_PORT_DEBUG, "\r\n[V3F] boot\r\n");
     Serial_Printf(SERIAL_PORT_DEBUG, "[V3F] SystemCoreClk:%d\r\n", SystemCoreClock);
-    // Serial_Printf(SERIAL_PORT_DEBUG,
-    //     "CLKDBG,CTLR=0x%08lX,CFGR0=0x%08lX,PLLCFGR=0x%08lX,PLLCFGR2=0x%08lX,SWS=0x%02lX\r\n",
-    //     (unsigned long)RCC->CTLR,
-    //     (unsigned long)RCC->CFGR0,
-    //     (unsigned long)RCC->PLLCFGR,
-    //     (unsigned long)RCC->PLLCFGR2,
-    //     (unsigned long)(RCC->CFGR0 & RCC_SWS));
-    
-        uint32_t rst = RCC->RSTSCKR;
-        Serial_Printf(SERIAL_PORT_DEBUG, "[V3F] RSTSCKR=0x%08lX", (unsigned long)rst);
-        if (rst & RCC_LOCKUPRSTF) Serial_Printf(SERIAL_PORT_DEBUG, " LOCKUP");
-        if (rst & RCC_WWDGRSTF)   Serial_Printf(SERIAL_PORT_DEBUG, " WWDG");
-        if (rst & RCC_IWDGRSTF)   Serial_Printf(SERIAL_PORT_DEBUG, " IWDG");
-        if (rst & RCC_SFTRSTF)    Serial_Printf(SERIAL_PORT_DEBUG, " SFT");
-        if (rst & RCC_PORRSTF)    Serial_Printf(SERIAL_PORT_DEBUG, " POR");
-        if (rst & RCC_PINRSTF)    Serial_Printf(SERIAL_PORT_DEBUG, " PIN");
-        Serial_Printf(SERIAL_PORT_DEBUG, "\r\n");
-        RCC->RSTSCKR |= RCC_RMVF;
-    
     Delay_Ms(200);
+
+#ifdef GLXSS_ENABLED
+    /* GLXSS: V3F does SD init, firmware upload, IPC setup and V5F wake inside
+     * Common/hardware.c (MODE_GLXSS / MODE_GLXSS_BURN). No early V5F wake here. */
+    Hardware();
+
+    while (1) {
+    }
+#else
 
 #if (Run_Core == Run_Core_V3FandV5F)
 
@@ -99,4 +86,5 @@ int main(void)
     while (1)
     {
     }
+#endif /* GLXSS_ENABLED */
 }

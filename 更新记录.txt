@@ -1,6 +1,48 @@
 EEG项目更新记录
 ================
-最后更新: 2026-08-04
+最后更新: 2026-08-05
+
+================================================================================
+2026-08-05  GLXSS双核显示功能实现(SD卡固件源+V3F上传+V5F显示驱动,Python控制验证通过)
+================================================================================
+
+更新内容:
+1. 架构重构: 照搬W25Q64项目架构, V3F负责固件上传(SD卡→眼镜bootloader→应用设备枚举),
+   V5F负责显示驱动(USB Host+帧发送), 逻辑分离到Common/hardware.c的MODE_GLXSS分支
+2. Common/hardware.c MODE_GLXSS完整流程:
+   - SD_Init→glxss_sd_fw_get_size→glxss_init(bootloader等待+固件上传+应用设备枚举)
+   - IPC通知V5F固件就绪→NVIC_WakeUp_V5F(在固件上传完成后才唤醒,避免USB冲突)
+   - AA55循环处理V5F显示命令(SSVEP/箭头/训练/空闲模式切换)
+3. Common/hardware.c V5F分支修复:
+   - 原V5F分支为while(1){}死循环, V5F调用Hardware()后卡死无法继续USB Host初始化
+   - 改为V5F_MODE_GLXSS时空返回(让V5F main.c执行自己的显示逻辑), 否则while(1)+IPC中断
+4. V3F/User/main.c简化: GLXSS模式下只调Hardware(), EEG分支保留不变
+5. V5F/User/main.c照搬W25Q64项目(~820行):
+   - 完整显示驱动: glxss_usb_host_init+glxss_usb_wait_device+帧发送
+   - SSVEP/箭头/训练/空闲四种显示模式, IPC命令驱动切换
+   - #ifdef V5F_MODE_GLXSS / #else 双分支, EEG模式保留完整IPC+SSVEP逻辑
+6. 删除V3F/V5F的glxss_display.c/h: 与照搬的V5F main.c存在TIM4_IRQHandler重复定义
+7. V5F obj/Hardware/subdir.mk: 移除glxss_display编译项
+8. 条件编译保护:
+   - GLXSS_ENABLED: V3F .cproject定义, 保护dualcore_ipc_v3f.c的IPC_CH0_Handler
+   - V5F_MODE_GLXSS: V5F .cproject+subdir.mk定义, 保护dualcore_ipc_v5f.c的IPC_CH0_Handler
+   - ipc_log_v3f.c/v5f.c: 各自条件编译保护, 确保EEG模式不受影响
+9. glxss_sd_control.py: 扩展为完整控制脚本, 支持SSVEP/箭头/训练/空闲模式切换
+10. SYSTEM_MODE默认MODE_EEG_ANALYSIS(1), 切GLXSS改5, 切回EEG无影响
+
+关键发现:
+- V5F卡死根因: hardware.c的V5F分支while(1){}导致V5F无法继续USB Host初始化,
+  W25Q64项目V5F分支为空(直接返回), 照搬后修复
+- 唤醒时序: V5F必须在固件上传完成后才唤醒, 否则V5F的USB Host初始化与V3F冲突
+- 自创glxss_display.c/h有害: 与照搬的V5F main.c存在TIM4_IRQHandler重复定义,
+  删除后问题解决
+
+必要性:
+- W25Q64 Flash方案受限于芯片容量和烧录速度, SD卡方案支持更大固件和快速更新
+- 双核架构是CH32H417的天然优势, V3F/V5F分工明确避免单核资源竞争
+- Python控制验证确认端到端链路完整(SD卡→bootloader→USB枚举→显示帧发送→模式切换)
+
+说明: V3F+V5F实机编译烧录验证通过, Python控制SSVEP/箭头/训练/空闲模式切换成功
 
 ================================================================================
 2026-08-04  SD卡SPI驱动实现(初始化/写/读/校验全通过)

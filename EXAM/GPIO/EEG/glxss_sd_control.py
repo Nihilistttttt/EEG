@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-GLXSS AR眼镜 SD卡固件烧录 + 控制工具
+GLXSS AR眼镜 SD卡固件烧录 + AA55控制工具
 直接修改下方参数后运行: python glxss_sd_control.py
-MCU烧录模式: 先等PC连接(发0xAA), 收到大小后才初始化SD卡
+控制模式使用AA55二进制协议，与W25Q64项目完全兼容
 """
 
 import os
 import struct
 import time
+import threading
 
 try:
     import serial
@@ -16,17 +17,92 @@ except ImportError:
     exit(1)
 
 # ==================== 参数设置 ====================
-ACTION      = "burn"        # burn / bright / power / display
+ACTION      = "burn"        # burn / train / test / ssvep / ssvep_stop / stop / display / trial / mode_set / monitor
 SERIAL_PORT = "COM7"
 SERIAL_BAUD = 2000000
 FW_PATH     = r"D:\Libraries\Projects\EEG\眼镜驱动\G25_MainFW_1.9.2.decrypted.img"
-BRIGHT_VAL  = 50            # 0-100
-POWER_ON    = True          # True=on, False=off
-DISPLAY_VAL = 0             # 0=off, 1=on
+SSVEP_FREQ  = 0             # 0-3 频率索引 (11/13/15/17 Hz)
+DISPLAY_MODE= 0             # 0=SSVEP, 1=ARROW, 2=ARROW_TRAIN
+TRIAL_SIDE  = 0             # 0=LEFT, 1=RIGHT
+COLLECT_MODE= 1             # 1=collect, 2=infer, 3=csp
 # ================================================
 
 SECTOR_SIZE = 512
 
+# ==================== AA55 协议 ====================
+FRAME_HEADER0 = 0xAA
+FRAME_HEADER1 = 0x55
+FRAME_TAIL    = 0x7E
+ESCAPE_CHAR   = 0x7D
+ESCAPE_XOR    = 0x20
+
+ADDR_MCU     = 0x01
+ADDR_DOCTOR  = 0x02
+ADDR_PATIENT = 0x03
+ADDR_PYTHON  = 0x04
+
+CMD_MODE_SET      = 0x01
+CMD_MODE_TRAIN    = 0x02
+CMD_MODE_TEST     = 0x03
+CMD_TRIAL         = 0x06
+CMD_STOP          = 0x07
+CMD_DISPLAY_CFG   = 0x0B
+CMD_SSVEP_START   = 0x0C
+CMD_SSVEP_STOP    = 0x0D
+
+
+def checksum16(data):
+    return sum(data) & 0xFFFF
+
+
+def pack_frame(addr, cmd, payload=b''):
+    pay_len = len(payload)
+    ts = int(time.time() * 1000) & 0xFFFFFFFF
+    body = bytearray()
+    body.append(addr)
+    body.append(cmd)
+    body += struct.pack('<H', pay_len)
+    body += struct.pack('<I', ts)
+    body += payload
+    crc = checksum16(body)
+    body += struct.pack('<H', crc)
+
+    frame = bytearray()
+    frame.append(FRAME_HEADER0)
+    frame.append(FRAME_HEADER1)
+    for b in body:
+        if b in (FRAME_HEADER0, FRAME_HEADER1, FRAME_TAIL, ESCAPE_CHAR):
+            frame.append(ESCAPE_CHAR)
+            frame.append(b ^ ESCAPE_XOR)
+        else:
+            frame.append(b)
+    frame.append(FRAME_TAIL)
+    return bytes(frame)
+
+
+def build_downstream_payload(sub_cmd, data=b''):
+    return bytes([sub_cmd]) + data
+
+
+def send_aa55_cmd(ser, cmd, data=b''):
+    payload = build_downstream_payload(cmd, data)
+    frame = pack_frame(ADDR_PYTHON, cmd, payload)
+    ser.write(frame)
+
+
+# ==================== 日志读取 ====================
+
+def _log_reader(ser, stop_event):
+    while not stop_event.is_set():
+        b = ser.read(1)
+        if b:
+            try:
+                print(b.decode("utf-8", errors="replace"), end="", flush=True)
+            except Exception:
+                pass
+
+
+# ==================== 烧录 ====================
 
 def wait_byte(ser, expected, label):
     text_buf = bytearray()
@@ -119,33 +195,82 @@ def burn_firmware(ser, fw_path):
     return True
 
 
-def main():
+# ==================== 串口打开 ====================
+
+def open_serial(timeout=None):
     try:
         ser = serial.Serial()
         ser.port = SERIAL_PORT
         ser.baudrate = SERIAL_BAUD
         ser.dtr = False
         ser.rts = False
-        ser.timeout = None
+        ser.timeout = timeout if timeout is not None else 1.0
         ser.open()
     except Exception as e:
         print(f"无法打开 {SERIAL_PORT}: {e}")
-        return
+        return None
     print(f"[工具] {SERIAL_PORT} @ {SERIAL_BAUD} baud 已连接")
-
     ser.reset_input_buffer()
     ser.reset_output_buffer()
+    return ser
 
+
+# ==================== 主逻辑 ====================
+
+def main():
     if ACTION == "burn":
+        ser = open_serial(timeout=None)
+        if not ser:
+            return
         burn_firmware(ser, FW_PATH)
-    elif ACTION == "bright":
-        print(f"[控制] 亮度: {BRIGHT_VAL} (待MCU实现)")
-    elif ACTION == "power":
-        print(f"[控制] 电源: {'on' if POWER_ON else 'off'} (待MCU实现)")
+        ser.close()
+        return
+
+    ser = open_serial()
+    if not ser:
+        return
+
+    if ACTION == "train":
+        print("[控制] 启动训练模式 (COLLECT mode=1)")
+        send_aa55_cmd(ser, CMD_MODE_TRAIN)
+    elif ACTION == "test":
+        print("[控制] 启动测试模式 (MI_INFER)")
+        send_aa55_cmd(ser, CMD_MODE_TEST)
+    elif ACTION == "ssvep":
+        print(f"[控制] SSVEP启动 freq_idx={SSVEP_FREQ}")
+        send_aa55_cmd(ser, CMD_SSVEP_START, bytes([SSVEP_FREQ]))
+    elif ACTION == "ssvep_stop":
+        print("[控制] SSVEP停止")
+        send_aa55_cmd(ser, CMD_SSVEP_STOP)
+    elif ACTION == "stop":
+        print("[控制] 停止")
+        send_aa55_cmd(ser, CMD_STOP)
     elif ACTION == "display":
-        print(f"[控制] 显示: {DISPLAY_VAL} (待MCU实现)")
+        print(f"[控制] 显示模式 {DISPLAY_MODE} (0=SSVEP, 1=ARROW, 2=ARROW_TRAIN)")
+        send_aa55_cmd(ser, CMD_DISPLAY_CFG, bytes([DISPLAY_MODE]))
+    elif ACTION == "trial":
+        print(f"[控制] 试次方向 {'LEFT' if TRIAL_SIDE == 0 else 'RIGHT'}")
+        send_aa55_cmd(ser, CMD_TRIAL, bytes([TRIAL_SIDE]))
+    elif ACTION == "mode_set":
+        print(f"[控制] 模式设置 {COLLECT_MODE} (1=collect, 2=infer, 3=csp)")
+        send_aa55_cmd(ser, CMD_MODE_SET, bytes([COLLECT_MODE]))
+    elif ACTION == "monitor":
+        print("[监控] 实时输出中 (Ctrl+C 退出)...")
+        stop = threading.Event()
+        t = threading.Thread(target=_log_reader, args=(ser, stop), daemon=True)
+        t.start()
+        try:
+            while True:
+                time.sleep(0.1)
+        except KeyboardInterrupt:
+            stop.set()
+            print("\n[监控] 已停止")
     else:
         print(f"未知 ACTION: {ACTION}")
+        print("可用: burn, train, test, ssvep, ssvep_stop, stop, display, trial, mode_set, monitor")
+
+    if ACTION != "monitor":
+        time.sleep(0.5)
 
     ser.close()
 

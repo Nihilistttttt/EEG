@@ -183,7 +183,8 @@
 						"do_not_search_system_directories": false,
 						"preprocess_only": false,
 						"defined_symbols": [
-							"Core_V5F"
+							"Core_V5F",
+							"V5F_MODE_GLXSS"
 						],
 						"undefined_symbols": []
 					},

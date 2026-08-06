@@ -3,6 +3,56 @@ EEG项目更新记录
 最后更新: 2026-08-06
 
 ================================================================================
+2026-08-06  WAV音频文件播放实现+I2S DMA双缓冲+MAX98357A增益调整+验证通过
+================================================================================
+
+更新内容:
+1. WAV音频播放器(wav_player.c/h新建):
+   - WAV头解析: 读512字节搜索RIFF/WAVE/fmt/data chunk, 支持非标准头(额外chunk)
+     f_lseek定位到data起始, 支持PCM 16bit mono/stereo
+   - 双缓冲DMA播放: s_dma_buf[4096]int16_t(8KB), DMA Circular模式循环播放
+     HT中断(前半播完)→设标志→poll中填前半, TC中断(后半播完)→设标志→poll中填后半
+     中断只设标志不做FatFS IO(中断上下文SPI不安全), wav_player_poll()在主循环处理
+   - L/R时隙处理(关键修复):
+     I2S Philips 16bit模式下DMA样本交替对应左/右声道时隙(样本0→左, 样本1→右...)
+     立体声: 直接复制原始L/R交替数据, MAX98357A mono模式自动取左时隙
+     单声道: 每个样本复制两次填L+R时隙(dst[2i]=dst[2i+1]=src[i])
+     每半buffer=1024个LRCLK周期≈21.3ms@48kHz
+   - 音量控制: wav_player_set_volume(pct), 默认50%, fill_half中对所有DMA样本缩放
+   - API: play(filename)/stop/is_playing/poll/set_volume
+   - 静态缓冲区: s_dma_buf[8KB] + s_raw_buf[8KB] = 16KB static RAM
+
+2. max98357a驱动扩展:
+   - 新增max98357a_play_stream(buf, samples, cb): DMA Circular+HT/TC中断+回调
+     DMA_ITConfig(DMA_IT_TC|DMA_IT_HT), NVIC优先级2(低于ADS1299的1)
+     DMA1_Channel3_IRQHandler: HT→cb(0), TC→cb(1)
+   - max98357a_stop: 禁用DMA中断+NVIC+清回调
+   - 增益改为12dB: GAIN引脚在SHDN上升沿时设为Hi-Z(浮空输入HAL_GPIO_MODE_INPUT)
+     原15dB(GAIN低)→12dB(GAIN悬空), 降3dB硬件增益, 噪声明显减小
+
+3. MODE_WAV_TEST(8)测试分支: SD_Init→wav_player_play("test.wav")→poll循环
+
+关键发现:
+- I2S Philips 16bit: 每个LRCLK周期传输2个16bit样本(L+R时隙), DMA每次传1个HalfWord
+  DMA样本0→左时隙, 样本1→右时隙, 样本2→左时隙...MAX98357A mono模式只播放左时隙
+- 之前立体声只取左声道填DMA→MAX98357A只听到偶数索引样本(一半)→播放加速2倍
+  修复: 立体声直接复制原始L/R交替数据, 单声道每样本复制两次填L+R
+- MAX98357A增益: GAIN=低→15dB, GAIN=Hi-Z→12dB, GAIN=高→15dB右声道
+  GPIO只能选15dB(输出低)或12dB(输入悬空), 更低需外部电阻(100kΩ=9dB, 300kΩ=6dB)
+- WAV fmt chunk: audio_format(2B)+channels(2B)+sample_rate(4B)+byte_rate(4B)
+  +block_align(2B)+bits_per_sample(2B), bits_per_sample在chunk偏移22(非20, 20是block_align)
+- DMA中断回调中不能做FatFS IO: f_read→disk_read→SD SPI通信, 中断上下文中SPI可能
+  与主循环冲突, 解决: 回调只设volatile标志, wav_player_poll在主循环中检查并填充
+
+必要性:
+- 语音播放是MAX98357A+FatFS的最终目标: SD卡存WAV文件→I2S DMA播放
+- 双缓冲DMA: 无缝播放, 一半播放时另一半从SD卡读取, 避免卡顿
+- 12dB增益: 15dB噪声太大, 12dB+50%软件音量=有效降噪
+- L/R时隙修复: I2S Philips标准的时隙分配是音频正确播放的关键
+
+说明: V3F实机验证通过, 48kHz/16bit/stereo WAV播放正常, 速度正确, 12dB+50%音量噪声可接受
+
+================================================================================
 2026-08-06  FatFS文件系统移植SD卡+固件烧录/下载改为文件读写+FLASH分区再调整+MODE_GLXSS重复上传修复
 ================================================================================
 

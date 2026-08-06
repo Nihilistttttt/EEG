@@ -18,6 +18,7 @@
 #include "glxss_me.h"
 #include "glxss_sd_fw.h"
 #include "max98357a.h"
+#include "wav_player.h"
 #ifdef GLXSS_ENABLED
 #include "ipc_log.h"
 #include "Message_Parser.h"
@@ -255,6 +256,25 @@ void Hardware(void)
         int ret = max98357a_selftest();
         Serial_Printf(SERIAL_PORT_DEBUG, "[MAX98357A] selftest %s (ret=%d)\r\n",
                       ret == 0 ? "PASS" : "FAIL", ret);
+    }
+    while (1) {
+    }
+
+#elif (SYSTEM_MODE == MODE_WAV_TEST)
+    Serial_Init(SERIAL_PORT_DEBUG);
+    {
+        int ret = SD_Init();
+        if (ret != 0) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[WAV_TEST] SD init FAIL\r\n");
+            while (1);
+        }
+        Serial_Printf(SERIAL_PORT_DEBUG, "[WAV_TEST] playing test.wav...\r\n");
+        wav_player_play("test.wav");
+        while (wav_player_is_playing()) {
+            wav_player_poll();
+            Delay_Ms(1);
+        }
+        Serial_Printf(SERIAL_PORT_DEBUG, "[WAV_TEST] playback finished\r\n");
     }
     while (1) {
     }

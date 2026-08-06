@@ -17,12 +17,15 @@ typedef enum {
     MAX98357A_GAIN_0DB          = 7
 } max98357a_gain_t;
 
+typedef void (*max98357a_dma_cb_t)(int half);
+
 int  max98357a_init(max98357a_gain_t gain);
 void max98357a_shutdown(void);
 void max98357a_wakeup(max98357a_gain_t gain);
 void max98357a_stop(void);
 int  max98357a_play_tone(uint32_t freq_hz, uint32_t duration_ms, uint16_t amplitude);
 int  max98357a_play_buffer(const int16_t *buf, uint32_t len, uint32_t loop);
+int  max98357a_play_stream(int16_t *buf, uint32_t total_samples, max98357a_dma_cb_t cb);
 int  max98357a_selftest(void);
 int  max98357a_is_playing(void);
 

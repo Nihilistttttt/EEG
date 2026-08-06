@@ -17,6 +17,7 @@
 static int16_t g_tone_buf[MAX98357A_TONE_BUF_SIZE];
 static volatile int  g_playing = 0;
 static uint32_t      g_loop_len = 0;
+static max98357a_dma_cb_t g_stream_cb = 0;
 
 static void max98357a_gpio_init(void) {
     AFIO_ClockEnable();
@@ -76,7 +77,7 @@ int max98357a_init(max98357a_gain_t gain) {
     max98357a_gpio_init();
     max98357a_i2s_init();
 
-    MAX98357A_GAIN_LOW();
+    Hal_GPIO_Init(MAX98357A_GAIN_PIN_ENC, HAL_GPIO_MODE_INPUT, HAL_GPIO_SPEED_LOW, 0);
     Delay_Ms(1);
     MAX98357A_SHDN_HIGH();
     Delay_Ms(2);
@@ -107,9 +108,12 @@ void max98357a_wakeup(max98357a_gain_t gain) {
 }
 
 void max98357a_stop(void) {
+    DMA_ITConfig(MAX98357A_TX_DMA_CHANNEL, DMA_IT_TC | DMA_IT_HT, DISABLE);
+    NVIC_DisableIRQ(MAX98357A_TX_DMA_IRQn);
     DMA_Cmd(MAX98357A_TX_DMA_CHANNEL, DISABLE);
     I2S_Cmd(MAX98357A_I2S_INSTANCE, DISABLE);
     g_playing = 0;
+    g_stream_cb = 0;
 }
 
 int max98357a_play_tone(uint32_t freq_hz, uint32_t duration_ms, uint16_t amplitude) {
@@ -163,6 +167,60 @@ int max98357a_play_buffer(const int16_t *buf, uint32_t len, uint32_t loop) {
 
 int max98357a_is_playing(void) {
     return g_playing;
+}
+
+int max98357a_play_stream(int16_t *buf, uint32_t total_samples, max98357a_dma_cb_t cb) {
+    if (buf == 0 || total_samples == 0 || cb == 0) {
+        return -1;
+    }
+
+    g_stream_cb = cb;
+
+    DMA_ClockEnable(MAX98357A_DMA_INSTANCE);
+    DMA_DeInit(MAX98357A_TX_DMA_CHANNEL);
+
+    DMA_InitTypeDef DMA_InitStructure = {0};
+    DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(MAX98357A_I2S_INSTANCE->DATAR);
+    DMA_InitStructure.DMA_Memory0BaseAddr    = (uint32_t)buf;
+    DMA_InitStructure.DMA_DIR                = DMA_DIR_PeripheralDST;
+    DMA_InitStructure.DMA_BufferSize         = total_samples;
+    DMA_InitStructure.DMA_PeripheralInc      = DMA_PeripheralInc_Disable;
+    DMA_InitStructure.DMA_MemoryInc          = DMA_MemoryInc_Enable;
+    DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
+    DMA_InitStructure.DMA_MemoryDataSize     = DMA_MemoryDataSize_HalfWord;
+    DMA_InitStructure.DMA_Mode              = DMA_Mode_Circular;
+    DMA_InitStructure.DMA_Priority          = DMA_Priority_High;
+    DMA_InitStructure.DMA_M2M               = DMA_M2M_Disable;
+    DMA_InitStructure.DMA_BufferMode        = DMA_SingleBufferMode;
+    DMA_InitStructure.DMA_DoubleBuffer_StartMemory = DMA_DoubleBufferMode_Memory_0;
+    DMA_Init(MAX98357A_TX_DMA_CHANNEL, &DMA_InitStructure);
+    DMA_MuxChannelConfig(MAX98357A_TX_DMAMUX_CHANNEL, MAX98357A_TX_DMA_REQUEST);
+
+    DMA_ClearITPendingBit(MAX98357A_DMA_INSTANCE, MAX98357A_TX_DMA_TC_FLAG);
+    DMA_ClearITPendingBit(MAX98357A_DMA_INSTANCE, DMA1_IT_HT3);
+    DMA_ITConfig(MAX98357A_TX_DMA_CHANNEL, DMA_IT_TC | DMA_IT_HT, ENABLE);
+
+    NVIC_SetPriority(MAX98357A_TX_DMA_IRQn, (2 << 7) | (0 << 4));
+    NVIC_EnableIRQ(MAX98357A_TX_DMA_IRQn);
+
+    I2S_Cmd(MAX98357A_I2S_INSTANCE, ENABLE);
+    DMA_Cmd(MAX98357A_TX_DMA_CHANNEL, ENABLE);
+    g_playing = 1;
+    g_loop_len = total_samples;
+    return 0;
+}
+
+void DMA1_Channel3_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
+
+void DMA1_Channel3_IRQHandler(void) {
+    if (DMA_GetITStatus(MAX98357A_DMA_INSTANCE, DMA1_IT_HT3) != RESET) {
+        DMA_ClearITPendingBit(MAX98357A_DMA_INSTANCE, DMA1_IT_HT3);
+        if (g_stream_cb) g_stream_cb(0);
+    }
+    if (DMA_GetITStatus(MAX98357A_DMA_INSTANCE, MAX98357A_TX_DMA_TC_FLAG) != RESET) {
+        DMA_ClearITPendingBit(MAX98357A_DMA_INSTANCE, MAX98357A_TX_DMA_TC_FLAG);
+        if (g_stream_cb) g_stream_cb(1);
+    }
 }
 
 int max98357a_selftest(void) {

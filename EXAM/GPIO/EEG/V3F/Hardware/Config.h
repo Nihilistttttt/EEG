@@ -344,11 +344,39 @@
 #define SD_CD_PIN_ENC           HAL_GPIO_PIN(SD_CD_PORT, SD_CD_PIN)
 #endif /* __SD_CARD_H */
 
+#ifdef __MAX98357A_H
+#define MAX98357A_I2S_INSTANCE      SPI2
+#define MAX98357A_WS_PORT           1
+#define MAX98357A_WS_PIN            4
+#define MAX98357A_WS_PIN_ENC        HAL_GPIO_PIN(MAX98357A_WS_PORT, MAX98357A_WS_PIN)
+#define MAX98357A_WS_AF             GPIO_AF7
+#define MAX98357A_CK_PORT           1
+#define MAX98357A_CK_PIN            13
+#define MAX98357A_CK_PIN_ENC        HAL_GPIO_PIN(MAX98357A_CK_PORT, MAX98357A_CK_PIN)
+#define MAX98357A_CK_AF             GPIO_AF5
+#define MAX98357A_DIN_PORT          1
+#define MAX98357A_DIN_PIN           15
+#define MAX98357A_DIN_PIN_ENC       HAL_GPIO_PIN(MAX98357A_DIN_PORT, MAX98357A_DIN_PIN)
+#define MAX98357A_DIN_AF            GPIO_AF5
+#define MAX98357A_GAIN_PORT         1
+#define MAX98357A_GAIN_PIN          14
+#define MAX98357A_GAIN_PIN_ENC      HAL_GPIO_PIN(MAX98357A_GAIN_PORT, MAX98357A_GAIN_PIN)
+#define MAX98357A_SHDN_PORT         1
+#define MAX98357A_SHDN_PIN          12
+#define MAX98357A_SHDN_PIN_ENC      HAL_GPIO_PIN(MAX98357A_SHDN_PORT, MAX98357A_SHDN_PIN)
+#define MAX98357A_DMA_INSTANCE      DMA1
+#define MAX98357A_TX_DMA_CHANNEL    DMA1_Channel3
+#define MAX98357A_TX_DMAMUX_CHANNEL DMA_MuxChannel3
+#define MAX98357A_TX_DMA_REQUEST    65U
+#define MAX98357A_TX_DMA_TC_FLAG    DMA1_IT_TC3
+#define MAX98357A_TX_DMA_IRQn       DMA1_Channel3_IRQn
+#endif /* __MAX98357A_H */
+
 /*============================================================================
- ******************************************************************************
- *                          BOARD V3
- ******************************************************************************
- *============================================================================*/
+  ******************************************************************************
+  *                          BOARD V3
+  ******************************************************************************
+  *============================================================================*/
 #elif defined(BOARD_V3)
 
 #ifdef __ADS1299_H

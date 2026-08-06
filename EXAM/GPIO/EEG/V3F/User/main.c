@@ -11,6 +11,7 @@
 #include "debug.h"
 #include "hardware.h"
 #include "Serial.h"
+
 #ifdef GLXSS_ENABLED
 #include "glxss_me.h"
 #include "glxss_sd_fw.h"
@@ -37,7 +38,7 @@ int main(void)
      * Common/hardware.c MODE_EEG_ANALYSIS initializes glasses from SD. */
 #endif
 
-#ifdef GLXSS_ENABLED
+#if defined(GLXSS_ENABLED) && (SYSTEM_MODE == MODE_EEG_ANALYSIS || SYSTEM_MODE == MODE_GLXSS)
     /* GLXSS + EEG fusion: upload glasses firmware BEFORE waking V5F so that
      * V5F can act as USB Host on the application-mode glasses. */
     {
@@ -74,6 +75,7 @@ int main(void)
         }
     }
 #endif
+
 
 #if (Run_Core == Run_Core_V3FandV5F)
 

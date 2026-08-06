@@ -13,7 +13,7 @@
 #include "ADS1299.h"
 
 #include "hardware.h"
-#include "W25Q64.h"
+
 #ifdef HAS_ICM42605
 #include "ICM42605.h"
 #include "Timer_1ms.h"
@@ -73,18 +73,6 @@ void Signal_Analysis_Start (void) {
     OLED_ShowNum(SPI,3,13,id,2);
 #endif
 
-    
-    W25Q64_Init();   // ������Ҫ Flash
-    uint8_t mid;
-    uint16_t did;
-    W25Q64_ReadID(&mid, &did);
-
-#ifndef EEG_OLED_DISABLED
-    OLED_ShowString(SPI, 1, 0, "MID:");
-    OLED_ShowNum(SPI, 1, 4, mid, 2);    // �� "0xEF"
-    OLED_ShowString(SPI, 2, 0, "DID:");
-    OLED_ShowNum(SPI, 2, 4, did, 4);    // �� "0x4018"
-#endif
 
 #if AB_EXTRACT_PRINT_ENABLE
     Serial_Printf (DIR_TEXT_PORT, "ABCFG,fs=%d,fft=%d,step=%d,alpha=8-13Hz,beta=13-30Hz,drift_k=9960/10000,notch=%d,detrend=%d,power_scale=1e15,pct_scale=10000,db_scale=100\r\n",

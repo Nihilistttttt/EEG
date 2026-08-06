@@ -3,6 +3,41 @@ EEG项目更新记录
 最后更新: 2026-08-06
 
 ================================================================================
+2026-08-06  MAX98357A I2S2音频放大器驱动实现+自检通过(1kHz蜂鸣音)
+================================================================================
+
+更新内容:
+1. MAX98357A I2S音频放大器驱动(max98357a.c/h):
+   - I2S2外设配置: MasterTx / Philips标准 / 16bit / 48kHz / MCLK禁用 / CPOL_High
+   - 引脚映射(BOARD_V2): PB4=WS(AF7), PB13=CK(AF5), PB15=DIN(AF5),
+     PB14=GAIN(GPIO输出), PB12=SHDN(GPIO输出)
+   - DMA1_Channel3/DMA_MuxChannel3, 请求号65(SPI2_TX), HalfWord循环模式
+   - API: init/shutdown/wakeup/stop/play_tone/play_buffer/selftest
+   - play_tone: 生成正弦波PCM→循环DMA发送→Delay_Ms(duration)→停止
+   - selftest: 播放1kHz正弦波1秒(振幅30000/32767), 实测喇叭发声正常
+2. W25Q64 SPI2释放: Signal_Analysis.c移除W25Q64_Init/ReadID调用和#include
+   - W25Q64已弃用(SD卡SPI1替代), 仅做Init+ReadID无实际存储, SPI2让给I2S2
+3. SYSTEM_MODE编译开关: hardware.h统一定义模式宏, hardware.c移除重复定义
+   - 新增MODE_MAX98357A_TEST(7), hardware.c添加测试分支(selftest+串口日志)
+   - main.c GLXSS初始化加门控: 仅MODE_EEG_ANALYSIS/MODE_GLXSS时执行SD卡+固件上传
+   - 切换: hardware.h中SYSTEM_MODE改MODE_MAX98357A_TEST即单独测试喇叭
+4. Config.h BOARD_V2块新增MAX98357A引脚配置(#ifdef __MAX98357A_H保护)
+
+关键发现:
+- CH32H417的SPI2_TX DMA请求号为65(从EXAM/I2S/I2S_DMA示例确认), DMAMUX 1-based
+- PB4 AF7=I2S2_WS(重映射), PB12 AF5=I2S2_WS(默认); 硬件用PB4做WS, PB12做SHDN
+- MAX98357A的GAIN引脚在SD_MODE上升沿采样: GAIN=低→I2S Philips格式(15dB)
+- W25Q64用硬件SPI2(PB12-PB15 AF5), 与I2S2引脚完全冲突, 必须释放
+- main.c的GLXSS初始化在Hardware()之前执行, 不受SYSTEM_MODE约束, 需显式门控
+
+必要性:
+- MAX98357A是I2S放大器, 需MCU提供BCLK/LRCLK/DIN, CH32H417的I2S2外设天然匹配
+- W25Q64已弃用(SD卡替代), 其SPI2占用与I2S2冲突, 移除初始化是释放引脚的前提
+- 编译开关模式避免测试代码污染正常EEG流程, 切回一行宏定义即可恢复
+
+说明: V3F实机编译烧录验证通过, 1kHz蜂鸣音正常发声, 串口打印selftest PASS
+
+================================================================================
 2026-08-06  方向识别AR眼镜显示时序重构+验证通过+FLASH分区调整
 ================================================================================
 

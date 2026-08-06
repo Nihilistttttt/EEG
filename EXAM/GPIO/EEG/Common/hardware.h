@@ -16,6 +16,15 @@
 #include "debug.h"
 #include "dualcore_ipc.h"
 
+#define MODE_EEG_ANALYSIS    1
+#define MODE_SPI_TEST        2
+#define MODE_SD_TEST         3
+#define ICM_42605_Mode       4
+#define MODE_GLXSS           5
+#define MODE_GLXSS_BURN      6
+#define MODE_MAX98357A_TEST  7
+#define SYSTEM_MODE          MODE_MAX98357A_TEST
+
 void Hardware(void);
 
 #ifdef __cplusplus

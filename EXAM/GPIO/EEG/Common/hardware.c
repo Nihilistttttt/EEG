@@ -17,6 +17,7 @@
 #include "ICM42605.h"
 #include "glxss_me.h"
 #include "glxss_sd_fw.h"
+#include "max98357a.h"
 #ifdef GLXSS_ENABLED
 #include "ipc_log.h"
 #include "Message_Parser.h"
@@ -24,13 +25,6 @@
 #endif
 #endif
 
-#define MODE_EEG_ANALYSIS    1
-#define MODE_SPI_TEST        2
-#define MODE_SD_TEST         3
-#define ICM_42605_Mode       4
-#define MODE_GLXSS           5
-#define MODE_GLXSS_BURN      6
-#define SYSTEM_MODE          MODE_EEG_ANALYSIS
 
 #if defined(Core_V3F) && defined(GLXSS_ENABLED)
 #define AA55_HDR0   0xAA
@@ -250,6 +244,17 @@ void Hardware(void)
             while (1);
         }
         glxss_sd_fw_burn();
+    }
+    while (1) {
+    }
+
+#elif (SYSTEM_MODE == MODE_MAX98357A_TEST)
+    Serial_Init(SERIAL_PORT_DEBUG);
+    Serial_Printf(SERIAL_PORT_DEBUG, "[MAX98357A] selftest start\r\n");
+    {
+        int ret = max98357a_selftest();
+        Serial_Printf(SERIAL_PORT_DEBUG, "[MAX98357A] selftest %s (ret=%d)\r\n",
+                      ret == 0 ? "PASS" : "FAIL", ret);
     }
     while (1) {
     }

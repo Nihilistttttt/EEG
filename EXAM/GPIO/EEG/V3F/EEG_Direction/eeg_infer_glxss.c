@@ -15,9 +15,10 @@
 extern uint8_t g_eeg_app_mode;
 extern volatile uint8_t g_v5f_active;
 
-#define GLXSS_INFER_STATE_IDLE    0
-#define GLXSS_INFER_STATE_TARGET  1
-#define GLXSS_INFER_STATE_COLLECT 2
+#define GLXSS_INFER_STATE_IDLE       0
+#define GLXSS_INFER_STATE_TARGET     1
+#define GLXSS_INFER_STATE_COLLECT    2
+#define GLXSS_INFER_STATE_RESULT     3   /* 最终投票结果显示窗口 */
 
 static uint8_t s_state = GLXSS_INFER_STATE_IDLE;
 static uint8_t s_mode = GLXSS_INFER_MODE_CYCLE;
@@ -27,12 +28,14 @@ static uint32_t s_frame_count = 0;
 static uint32_t s_cycle_rounds_left = 0;
 static uint32_t s_cycle_rounds_right = 0;
 static uint32_t s_total_targets = 0;
-static uint32_t s_infer_base_cnt = 0;  /* infer count at window start */
-static uint8_t s_window_pred = 0;
-static int32_t s_window_sl = 0;
-static int32_t s_window_sr = 0;
-static int32_t s_window_conf = 0;
-static uint8_t s_window_valid = 0;
+
+/* 投票累积: COLLECT 窗口内多次推理取多数 */
+static uint32_t s_vote_left = 0;
+static uint32_t s_vote_right = 0;
+static uint8_t s_final_pred = 0;
+static int32_t s_final_sl = 0;
+static int32_t s_final_sr = 0;
+static int32_t s_final_conf = 0;
 
 void GLXSS_Infer_Config(uint8_t mode, uint8_t rounds)
 {
@@ -49,6 +52,11 @@ void GLXSS_Infer_Start(void)
     s_cycle_rounds_right = s_rounds;
     s_total_targets = 0;
     s_cur_dir = 0;
+    s_vote_left = 0;
+    s_vote_right = 0;
+    s_final_sl = 0;
+    s_final_sr = 0;
+    s_final_conf = 0;
     s_state = GLXSS_INFER_STATE_TARGET;
     s_frame_count = 0;
 #ifdef GLXSS_ENABLED
@@ -98,14 +106,12 @@ static void report_window_result(void)
 {
     uint8_t result_buf[17];
     uint8_t seq = Retry_GetSeq();
-    uint8_t pred = s_window_valid
-        ? ((s_window_pred == 0u) ? 0u : 1u)
-        : ((s_window_sl >= s_window_sr) ? 0u : 1u);
+    uint8_t pred = (s_final_sl >= s_final_sr) ? 0u : 1u;
     result_buf[0] = seq;
     result_buf[1] = pred;
-    memcpy(result_buf + 2, &s_window_sl, 4);
-    memcpy(result_buf + 6, &s_window_sr, 4);
-    memcpy(result_buf + 10, &s_window_conf, 4);
+    memcpy(result_buf + 2, &s_final_sl, 4);
+    memcpy(result_buf + 6, &s_final_sr, 4);
+    memcpy(result_buf + 10, &s_final_conf, 4);
     result_buf[14] = (uint8_t)(DualCore_IPC_GetLastV5FModelTrained() ? 1u : 0u);
     result_buf[15] = (uint8_t)DualCore_IPC_GetLastV5FModelUsed();
     result_buf[16] = s_cur_dir;       /* ground-truth target label */
@@ -114,7 +120,11 @@ static void report_window_result(void)
     Retry_Store(result_buf, sizeof(result_buf), CMD_RESULT_MI);
     Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] INFER win tgt=%s pred=%s sl=%ld sr=%ld\r\n",
                   s_cur_dir ? "R" : "L", pred ? "R" : "L",
-                  (long)s_window_sl, (long)s_window_sr);
+                  (long)s_final_sl, (long)s_final_sr);
+#ifdef GLXSS_ENABLED
+    /* 最终投票结果命令驱动 V5F 显示结果箭头 */
+    IPC_Cmd_Send_V3F(IPC_CMD_MI_RESULT, s_final_pred);
+#endif
 }
 
 void GLXSS_Infer_Poll(void)
@@ -125,37 +135,57 @@ void GLXSS_Infer_Poll(void)
     s_frame_count++;
 
     if (s_state == GLXSS_INFER_STATE_TARGET) {
+        /* 目标显示+投票采集合并为4s: 全程显示白色目标箭头 */
+        uint32_t infer_cnt = DualCore_IPC_GetLastV5FInferCount();
+        uint32_t infer_valid = DualCore_IPC_GetLastV5FInferValid();
+        static uint32_t s_last_cnt = 0xFFFFFFFFu;
+        if (infer_valid && infer_cnt != s_last_cnt) {
+            s_last_cnt = infer_cnt;
+            uint8_t p = (uint8_t)DualCore_IPC_GetLastV5FPred();
+            int32_t sl = DualCore_IPC_GetLastV5FScoreLeft();
+            int32_t sr = DualCore_IPC_GetLastV5FScoreRight();
+            int32_t conf = DualCore_IPC_GetLastV5FConfidence();
+            if (p == IPC_PRED_LEFT || p == IPC_PRED_RIGHT) {
+                if (p == IPC_PRED_LEFT) s_vote_left++;
+                else s_vote_right++;
+                s_final_sl = sl;
+                s_final_sr = sr;
+                s_final_conf = conf;
+            }
+        }
+
         if (s_frame_count >= GLXSS_INFER_TARGET_FRAMES) {
-            /* begin collect window */
-            s_state = GLXSS_INFER_STATE_COLLECT;
+            /* 4s结束: 投票决定最终结果 */
+            s_final_pred = (s_vote_right >= s_vote_left) ? 1u : 0u;
+            if (s_final_pred == 0u) {
+                s_final_sl = 10000 - s_final_conf;
+                s_final_sr = s_final_conf;
+            } else {
+                s_final_sl = s_final_conf;
+                s_final_sr = 10000 - s_final_conf;
+            }
+            report_window_result();
+            s_total_targets++;
+            s_state = GLXSS_INFER_STATE_RESULT;
             s_frame_count = 0;
-            s_infer_base_cnt = DualCore_IPC_GetLastV5FInferCount();
-            s_window_valid = 0;
         }
         return;
     }
 
-    /* COLLECT: capture latest V5F inference */
-    uint32_t infer_cnt = DualCore_IPC_GetLastV5FInferCount();
-    uint32_t infer_valid = DualCore_IPC_GetLastV5FInferValid();
-    if (infer_valid && infer_cnt != s_infer_base_cnt) {
-        s_infer_base_cnt = infer_cnt;
-        s_window_pred = (uint8_t)DualCore_IPC_GetLastV5FPred();
-        s_window_sl = DualCore_IPC_GetLastV5FScoreLeft();
-        s_window_sr = DualCore_IPC_GetLastV5FScoreRight();
-        s_window_conf = DualCore_IPC_GetLastV5FConfidence();
-        s_window_valid = 1;
-    }
-
-    if (s_frame_count >= GLXSS_INFER_COLLECT_FRAMES) {
-        report_window_result();
-        s_total_targets++;
-        /* next target */
-        s_cur_dir = next_direction();
-        s_state = GLXSS_INFER_STATE_TARGET;
-        s_frame_count = 0;
+    /* RESULT 状态: 等待 V5F 显示结果(1s)+消失(0.5s), 期间不投票不推理 */
+    if (s_state == GLXSS_INFER_STATE_RESULT) {
+        if (s_frame_count >= GLXSS_INFER_RESULT_FRAMES) {
+            s_cur_dir = next_direction();
+            s_state = GLXSS_INFER_STATE_TARGET;
+            s_frame_count = 0;
+            s_vote_left = 0;
+            s_vote_right = 0;
+            s_final_sl = 0;
+            s_final_sr = 0;
+            s_final_conf = 0;
 #ifdef GLXSS_ENABLED
-        IPC_Cmd_Send_V3F(IPC_CMD_ARROW, s_cur_dir);
+            IPC_Cmd_Send_V3F(IPC_CMD_ARROW, s_cur_dir);
 #endif
+        }
     }
 }

@@ -258,6 +258,15 @@ static uint8_t g_arrow_res_vis = 0;
 static uint8_t g_arrow_dash = 0;
 static uint8_t g_arrow_dirty = 1;
 
+/* 推理边界显示相位: TARGET显示目标(白)→RESULT显示结果(变色)→GAP消失(转向缓冲) */
+#define ARROW_PHASE_TARGET 0
+#define ARROW_PHASE_RESULT 1
+#define ARROW_PHASE_GAP    2
+#define ARROW_RESULT_MS    1500   /* 最终投票结果显示时长 */
+#define ARROW_GAP_MS       200    /* 消失期(转向缓冲), 不挤压目标显示 */
+static uint8_t  g_arrow_phase = ARROW_PHASE_TARGET;
+static uint32_t g_arrow_phase_start = 0;
+
 static int is_in_arrow(int32_t px, int32_t py, int32_t cx, int32_t cy, int32_t sz, uint8_t dir)
 {
     /* dir: 0=LEFT, 1=RIGHT (matches IPC_PRED_LEFT/RIGHT and DIR_LABEL_*) */
@@ -368,13 +377,15 @@ static uint32_t g_test_target_start = 0;
 static void arrow_mode_init(void)
 {
     g_arrow_tgt_dir = 0;
-    g_arrow_tgt_color = 0;
-    g_arrow_tgt_vis = 0;
+    g_arrow_tgt_color = 0;   /* white */
+    g_arrow_tgt_vis = 1;
     g_arrow_res_dir = 0;
     g_arrow_res_color = 0;
     g_arrow_res_vis = 0;
     g_arrow_dash = 0;
     g_arrow_dirty = 1;
+    g_arrow_phase = ARROW_PHASE_TARGET;
+    g_arrow_phase_start = tick_get_us();
     g_test_show_result = 0;
     g_test_new_result = 0;
     g_test_hide_target = 0;
@@ -383,12 +394,44 @@ static void arrow_mode_init(void)
 
 static glxss_err_t arrow_mode_step(void)
 {
+    uint32_t now = tick_get_us();
+
     if (g_test_new_result) {
         g_test_new_result = 0;
         g_arrow_res_dir = (g_mi_sim_sr >= g_mi_sim_sl) ? 1u : 0u;
-        g_arrow_res_color = (g_mi_sim_pred == IPC_PRED_UNKNOWN) ? 0u : 1u;
+        /* 一致=绿色(1), 不一致=红色(2); 目标+结果同色反馈 */
+        uint8_t ok = (g_arrow_res_dir == g_arrow_tgt_dir) ? 1u : 0u;
+        g_arrow_tgt_color = ok ? 1u : 2u;
+        g_arrow_res_color = ok ? 1u : 2u;
+        g_arrow_tgt_vis = 1;
         g_arrow_res_vis = 1;
+        if (g_arrow_phase != ARROW_PHASE_RESULT) {
+            /* 首次进入结果相位才重置计时; 后续推理只刷新内容不延长显示 */
+            g_arrow_phase = ARROW_PHASE_RESULT;
+            g_arrow_phase_start = tick_get_us();
+        }
         g_arrow_dirty = 1;
+    }
+
+    if (g_arrow_phase == ARROW_PHASE_RESULT) {
+        if (now - g_arrow_phase_start >= ARROW_RESULT_MS) {
+            g_arrow_phase = ARROW_PHASE_GAP;
+            g_arrow_phase_start = now;
+            g_arrow_tgt_vis = 0;
+            g_arrow_res_vis = 0;
+            g_arrow_dirty = 1;
+        }
+    } else if (g_arrow_phase == ARROW_PHASE_GAP) {
+        if (now - g_arrow_phase_start >= ARROW_GAP_MS) {
+            g_arrow_phase = ARROW_PHASE_TARGET;
+            g_arrow_phase_start = now;
+            /* 消失结束立即恢复显示目标(白色), 避免等待命令时空白;
+               IPC_CMD_ARROW 到达时再更新方向 */
+            g_arrow_tgt_color = 0;
+            g_arrow_tgt_vis = 1;
+            g_arrow_res_vis = 0;
+            g_arrow_dirty = 1;
+        }
     }
 
     if (!g_arrow_dirty) {
@@ -679,10 +722,18 @@ static void handle_ipc_cmd(void)
     case IPC_CMD_ARROW:
         if (g_mode != MODE_ARROW) switch_mode(MODE_ARROW);
         g_arrow_tgt_dir = (uint8_t)(param & 1u);
-        g_arrow_tgt_color = 1;
-        g_arrow_tgt_vis = 1;
-        g_arrow_res_vis = 0;
-        g_arrow_dirty = 1;
+        g_arrow_tgt_color = 0;   /* white: 采集期间目标箭头为白色 */
+        if (g_arrow_phase == ARROW_PHASE_RESULT || g_arrow_phase == ARROW_PHASE_GAP) {
+            /* 结果/消失相位中: 只更新方向, 等相位自然结束再显示新目标 */
+            g_arrow_dirty = 1;
+        } else {
+            g_arrow_tgt_vis = 1;
+            g_arrow_res_vis = 0;
+            g_arrow_phase = ARROW_PHASE_TARGET;
+            g_arrow_phase_start = tick_get_us();
+            g_arrow_dirty = 1;
+        }
+        g_last_disp_us = 0;   /* 立即刷新显示 */
         break;
     case IPC_CMD_ARROW_TRAIN:
         if (g_mode != MODE_ARROW_TRAIN) switch_mode(MODE_ARROW_TRAIN);
@@ -701,9 +752,21 @@ static void handle_ipc_cmd(void)
         }
         break;
     case IPC_CMD_MI_INFER:
-        IPC_Log_Printf_V5F("[V5F] MI_INFER mode (sim)\r\n");
+        IPC_Log_Printf_V5F("[V5F] MI_INFER mode\r\n");
         g_mi_infer_active = 1;
         switch_mode(MODE_ARROW);
+        break;
+    case IPC_CMD_MI_RESULT:
+        /* V3F 最终投票结果命令: 显示结果箭头并变色, 1.5s后消失(200ms) */
+        if (g_mode != MODE_ARROW) switch_mode(MODE_ARROW);
+        g_mi_sim_pred = (uint8_t)(param & 1u);
+        g_mi_sim_sl = 5000;
+        g_mi_sim_sr = 5000;
+        if (g_mi_sim_pred == IPC_PRED_RIGHT) { g_mi_sim_sl = 3000; g_mi_sim_sr = 7000; }
+        else if (g_mi_sim_pred == IPC_PRED_LEFT) { g_mi_sim_sl = 7000; g_mi_sim_sr = 3000; }
+        g_test_new_result = 1;
+        g_last_disp_us = 0;   /* 立即刷新显示 */
+        IPC_Log_Printf_V5F("[V5F] RESULT %s\r\n", g_mi_sim_pred ? "RIGHT" : "LEFT");
         break;
     case IPC_CMD_COLLECT:
         IPC_Log_Printf_V5F("[V5F] COLLECT cmd param=%lu\r\n", (unsigned long)param);
@@ -814,48 +877,20 @@ int main(void)
         DualCore_V5F_MainLoopProcess();
         DualCore_V5F_SSVEP_RunPending();
         handle_ipc_cmd();
-#ifdef V5F_MODE_GLXSS
-        mi_sim_step();
-        ssvep_sim_step();
-        collect_sim_step();
-#else
-        {
-            extern volatile uint8_t g_ipc_v5f_pred;
-            extern volatile int32_t g_ipc_v5f_score_left;
-            extern volatile int32_t g_ipc_v5f_score_right;
-            static uint8_t last_pred = IPC_PRED_UNKNOWN;
-            static uint32_t last_infer_count = 0;
-            extern volatile uint32_t g_ipc_v5f_infer_count;
-            if (g_mi_infer_active) {
-                uint8_t cur_pred = g_ipc_v5f_pred;
-                uint32_t cur_count = g_ipc_v5f_infer_count;
-                if (cur_count != last_infer_count || cur_pred != last_pred) {
-                    uint8_t pred_changed = (cur_pred != last_pred);
-                    last_pred = cur_pred;
-                    last_infer_count = cur_count;
-                    g_mi_sim_pred = cur_pred;
-                    g_mi_sim_sl = g_ipc_v5f_score_left;
-                    g_mi_sim_sr = g_ipc_v5f_score_right;
-                    g_mi_infer_count = cur_count;
-                    if (pred_changed)
-                        IPC_Log_Printf_V5F("[V5F] pred=%u sl=%ld sr=%ld\r\n",
-                            (unsigned)cur_pred, (long)g_mi_sim_sl, (long)g_mi_sim_sr);
-                    if (g_mode == MODE_ARROW)
-                        g_test_new_result = 1;
-                }
-            }
-        }
-#endif
+
         err = GLXSS_OK;
         if (g_mode == MODE_SSVEP) {
             err = ssvep_mode_step();
         } else {
             uint32_t now = tick_get_us();
-            if (now - g_last_disp_us >= 1000000) {
+            if (g_mode == MODE_ARROW) {
+                /* 箭头模式: 每次循环都检查相位转换(RESULT/GAP 400ms需及时切换),
+                   脏标志保证无变化时不发送1MB帧 */
+                err = arrow_mode_step();
+            } else if (now - g_last_disp_us >= 1000000) {
                 g_last_disp_us = now;
                 switch (g_mode) {
                 case MODE_IDLE:        err = idle_mode_step(); break;
-                case MODE_ARROW:       err = arrow_mode_step(); break;
                 case MODE_ARROW_TRAIN: err = train_mode_step(); break;
                 default: break;
                 }

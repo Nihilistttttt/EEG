@@ -12,8 +12,11 @@
 #define GLXSS_INFER_MODE_CYCLE   0
 #define GLXSS_INFER_MODE_RANDOM  1
 
-#define GLXSS_INFER_TARGET_FRAMES  500  /* 2s @250Hz target display  */
-#define GLXSS_INFER_COLLECT_FRAMES 500  /* 2s @250Hz collect+infer   */
+/* 新时序: 目标显示+采集合并为4s(投票期间只显示白色目标箭头),
+ * 结果1.5s + 消失0.2s = 1.7s(期间不推理), 周期5.7s */
+#define GLXSS_INFER_TARGET_FRAMES  1000 /* 4s @250Hz: 目标显示+投票采集 */
+#define GLXSS_INFER_COLLECT_FRAMES 1000 /* (与TARGET合并, 保持兼容) */
+#define GLXSS_INFER_RESULT_FRAMES  425  /* 1.7s: 结果1.5s + 消失0.2s */
 
 void GLXSS_Infer_Config(uint8_t mode, uint8_t rounds);
 void GLXSS_Infer_Start(void);

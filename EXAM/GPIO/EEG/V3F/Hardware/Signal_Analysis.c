@@ -13,6 +13,7 @@
 #include "ADS1299.h"
 
 #include "hardware.h"
+#include "wav_player.h"
 
 #ifdef HAS_ICM42605
 #include "ICM42605.h"
@@ -288,6 +289,7 @@ void Signal_Analysis_Start (void) {
             EEG_MI_ResultPoll();
             EEG_SSVEP_ResultPoll();
             GLXSS_Infer_Poll();
+            wav_player_poll();
         }
 
 #ifdef HAS_ICM42605

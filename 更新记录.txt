@@ -3,6 +3,58 @@ EEG项目更新记录
 最后更新: 2026-08-06
 
 ================================================================================
+2026-08-06  语音提示集成脑2电训练/推理/SSVEP全场景+RAM_CODE扩容+DMA优先级修复+验证通过
+================================================================================
+
+更新内容:
+1. SD卡WAV文件命名管理(4个语音文件):
+   - [曼波]休息一下-*.wav → rest.wav (休息/暂停提示)
+   - [曼波]请想象运动左手-*.wav → left.wav (左手方向提示)
+   - [曼波]请想象运动右手-*.wav → right.wav (右手方向提示)
+   - [曼波]请集中注意力观察屏幕-*.wav → focus.wav (SSVEP集中注意力提示)
+
+2. 语音提示集成到脑电训练/推理全场景(7个触发点):
+   a) MI训练新轮次方向提示: eeg_cmd_parser.c CMD_TRIAL → left.wav/right.wav
+      上位机下发CMD_TRIAL{side}时, 根据side播放对应方向提示音
+   b) 方向推理新目标箭头: eeg_infer_glxss.c GLXSS_Infer_Poll RESULT状态结束 →
+      left.wav/right.wav, 每轮推理目标切换时播放
+   c) 方向推理首个目标: eeg_infer_glxss.c GLXSS_Infer_Start → left.wav(s_cur_dir=0)
+   d) SSVEP启动: eeg_cmd_parser.c CMD_SSVEP_START → focus.wav
+      AA55通道hardware.c CMD_SSVEP_START → focus.wav
+   e) 训练模式进入休息: eeg_cmd_parser.c CMD_MODE_TRAIN → rest.wav
+   f) 切换到采集模式休息: eeg_cmd_parser.c CMD_MODE_SET → rest.wav
+   g) 停止/暂停: eeg_cmd_parser.c CMD_STOP → rest.wav
+
+3. wav_player_poll()推流集成: Signal_Analysis.c主循环末尾(第291行)
+   每帧(4ms)调用一次wav_player_poll, 检查DMA HT/TC标志并填充buffer
+   不影响脑电采集: f_read在主循环非中断上下文, DMA中断优先级低于ADS1299
+
+4. RAM_CODE扩容72K→80K(wav_player代码增加导致溢出500字节):
+   - Link_v3f.ld: RAM_CODE 72K→80K(0x20100000-0x20114000)
+   - RAM_LOAD: 0x20112000→0x20114000, RAM: 0x20112100→0x20114100
+   - RAM: 440K-256→432K-256(总RAM 512K不变)
+
+5. DMA中断优先级修复: max98357a.c play_stream
+   - 原(2<<7)|(0<<4)=256溢出uint8_t→改为(1<<7)|(1<<4)=0x90
+   - WCH RISC-V NVIC: bit[7]=使能, bit[6:4]=优先级, bit[3:0]=子优先级
+   - ADS1299 DMA: 0x80(优先级0最高), 音频DMA: 0x90(优先级1, 低于ADS1299)
+
+关键发现:
+- V3F/V5F核选择: 音频播放必须在V3F(MAX98357A的I2S2和SD卡SPI1物理只接V3F)
+  V5F无I2S/SPI/SD卡驱动, IPC带宽6.75KB/s远不够传音频(192KB/s)
+- 对脑电采集影响可控: I2S+DMA硬件独立通路不占CPU, 音频DMA中断优先级低于ADS1299,
+  f_read每42.7ms阻塞约2ms < 4ms帧周期, ring_buffer有256ms缓冲不会丢帧
+- WCH NVIC优先级编码: (1<<7)|(n<<4), n=0最高, n越大优先级越低, (2<<7)=256溢出uint8_t
+
+必要性:
+- 语音提示提升用户体验: 训练/推理时语音引导方向, SSVEP时提示集中注意力, 休息时语音安抚
+- 全场景覆盖: MI训练+方向推理+SSVEP+休息/暂停, 4个WAV文件覆盖所有提示需求
+- RAM_CODE扩容: wav_player.c约500字节代码超出72K, 必须扩容否则链接失败
+
+说明: V3F实机编译通过, MODE_EEG_ANALYSIS模式下MI训练/推理/SSVEP各场景语音提示正常播放,
+不影响脑电采集(ADS1299 DMA中断优先级高于音频DMA)
+
+================================================================================
 2026-08-06  WAV音频文件播放实现+I2S DMA双缓冲+MAX98357A增益调整+验证通过
 ================================================================================
 

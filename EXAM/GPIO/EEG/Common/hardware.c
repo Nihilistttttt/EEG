@@ -146,6 +146,7 @@ static void process_aa55_frame(const uint8_t *body, uint16_t body_len)
             uint8_t resp[1] = {0};
             Pack_Frame(SERIAL_PORT_WIFI, CMD_SSVEP_START, resp, 1);
         }
+        wav_player_play("focus.wav");
         break;
     case CMD_SSVEP_STOP:
         Serial_Printf(SERIAL_PORT_DEBUG, "[V3F] SSVEP_STOP -> RESET\r\n");

@@ -10,6 +10,7 @@
 #include "eeg_protocol.h"
 #include "ADS1299.h"
 #include "eeg_infer_glxss.h"
+#include "wav_player.h"
 #ifdef GLXSS_ENABLED
 #include "ipc_log.h"
 #endif
@@ -138,6 +139,7 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
 #ifdef GLXSS_ENABLED
         Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_MODE_TRAIN -> IPC ARROW_TRAIN(2=rest)\r\n");
         IPC_Cmd_Send_V3F(IPC_CMD_ARROW_TRAIN, 2);
+        wav_player_play("rest.wav");
 #endif
         Send_RespOk(CMD_READY_TRAIN);
         break;
@@ -192,6 +194,7 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
                     g_v5f_active = V5F_ACTIVE_IDLE;
 #ifdef GLXSS_ENABLED
                     IPC_Cmd_Send_V3F(IPC_CMD_ARROW_TRAIN, 2);
+                    wav_player_play("rest.wav");
 #endif
                 }
                 if (mode == EEG_APP_MODE_COLLECT || mode == EEG_APP_MODE_COLLECT_CSP) {
@@ -240,6 +243,7 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
 #ifdef GLXSS_ENABLED
             Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_TRIAL side=%u -> IPC ARROW_TRAIN(%u)\r\n", (unsigned)side, (unsigned)side);
             IPC_Cmd_Send_V3F(IPC_CMD_ARROW_TRAIN, side);
+            wav_player_play(side == 0u ? "left.wav" : "right.wav");
 #endif
             uint8_t resp[1] = {side};
             Send_Resp(CMD_TASK_START, resp, 1);
@@ -262,6 +266,7 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         GLXSS_Infer_Stop();
         IPC_Ctrl_SetFlags_V3F(0);
         IPC_Cmd_Send_V3F(IPC_CMD_RESET, 0);
+        wav_player_play("rest.wav");
 #endif
         Send_RespOk(CMD_TASK_STOPPED);
         break;
@@ -334,6 +339,7 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
             Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_SSVEP_START freq=%u -> IPC SSVEP\r\n", (unsigned)freq_idx);
             IPC_Ctrl_SetFlags_V3F(IPC_CTRL_SSVEP_ENABLE);
             IPC_Cmd_Send_V3F(IPC_CMD_SSVEP, freq_idx);
+            wav_player_play("focus.wav");
         }
 #endif
         Send_RespOk(CMD_SSVEP_START);

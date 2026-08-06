@@ -5,6 +5,7 @@
 #include "eeg_protocol.h"
 #include "eeg_cmd_parser.h"
 #include "signal_analysis.h"
+#include "wav_player.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -63,6 +64,7 @@ void GLXSS_Infer_Start(void)
     Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] INFER start mode=%u rounds=%u\r\n",
                   (unsigned)s_mode, (unsigned)s_rounds);
     IPC_Cmd_Send_V3F(IPC_CMD_ARROW, 0);
+    wav_player_play("left.wav");
 #endif
 }
 
@@ -185,6 +187,7 @@ void GLXSS_Infer_Poll(void)
             s_final_conf = 0;
 #ifdef GLXSS_ENABLED
             IPC_Cmd_Send_V3F(IPC_CMD_ARROW, s_cur_dir);
+            wav_player_play(s_cur_dir == 0u ? "left.wav" : "right.wav");
 #endif
         }
     }

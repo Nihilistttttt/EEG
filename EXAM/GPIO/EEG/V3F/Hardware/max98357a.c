@@ -200,7 +200,7 @@ int max98357a_play_stream(int16_t *buf, uint32_t total_samples, max98357a_dma_cb
     DMA_ClearITPendingBit(MAX98357A_DMA_INSTANCE, DMA1_IT_HT3);
     DMA_ITConfig(MAX98357A_TX_DMA_CHANNEL, DMA_IT_TC | DMA_IT_HT, ENABLE);
 
-    NVIC_SetPriority(MAX98357A_TX_DMA_IRQn, (2 << 7) | (0 << 4));
+    NVIC_SetPriority(MAX98357A_TX_DMA_IRQn, (1 << 7) | (1 << 4));
     NVIC_EnableIRQ(MAX98357A_TX_DMA_IRQn);
 
     I2S_Cmd(MAX98357A_I2S_INSTANCE, ENABLE);

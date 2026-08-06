@@ -262,51 +262,9 @@ void Hardware(void)
 #elif (SYSTEM_MODE == MODE_GLXSS)
     Serial_Init(SERIAL_PORT_DEBUG);
 
-    {
-        int ret = SD_Init();
-        if (ret != 0) {
-            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] SD init FAIL, aborting\r\n");
-            while (1);
-        }
-
-        uint32_t fw_size = glxss_sd_fw_get_size();
-        if (fw_size == 0) {
-            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] No FW on SD, aborting\r\n");
-            while (1);
-        }
-        Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] FW %lu bytes, uploading...\r\n",
-                      (unsigned long)fw_size);
-
-        glxss_err_t err = glxss_init(glxss_sd_fw_read, fw_size, 15000);
-        if (err != GLXSS_OK) {
-            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] Init failed: %d\r\n", err);
-            while (1);
-        }
-        Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] Glasses ready!\r\n");
-
-#ifndef EEG_OLED_DISABLED
-        OLED_ShowString(SPI, 3, 0, "READY!");
-#endif
-        glxss_set_brightness(200);
-        Delay_Ms(500);
-        glxss_power_switch(1);
-        Delay_Ms(200);
-        glxss_set_display_mode(0);
-        Delay_Ms(200);
-    }
-
 #ifdef GLXSS_ENABLED
-    Serial_Printf(SERIAL_PORT_DEBUG, "[V3F] Firmware uploaded, waking V5F...\r\n");
     IPC_Log_Init_V3F();
     Serial_Printf(SERIAL_PORT_DEBUG, "[V3F] IPC log bridge ready\r\n");
-
-    NVIC_WakeUp_V5F(Core_V5F_StartAddr);
-    HSEM_ITConfig(HSEM_ID0, ENABLE);
-    NVIC->SCTLR |= 1 << 4;
-    RCC_HB1PeriphClockCmd(RCC_HB1Periph_PWR, ENABLE);
-    PWR_EnterSTOPMode(PWR_Regulator_ON, PWR_STOPEntry_WFE);
-    HSEM_ClearFlag(HSEM_ID0);
-
     Serial_Printf(SERIAL_PORT_DEBUG, "[V3F] V5F running, waiting for AA55 commands...\r\n");
 
     Serial_Init(SERIAL_PORT_WIFI);

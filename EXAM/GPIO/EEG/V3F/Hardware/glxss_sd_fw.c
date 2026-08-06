@@ -1,41 +1,44 @@
 #include "glxss_sd_fw.h"
 #include "sd_card.h"
 #include "Serial.h"
-
+#include "FATFS/ff.h"
 #include <string.h>
 
-#define FW_SIZE_SECTOR  0
+#define FW_FILENAME    "firmware.img"
 
+static FATFS s_fs;
+static FIL   s_fw_file;
+static int   s_fw_opened = 0;
 
-uint32_t glxss_sd_fw_read(uint32_t offset, uint8_t *buf, uint32_t len)
-{
-    uint32_t done = 0;
-    uint8_t sec_buf[SD_SECTOR_SIZE];
-
-    while (done < len) {
-        uint32_t sec = GLXSS_FW_START_SECTOR + (offset + done) / SD_SECTOR_SIZE;
-        uint32_t off_in = (offset + done) % SD_SECTOR_SIZE;
-        uint32_t chunk = SD_SECTOR_SIZE - off_in;
-        if (chunk > len - done) chunk = len - done;
-
-        if (off_in == 0 && chunk == SD_SECTOR_SIZE) {
-            if (SD_ReadSector(sec, buf + done) != 0) break;
-        } else {
-            if (SD_ReadSector(sec, sec_buf) != 0) break;
-            memcpy(buf + done, sec_buf + off_in, chunk);
-        }
-        done += chunk;
-    }
-    return done;
+static int ensure_mounted(void) {
+    static int mounted = 0;
+    if (mounted) return 0;
+    if (f_mount(&s_fs, "", 1) != FR_OK) return -1;
+    mounted = 1;
+    return 0;
 }
 
 uint32_t glxss_sd_fw_get_size(void)
 {
-    uint8_t sec_buf[SD_SECTOR_SIZE];
-    if (SD_ReadSector(FW_SIZE_SECTOR, sec_buf) != 0) return 0;
-    uint32_t size = sec_buf[0] | (sec_buf[1] << 8) | (sec_buf[2] << 16) | (sec_buf[3] << 24);
-    if (size == 0 || size > GLXSS_FW_MAX_SIZE) return 0;
+    if (ensure_mounted() != 0) return 0;
+    if (f_open(&s_fw_file, FW_FILENAME, FA_READ) != FR_OK) return 0;
+    s_fw_opened = 1;
+    uint32_t size = f_size(&s_fw_file);
+    if (size == 0 || size > GLXSS_FW_MAX_SIZE) {
+        f_close(&s_fw_file);
+        s_fw_opened = 0;
+        return 0;
+    }
     return size;
+}
+
+uint32_t glxss_sd_fw_read(uint32_t offset, uint8_t *buf, uint32_t len)
+{
+    if (!s_fw_opened) return 0;
+    if (f_lseek(&s_fw_file, offset) != FR_OK) return 0;
+    UINT br = 0;
+    if (f_read(&s_fw_file, buf, len, &br) != FR_OK) return 0;
+    return br;
 }
 
 int glxss_sd_fw_burn(void)
@@ -44,6 +47,18 @@ int glxss_sd_fw_burn(void)
     uint16_t idx;
     uint32_t total_data_bytes;
 
+    if (ensure_mounted() != 0) {
+        Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] f_mount FAIL, try f_mkfs...\r\n");
+        BYTE work[4096];
+        if (f_mkfs("", 0, work, sizeof(work)) != FR_OK) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] f_mkfs FAIL\r\n");
+            return -1;
+        }
+        if (f_mount(&s_fs, "", 1) != FR_OK) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] f_mount FAIL after mkfs\r\n");
+            return -1;
+        }
+    }
 
     Serial_SendByte(SERIAL_PORT_DEBUG, 0xAA);
 
@@ -72,22 +87,16 @@ int glxss_sd_fw_burn(void)
     }
 
     Serial_SendByte(SERIAL_PORT_DEBUG, 0xBB);
-
-
     Serial_SendByte(SERIAL_PORT_DEBUG, 0xCC);
 
-    memset(sec_buf, 0, SD_SECTOR_SIZE);
-    sec_buf[0] = len_buf[0];
-    sec_buf[1] = len_buf[1];
-    sec_buf[2] = len_buf[2];
-    sec_buf[3] = len_buf[3];
-    if (SD_WriteSector(FW_SIZE_SECTOR, sec_buf) != 0) {
+    FIL fw;
+    if (f_open(&fw, FW_FILENAME, FA_CREATE_ALWAYS | FA_WRITE) != FR_OK) {
         Serial_SendByte(SERIAL_PORT_DEBUG, 0xE1);
         return -2;
     }
 
     uint32_t total_sectors = (total_data_bytes + SD_SECTOR_SIZE - 1) / SD_SECTOR_SIZE;
-    uint32_t cur_sector = GLXSS_FW_START_SECTOR;
+    uint32_t written_bytes = 0;
 
     for (uint32_t sec = 0; sec < total_sectors; sec++) {
         memset(sec_buf, 0xFF, SD_SECTOR_SIZE);
@@ -103,32 +112,29 @@ int glxss_sd_fw_burn(void)
             }
         }
 
-        if (SD_WriteSector(cur_sector, sec_buf) != 0) {
-            Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] Write fail at sector %lu\r\n", (unsigned long)cur_sector);
+        uint32_t write_len = SD_SECTOR_SIZE;
+        if (written_bytes + write_len > total_data_bytes) {
+            write_len = total_data_bytes - written_bytes;
+        }
+
+        UINT bw = 0;
+        if (f_write(&fw, sec_buf, write_len, &bw) != FR_OK || bw != write_len) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] f_write fail at sector %lu\r\n", (unsigned long)sec);
             Serial_SendByte(SERIAL_PORT_DEBUG, 0xE2);
+            f_close(&fw);
             return -2;
         }
-        cur_sector++;
-        Delay_Ms(5);
+        written_bytes += write_len;
 
+        Delay_Ms(5);
         Serial_SendByte(SERIAL_PORT_DEBUG, 0xEE);
     }
 
+    f_close(&fw);
     Serial_SendByte(SERIAL_PORT_DEBUG, 0xFF);
 
-    Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] Verifying %lu sectors...\r\n", (unsigned long)total_sectors);
-    cur_sector = GLXSS_FW_START_SECTOR;
-    for (uint32_t sec = 0; sec < total_sectors; sec++) {
-        if (SD_ReadSector(cur_sector, sec_buf) != 0) {
-            Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] Verify read fail sector %lu\r\n", (unsigned long)cur_sector);
-            return -3;
-        }
-        cur_sector++;
-        if ((sec + 1) % 500 == 0) {
-            Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] Verify %lu/%lu\r\n", (unsigned long)(sec+1), (unsigned long)total_sectors);
-        }
-    }
-    Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] Verify read OK (all sectors readable)\r\n");
+    Serial_Printf(SERIAL_PORT_DEBUG, "[BURN] Done: %lu bytes to %s\r\n",
+                  (unsigned long)total_data_bytes, FW_FILENAME);
 
     return 0;
 }

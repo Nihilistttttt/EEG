@@ -55,7 +55,7 @@
 #endif
 
 #ifndef Core_V5F_StartAddr
-#define Core_V5F_StartAddr   0x00014000
+#define Core_V5F_StartAddr   0x00016000
 #endif
 
 #if ((Run_Core == Run_Core_V3FandV5F) || (Run_Core == Run_Core_V5F)) && defined(Core_V5F) 

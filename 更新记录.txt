@@ -3,6 +3,83 @@ EEG项目更新记录
 最后更新: 2026-08-06
 
 ================================================================================
+2026-08-06  FatFS文件系统移植SD卡+固件烧录/下载改为文件读写+FLASH分区再调整+MODE_GLXSS重复上传修复
+================================================================================
+
+更新内容:
+1. FatFS文件系统移植到SD卡(详细移植过程以供后续参考):
+   a) 库文件来源: EXAM/APPLICATION/FATFS_eMMC/Common/FATFS/(eMMC版本)
+      复制到 V3F/Hardware/FATFS/目录, 包含5个文件:
+      - ff.c + ff.h: FatFS核心(R0.15b, FFCONF_DEF=80286, C99类型, 不需要integer.h)
+      - ffconf.h: 配置文件(见下)
+      - ffunicode.c: LFN Unicode转换表(FF_USE_LFN=1时必须)
+      - diskio.h: 磁盘IO接口头文件
+   b) diskio.c新建(适配SD卡SPI驱动):
+      - disk_initialize: 调用SD_Init(), 成功清STA_NOINIT标志
+      - disk_read: 调用SD_ReadMultiSector(sector, buf, count)
+      - disk_write: 调用SD_WriteMultiSector(sector, buf, count)
+      - disk_ioctl: GET_SECTOR_COUNT=67108864(32GB固定), GET_SECTOR_SIZE=512,
+        GET_BLOCK_SIZE=1, CTRL_SYNC空操作(SD卡SPI写入即同步)
+      - get_fattime: 返回固定时间2026-08-06(FF_FS_NORTC=0时必须实现)
+      - 静态s_sd_stat跟踪初始化状态, DEV_SD=0对应FatFS卷""
+   c) ffconf.h关键配置:
+      - FF_FS_READONLY=0(需写入), FF_USE_MKFS=1(首次格式化), FF_USE_LFN=1(长文件名)
+      - FF_USE_FASTSEEK=1, FF_USE_STRFUNC=1, FF_USE_LABEL=1
+      - FF_MIN_SS=FF_MAX_SS=512(匹配SD_SECTOR_SIZE), FF_FS_EXFAT=0
+      - FF_VOLUMES=3, FF_CODE_PAGE=437(US), FF_FS_NORTC=0
+   d) include路径: glxss_sd_fw.c用#include "FATFS/ff.h"(因-I Hardware不含FATFS子目录)
+      diskio.c内#include "ff.h"同目录自动找到, #include "sd_card.h"通过-I Hardware找到
+   e) 编译: FATFS/*.c由MounRiver自动发现编译(.cproject sourceEntries未排除Hardware/FATFS)
+
+2. glxss_sd_fw.c重写(裸扇区→FatFS文件读写):
+   - 固件文件名: "firmware.img"(FatFS根目录)
+   - glxss_sd_fw_get_size: f_mount(立即挂载)→f_open(FA_READ)→f_size→保持文件句柄
+   - glxss_sd_fw_read: f_lseek(offset)→f_read(buf, len), offset为字节偏移(接口不变)
+   - glxss_sd_fw_burn: ensure_mounted失败时f_mkfs("", 0, work[4096])格式化→f_mount→
+     f_open(FA_CREATE_ALWAYS|FA_WRITE)→逐扇区串口接收→f_write→f_close
+   - 烧录协议不变(0xAA握手→4字节大小→0xBB/0xCC→逐扇区→0xEE→0xFF完成),
+     Python脚本glxss_sd_control.py无需修改
+   - 移除旧的裸扇区逻辑(扇区0存大小+扇区1起存固件体)和写入后验证读循环
+
+3. MODE_GLXSS重复上传修复:
+   - 问题: main.c在Hardware()前已上传固件+设置显示+唤醒V5F, hardware.c MODE_GLXSS
+     分支又重复上传→眼镜已是应用模式(VID=0x2E09), 找不到bootloader(VID=0x03E7)卡死
+   - 修复: hardware.c MODE_GLXSS分支移除SD_Init+固件上传+显示设置+V5F唤醒,
+     只保留IPC_Log_Init_V3F + AA55命令循环(main.c已完成其余初始化)
+
+4. FLASH分区再调整(FatFS增加约6KB代码导致溢出):
+   - V3F FLASH 80K→88K: Link_v3f.ld LENGTH=88K(0x00000-0x16000)
+   - V3F RAM_CODE 64K→72K: Link_v3f.ld LENGTH=72K(0x20100000-0x20112000)
+   - V3F RAM_LOAD/RAM起始地址顺移: RAM_LOAD=0x20112000, RAM=0x20112100
+     (原RAM_CODE 64K结束于0x20110000=RAM_LOAD起点, 扩到72K后重叠, 需顺移)
+   - V3F RAM 448K→440K: 总RAM 512K不变(72K+256+440K-256=512K)
+   - V5F FLASH起点 0x14000→0x16000, 长度152K→144K: Link_v5f.ld
+     (0x16000-0x3A000, V5F实际用107K, 144K余量37K)
+   - Core_V5F_StartAddr 0x14000→0x16000: debug.h
+
+5. SYSTEM_MODE切换回MODE_EEG_ANALYSIS(验证完成, 恢复正常工作模式)
+
+关键发现:
+- FatFS R0.15b不需要integer.h, 用stdint.h直接定义类型(C99分支), CH32H417 GCC gnu99兼容
+- FF_DEFINED(80286)必须等于FFCONF_DEF(80286), 否则ff.h编译报 Wrong configuration file
+- f_mount第3参数=1表示立即挂载(调用disk_initialize), =0延迟到首次IO
+- f_mkfs第2参数=0表示自动选择FAT12/16/32, work缓冲区至少FF_MAX_SS=512字节(用4096)
+- MounRiver .cproject用sourceEntries excluding列表排除文件, Hardware/FATFS未排除→自动编译
+- V3F链接脚本.highcode段含所有*(.text), 代码从FLASH加载到RAM_CODE执行, 两者大小几乎等价
+- RAM_CODE扩大后必须同步移RAM_LOAD/RAM起始地址, 否则VMA重叠链接报错
+- SD卡FatFS文件在PC端可直接读取(用户确认SD卡插电脑能看到firmware.img)
+
+必要性:
+- FatFS文件系统替代裸扇区存储: PC端可直接拷贝/查看固件文件, 无需专用工具解析扇区
+- f_mkfs自动格式化: 用户换新SD卡时无需PC端预格式化, 首次烧录自动创建FAT文件系统
+- FLASH分区调整: FatFS库(ff.c+ffunicode.c)增加约6KB代码, 原80K/64K不够, 需扩容
+- MODE_GLXSS重复上传修复: 双重初始化导致眼镜卡在Waiting状态, 是功能性bug必须修复
+
+说明: V3F实机编译通过(MODE_EEG_ANALYSIS/MODE_GLXSS/MODE_GLXSS_BURN均编译OK),
+MODE_GLXSS_BURN烧录+Python传送固件到SD卡成功(PC端可见firmware.img文件),
+MODE_GLXSS眼镜固件下载+显示正常(不再卡在Waiting)
+
+================================================================================
 2026-08-06  MAX98357A I2S2音频放大器驱动实现+自检通过(1kHz蜂鸣音)
 ================================================================================
 

@@ -10,6 +10,7 @@
 #include "OLED.h"
 #include "Serial.h"
 #include "dualcore_ipc.h"
+#include "eeg_infer_glxss.h"
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -843,6 +844,9 @@ void EEG_FFT_ResetSendState (void) {
 void EEG_MI_ResultPoll (void) {
     if (g_eeg_app_mode != EEG_APP_MODE_INFER) return;
     if (g_paused) return;
+#ifdef GLXSS_ENABLED
+    if (GLXSS_Infer_IsActive()) return;
+#endif
 
     uint32_t v5f_pred = DualCore_IPC_GetLastV5FPred();
     uint32_t v5f_infer_valid = DualCore_IPC_GetLastV5FInferValid();

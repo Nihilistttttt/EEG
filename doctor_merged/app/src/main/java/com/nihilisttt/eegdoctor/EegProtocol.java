@@ -74,6 +74,8 @@ public final class EegProtocol {
     public static final int CMD_SSVEP_RESULT = 0x42;
     public static final int CMD_IMPEDANCE_CHECK = 0x43;
     public static final int CMD_IMPEDANCE_RESULT = 0x44;
+    public static final int CMD_INFER_CFG = 0x45;
+    public static final int CMD_INFER_CFG_OK = 0x46;
 
 
     public static final int WAVE_NUM_CH = 8;

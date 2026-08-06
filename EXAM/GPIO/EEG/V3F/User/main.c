@@ -11,6 +11,13 @@
 #include "debug.h"
 #include "hardware.h"
 #include "Serial.h"
+#ifdef GLXSS_ENABLED
+#include "glxss_me.h"
+#include "glxss_sd_fw.h"
+#include "sd_card.h"
+#include "ipc_log.h"
+#include <string.h>
+#endif
 
 int main(void)
 {
@@ -26,13 +33,47 @@ int main(void)
     Delay_Ms(200);
 
 #ifdef GLXSS_ENABLED
-    /* GLXSS: V3F does SD init, firmware upload, IPC setup and V5F wake inside
-     * Common/hardware.c (MODE_GLXSS / MODE_GLXSS_BURN). No early V5F wake here. */
-    Hardware();
+    /* GLXSS + EEG fusion: V3F does EEG dual-core IPC (normal flow) and
+     * Common/hardware.c MODE_EEG_ANALYSIS initializes glasses from SD. */
+#endif
 
-    while (1) {
+#ifdef GLXSS_ENABLED
+    /* GLXSS + EEG fusion: upload glasses firmware BEFORE waking V5F so that
+     * V5F can act as USB Host on the application-mode glasses. */
+    {
+        Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] SD init + FW upload...\r\n");
+        int ret = SD_Init();
+        if (ret != 0) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] SD init FAIL, skipping glasses\r\n");
+        } else {
+            uint32_t fw_size = glxss_sd_fw_get_size();
+            if (fw_size == 0) {
+                Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] No FW on SD, skipping glasses\r\n");
+            } else {
+                Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] FW %lu bytes, uploading...\r\n",
+                              (unsigned long)fw_size);
+                glxss_err_t err = glxss_init(glxss_sd_fw_read, fw_size, 15000);
+                if (err != GLXSS_OK) {
+                    Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] Init failed: %d, skipping\r\n", err);
+                } else {
+                    Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] Glasses ready!\r\n");
+                    glxss_set_brightness(200);
+                    Delay_Ms(500);
+                    glxss_power_switch(1);
+                    Delay_Ms(200);
+                    glxss_set_display_mode(0);
+                    Delay_Ms(200);
+                    {
+                        volatile IPC_Log_Shared_t *shared = IPC_LOG_SHARED;
+                        memset((void *)shared, 0, sizeof(IPC_Log_Shared_t));
+                        shared->v5f_status = IPC_LOG_STATUS_IDLE;
+                    }
+                    Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] IPC shared mem ready\r\n");
+                }
+            }
+        }
     }
-#else
+#endif
 
 #if (Run_Core == Run_Core_V3FandV5F)
 
@@ -86,5 +127,4 @@ int main(void)
     while (1)
     {
     }
-#endif /* GLXSS_ENABLED */
 }

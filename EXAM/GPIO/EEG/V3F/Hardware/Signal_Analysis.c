@@ -22,6 +22,7 @@
 #endif
 
 #include "dualcore_ipc.h"
+#include "eeg_infer_glxss.h"
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -298,6 +299,7 @@ void Signal_Analysis_Start (void) {
 
             EEG_MI_ResultPoll();
             EEG_SSVEP_ResultPoll();
+            GLXSS_Infer_Poll();
         }
 
 #ifdef HAS_ICM42605

@@ -677,6 +677,9 @@ public class TcpServerManager {
 
     public void sendDisplayToOutput(int cmd, byte[] data) {
         if (isGlxssOutput() && GLXSS_DISPLAY_CMDS.contains(cmd)) {
+            if (cmd == EegProtocol.CMD_TARGET) {
+                sendBinaryToDevice(cmd, data);
+            }
             return;
         }
         sendBinaryToPatient(cmd, data);
@@ -1440,6 +1443,8 @@ public class TcpServerManager {
                 case EegProtocol.CMD_TASK_START:
                     if (payloadLen >= 1) {
                         byte side = body[fixed];
+                        String sideStr = (side == 1) ? "RIGHT" : "LEFT";
+                        dispatcher.postTaskStart(sideStr);
                         sendDisplayToOutputNow(EegProtocol.CMD_TASK_START, new byte[]{side});
                     } else {
                         valid = false;
@@ -1566,12 +1571,16 @@ public class TcpServerManager {
             int scoreR = buf.getInt();
             int conf = buf.getInt();
             boolean trained = (body[off + 14] & 0xFF) == 1;
+            int target = (payloadLen >= 17) ? (body[off + 16] & 0xFF) : -1;
             InferenceResult result = new InferenceResult();
             result.setIntent(pred == 0 ? "LEFT" : "RIGHT");
             result.setScoreLeft(scoreL / 10000f);
             result.setScoreRight(scoreR / 10000f);
             result.setConfidence(conf / 10000f);
             result.setTrained(trained);
+            if (target == 0 || target == 1) {
+                result.setGroundTruth(target == 0 ? "LEFT" : "RIGHT");
+            }
             dispatcher.postInferenceResult(result);
             byte[] rawPayload = new byte[payloadLen];
             System.arraycopy(body, off, rawPayload, 0, payloadLen);

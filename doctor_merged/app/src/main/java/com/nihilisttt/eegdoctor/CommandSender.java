@@ -68,9 +68,10 @@ public class CommandSender {
         return true;
     }
 
-    public boolean ssvepStart() {
-        Log.i(TAG, "ssvepStart");
-        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_SSVEP_START, null);
+    public boolean ssvepStart(int freqIndex) {
+        Log.i(TAG, "ssvepStart freqIndex=" + freqIndex);
+        TcpServerManager.getInstance().sendBinaryToDevice(
+                EegProtocol.CMD_SSVEP_START, new byte[]{(byte) freqIndex});
         return true;
     }
 

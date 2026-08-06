@@ -9,6 +9,7 @@
 #include "dualcore_ipc.h"
 #include "eeg_protocol.h"
 #include "ADS1299.h"
+#include "eeg_infer_glxss.h"
 #ifdef GLXSS_ENABLED
 #include "ipc_log.h"
 #endif
@@ -135,7 +136,8 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
             Direction_CSPStreamReset();
         }
 #ifdef GLXSS_ENABLED
-        IPC_Cmd_Send_V3F(IPC_CMD_COLLECT, 1);
+        Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_MODE_TRAIN -> IPC ARROW_TRAIN(2=rest)\r\n");
+        IPC_Cmd_Send_V3F(IPC_CMD_ARROW_TRAIN, 2);
 #endif
         Send_RespOk(CMD_READY_TRAIN);
         break;
@@ -144,9 +146,11 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         g_work_mode = WORK_MODE_TEST;
         g_trial_state = TRIAL_IDLE;
         g_paused = 0;
+        g_v5f_active = V5F_ACTIVE_INFER;
         EEG_FFT_ResetInferState();
 #ifdef GLXSS_ENABLED
-        IPC_Cmd_Send_V3F(IPC_CMD_MI_INFER, 0);
+        Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_MODE_TEST -> INFER start\r\n");
+        GLXSS_Infer_Start();
 #endif
         Send_RespOk(CMD_READY_TEST);
         break;
@@ -187,7 +191,7 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
                 } else {
                     g_v5f_active = V5F_ACTIVE_IDLE;
 #ifdef GLXSS_ENABLED
-                    IPC_Cmd_Send_V3F(IPC_CMD_COLLECT, mode == EEG_APP_MODE_COLLECT_CSP ? 3 : 1);
+                    IPC_Cmd_Send_V3F(IPC_CMD_ARROW_TRAIN, 2);
 #endif
                 }
                 if (mode == EEG_APP_MODE_COLLECT || mode == EEG_APP_MODE_COLLECT_CSP) {
@@ -234,7 +238,8 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
             DualCore_IPC_RequestV5FReset();
             Direction_ResetTaskZero();
 #ifdef GLXSS_ENABLED
-            IPC_Cmd_Send_V3F(IPC_CMD_ARROW, side);
+            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_TRIAL side=%u -> IPC ARROW_TRAIN(%u)\r\n", (unsigned)side, (unsigned)side);
+            IPC_Cmd_Send_V3F(IPC_CMD_ARROW_TRAIN, side);
 #endif
             uint8_t resp[1] = {side};
             Send_Resp(CMD_TASK_START, resp, 1);
@@ -253,6 +258,8 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         Direction_Infer1sReset();
         Direction_CSPStreamReset();
 #ifdef GLXSS_ENABLED
+        Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_STOP -> IPC RESET\r\n");
+        GLXSS_Infer_Stop();
         IPC_Ctrl_SetFlags_V3F(0);
         IPC_Cmd_Send_V3F(IPC_CMD_RESET, 0);
 #endif
@@ -303,12 +310,7 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
             }
             EEG_FFT_ResetSendState();
 #ifdef GLXSS_ENABLED
-            if (dlen >= 1) {
-                uint8_t display_mode = data[0];
-                if (display_mode == 0) IPC_Cmd_Send_V3F(IPC_CMD_SSVEP, 0);
-                else if (display_mode == 1) IPC_Cmd_Send_V3F(IPC_CMD_ARROW, 0);
-                else if (display_mode == 2) IPC_Cmd_Send_V3F(IPC_CMD_ARROW_TRAIN, 0);
-            }
+
 #endif
             uint8_t resp[24];
             uint16_t resp_len = (uint16_t)(n_slots * 3u);
@@ -329,6 +331,7 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         {
             uint8_t freq_idx = 0;
             if (dlen >= 1 && data[0] <= 3) freq_idx = data[0];
+            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_SSVEP_START freq=%u -> IPC SSVEP\r\n", (unsigned)freq_idx);
             IPC_Ctrl_SetFlags_V3F(IPC_CTRL_SSVEP_ENABLE);
             IPC_Cmd_Send_V3F(IPC_CMD_SSVEP, freq_idx);
         }
@@ -346,6 +349,7 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
             g_v5f_active = V5F_ACTIVE_IDLE;
         }
 #ifdef GLXSS_ENABLED
+        Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_SSVEP_STOP -> IPC RESET\r\n");
         IPC_Ctrl_SetFlags_V3F(0);
         IPC_Cmd_Send_V3F(IPC_CMD_RESET, 0);
 #endif
@@ -373,6 +377,37 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         DualCore_IPC_SetSsvepSelftest(0, 0);
         DualCore_IPC_RequestSsvepReset();
         Send_RespOk(CMD_SSVEP_SELFTEST_STOP);
+        break;
+
+    case CMD_TARGET:
+        if (dlen >= 1) {
+            uint8_t side = data[0];
+#ifdef GLXSS_ENABLED
+            g_v5f_active = V5F_ACTIVE_INFER;
+            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_TARGET side=%u -> IPC ARROW\r\n", (unsigned)side);
+            IPC_Cmd_Send_V3F(IPC_CMD_ARROW, side & 1u);
+#endif
+            {
+                uint8_t resp[2] = {CMD_TARGET, side};
+                Send_Resp(CMD_MODE_SET_OK, resp, 2);
+            }
+        }
+        break;
+
+    case CMD_INFER_CFG:
+        if (dlen >= 1) {
+            uint8_t mode = data[0];
+            uint8_t rounds = (dlen >= 2) ? data[1] : 3;
+#ifdef GLXSS_ENABLED
+            GLXSS_Infer_Config(mode, rounds);
+            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] INFER_CFG mode=%u rounds=%u\r\n",
+                          (unsigned)mode, (unsigned)rounds);
+#endif
+            {
+                uint8_t resp[2] = {mode, rounds};
+                Send_Resp(CMD_INFER_CFG_OK, resp, 2);
+            }
+        }
         break;
 
     case CMD_IMPEDANCE_CHECK:

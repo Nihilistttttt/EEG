@@ -256,13 +256,15 @@ static uint8_t g_arrow_res_color = 0;
 static uint8_t g_arrow_tgt_vis = 1;
 static uint8_t g_arrow_res_vis = 0;
 static uint8_t g_arrow_dash = 0;
+static uint8_t g_arrow_dirty = 1;
 
 static int is_in_arrow(int32_t px, int32_t py, int32_t cx, int32_t cy, int32_t sz, uint8_t dir)
 {
+    /* dir: 0=LEFT, 1=RIGHT (matches IPC_PRED_LEFT/RIGHT and DIR_LABEL_*) */
     int32_t dx = px - cx;
     int32_t dy = py - cy;
     int32_t half = sz / 2;
-    if (dir == 0) {
+    if (dir == 1) {
         if (dx < -half || dx > half) return 0;
         int32_t edge = half - dx;
         if (edge < 0) edge = 0;
@@ -356,8 +358,7 @@ static int32_t g_mi_sim_sl = 5000;
 static int32_t g_mi_sim_sr = 5000;
 static uint32_t g_mi_sim_last_us = 0;
 static uint8_t g_mi_infer_active = 0;
-static uint8_t g_test_dir = 0;
-static int g_test_same = 0;
+
 static uint8_t g_test_show_result = 0;
 static uint8_t g_test_new_result = 0;
 static uint8_t g_test_hide_target = 0;
@@ -366,82 +367,46 @@ static uint32_t g_test_target_start = 0;
 
 static void arrow_mode_init(void)
 {
-    g_test_dir = 0;
-    g_test_same = 0;
+    g_arrow_tgt_dir = 0;
+    g_arrow_tgt_color = 0;
+    g_arrow_tgt_vis = 0;
+    g_arrow_res_dir = 0;
+    g_arrow_res_color = 0;
+    g_arrow_res_vis = 0;
+    g_arrow_dash = 0;
+    g_arrow_dirty = 1;
     g_test_show_result = 0;
     g_test_new_result = 0;
     g_test_hide_target = 0;
-    g_arrow_tgt_dir = 0;
-    g_arrow_tgt_color = 0;
-    g_arrow_tgt_vis = 1;
-    g_arrow_res_vis = 0;
-    g_arrow_dash = 0;
     g_test_target_start = tick_get_us();
-    IPC_Log_Printf_V5F("[V5F] TEST TARGET LEFT (1/3)\r\n");
 }
 
 static glxss_err_t arrow_mode_step(void)
 {
-    glxss_err_t err;
-    uint32_t now = tick_get_us();
-    uint32_t elapsed = now - g_test_target_start;
-
     if (g_test_new_result) {
         g_test_new_result = 0;
-        if (g_mi_sim_pred != IPC_PRED_UNKNOWN) {
-            g_test_same++;
-            g_arrow_res_dir = g_mi_sim_pred;
-            g_arrow_tgt_color = (g_mi_sim_pred == g_test_dir) ? 1 : 2;
-            g_arrow_res_color = g_arrow_tgt_color;
-            g_arrow_tgt_vis = 1;
-            g_arrow_res_vis = 1;
-            g_test_show_result = 1;
-            g_test_target_start = now;
-            IPC_Log_Printf_V5F("[V5F] TEST %s vs %s %s\r\n",
-                g_test_dir ? "R" : "L",
-                g_mi_sim_pred ? "R" : "L",
-                (g_mi_sim_pred == g_test_dir) ? "OK" : "FAIL");
-        }
+        g_arrow_res_dir = (g_mi_sim_sr >= g_mi_sim_sl) ? 1u : 0u;
+        g_arrow_res_color = (g_mi_sim_pred == IPC_PRED_UNKNOWN) ? 0u : 1u;
+        g_arrow_res_vis = 1;
+        g_arrow_dirty = 1;
     }
 
-    if (g_test_show_result) {
-        if (now - g_test_target_start >= 200000) {
-            g_test_show_result = 0;
-            g_arrow_tgt_color = 0;
-            g_arrow_res_vis = 0;
-            g_arrow_tgt_vis = 0;
-            g_test_hide_target = 1;
-            g_test_target_start = now;
-        }
-    } else if (g_test_hide_target && now - g_test_target_start >= 200000) {
-        g_test_hide_target = 0;
-        g_arrow_tgt_vis = 1;
-        if (g_test_same >= 3) {
-            g_test_same = 0;
-            g_test_dir = !g_test_dir;
-        }
-        g_arrow_tgt_dir = g_test_dir;
-        g_test_target_start = now;
-        IPC_Log_Printf_V5F("[V5F] TEST TARGET %s (%d/3)\r\n",
-            g_test_dir ? "R" : "L", g_test_same + 1);
+    if (!g_arrow_dirty) {
+        return GLXSS_OK;
     }
-
-    err = send_arrow_frame();
-    if (err != GLXSS_OK) return err;
-    uint32_t next = tick_get_us() + 200000;
-    while (tick_get_us() < next);
-    return GLXSS_OK;
+    g_arrow_dirty = 0;
+    return send_arrow_frame();
 }
+
 
 /* ==================== ARROW_TRAIN ==================== */
 
 static uint8_t g_train_dir = 0;
 static uint16_t g_train_progress = 0;
 static uint8_t g_train_arrow_vis = 0;
-static uint8_t g_train_seq[] = {0, 1, 0, 1};
-static int g_train_trial = 0;
-static uint8_t g_train_phase = 0;
 static uint32_t g_train_phase_start = 0;
+static uint8_t g_train_phase = 0;
+static uint8_t g_train_active = 0;
 
 static void fill_train_pkt(uint32_t offset, uint16_t len)
 {
@@ -459,7 +424,7 @@ static void fill_train_pkt(uint32_t offset, uint16_t len)
         uint8_t r = 0, g = 0, b = 0;
         if (g_train_arrow_vis && is_in_arrow((int32_t)x, (int32_t)y, cx, cy, sz, g_train_dir))
             { r = 0xFF; g = 0xFF; b = 0xFF; }
-        if (g_train_phase == 0 && !g_train_arrow_vis)
+        if (!g_train_arrow_vis && g_train_active)
             if (text_pixel((int32_t)x, (int32_t)y, "RELAX", 5, 8, 320, 160))
                 { r = 0xFF; g = 0xFF; b = 0xFF; }
         if ((int32_t)y >= bar_y && (int32_t)y < bar_y + bar_h &&
@@ -556,68 +521,31 @@ static glxss_err_t send_idle_frame(void)
 
 static glxss_err_t idle_mode_step(void)
 {
-    glxss_err_t err = send_idle_frame();
-    if (err != GLXSS_OK) return err;
-    uint32_t next = tick_get_us() + 200000;
-    while (tick_get_us() < next);
-    return GLXSS_OK;
+    return send_idle_frame();
 }
 
 static void train_mode_init(void)
 {
-    g_train_trial = 0;
-    g_train_phase = 0;
-    g_train_dir = g_train_seq[0];
+    g_train_active = 1;
     g_train_arrow_vis = 0;
+    g_train_dir = 0;
     g_train_progress = 0;
+    g_train_phase = 0;
     g_train_phase_start = tick_get_us();
-    IPC_Log_Printf_V5F("[V5F] TRAIN rest 5s, trial 1/4 %s\r\n", g_train_seq[0] ? "RIGHT" : "LEFT");
+    IPC_Log_Printf_V5F("[V5F] TRAIN init (command-driven)\r\n");
 }
 
 static glxss_err_t train_mode_step(void)
 {
     uint32_t elapsed = tick_get_us() - g_train_phase_start;
-    if (g_train_phase == 0) {
-        g_train_progress = (uint16_t)(elapsed / 5000);
-        if (g_train_progress > 1000) g_train_progress = 1000;
-        g_train_arrow_vis = 0;
-        if (elapsed >= 5000000) {
-            g_train_phase = 1;
-            g_train_dir = g_train_seq[g_train_trial];
-            g_train_arrow_vis = 1;
-            g_train_progress = 0;
-            g_train_phase_start = tick_get_us();
-            IPC_Log_Printf_V5F("[V5F] TRIAL %d/4 %s\r\n", g_train_trial + 1,
-                g_train_dir ? "RIGHT" : "LEFT");
-        }
-    } else if (g_train_phase == 1) {
+    if (g_train_arrow_vis) {
         g_train_progress = (uint16_t)(elapsed / 15000);
         if (g_train_progress > 1000) g_train_progress = 1000;
-        g_train_arrow_vis = 1;
-        if (elapsed >= 15000000) {
-            g_train_trial++;
-            if (g_train_trial >= 4) {
-                g_train_phase = 2;
-                g_train_arrow_vis = 0;
-                g_train_progress = 1000;
-                IPC_Log_Printf_V5F("[V5F] TRAIN COMPLETE\r\n");
-            } else {
-                g_train_phase = 0;
-                g_train_arrow_vis = 0;
-                g_train_progress = 0;
-                g_train_phase_start = tick_get_us();
-                IPC_Log_Printf_V5F("[V5F] TRAIN rest, trial %d/4\r\n", g_train_trial + 1);
-            }
-        }
     } else {
-        g_train_arrow_vis = 0;
-        g_train_progress = 1000;
+        g_train_progress = (uint16_t)(elapsed / 5000);
+        if (g_train_progress > 1000) g_train_progress = 1000;
     }
-    glxss_err_t err = send_train_frame();
-    if (err != GLXSS_OK) return err;
-    uint32_t next = tick_get_us() + 200000;
-    while (tick_get_us() < next);
-    return GLXSS_OK;
+    return send_train_frame();
 }
 
 /* ==================== MI SIM ==================== */
@@ -708,12 +636,15 @@ static void collect_mode_enter(uint32_t mode)
 
 /* ==================== MODE SWITCH ==================== */
 
+static uint32_t g_last_disp_us = 0;
+
 static void switch_mode(uint8_t new_mode)
 {
     if (new_mode == g_mode) return;
     IPC_Log_Printf_V5F("[V5F] switch %d->%d, reset toggle\r\n", g_mode, new_mode);
     reset_toggle();
     g_mode = new_mode;
+    g_last_disp_us = 0;
     switch (g_mode) {
     case MODE_SSVEP:       ssvep_mode_init(); break;
     case MODE_ARROW:       arrow_mode_init(); break;
@@ -745,8 +676,30 @@ static void handle_ipc_cmd(void)
         switch_mode(MODE_SSVEP);
         if (param < 4) ssvep_mode_set_freq(param);
         break;
-    case IPC_CMD_ARROW:       switch_mode(MODE_ARROW); break;
-    case IPC_CMD_ARROW_TRAIN: switch_mode(MODE_ARROW_TRAIN); break;
+    case IPC_CMD_ARROW:
+        if (g_mode != MODE_ARROW) switch_mode(MODE_ARROW);
+        g_arrow_tgt_dir = (uint8_t)(param & 1u);
+        g_arrow_tgt_color = 1;
+        g_arrow_tgt_vis = 1;
+        g_arrow_res_vis = 0;
+        g_arrow_dirty = 1;
+        break;
+    case IPC_CMD_ARROW_TRAIN:
+        if (g_mode != MODE_ARROW_TRAIN) switch_mode(MODE_ARROW_TRAIN);
+        g_train_active = 1;
+        if (param <= 1) {
+            g_train_dir = (uint8_t)param;
+            g_train_arrow_vis = 1;
+            g_train_progress = 0;
+            g_train_phase_start = tick_get_us();
+            IPC_Log_Printf_V5F("[V5F] TRAIN arrow dir=%s\r\n", param ? "RIGHT" : "LEFT");
+        } else {
+            g_train_arrow_vis = 0;
+            g_train_progress = 0;
+            g_train_phase_start = tick_get_us();
+            IPC_Log_Printf_V5F("[V5F] TRAIN rest\r\n");
+        }
+        break;
     case IPC_CMD_MI_INFER:
         IPC_Log_Printf_V5F("[V5F] MI_INFER mode (sim)\r\n");
         g_mi_infer_active = 1;
@@ -771,6 +724,8 @@ static void handle_ipc_cmd(void)
     }
 }
 
+#endif /* V5F_MODE_GLXSS || GLXSS_ENABLED */
+
 /* ==================== MAIN ==================== */
 
 int main(void)
@@ -779,6 +734,8 @@ int main(void)
     Delay_Init();
     HSEM_FastTake(HSEM_ID0);
     HSEM_ReleaseOneSem(HSEM_ID0, 0);
+
+#if defined(V5F_MODE_GLXSS)
     IPC_Log_Init_V5F();
     IPC_Log_Printf_V5F("[V5F] boot GLXSS mode, SystemCoreClk:%d\r\n", SystemCoreClock);
     Delay_Ms(500);
@@ -825,52 +782,96 @@ int main(void)
     }
     while (1) {}
 
-#else /* !(V5F_MODE_GLXSS || GLXSS_ENABLED) */
-#if (Run_Core == Run_Core_V3FandV5F)
-    HSEM_FastTake(HSEM_ID0);
-    HSEM_ReleaseOneSem(HSEM_ID0, 0);
+#elif defined(GLXSS_ENABLED)
     DualCore_IPC_Init_V5F();
-
-#elif (Run_Core == Run_Core_V5F)
+    IPC_Log_Init_V5F();
+    IPC_Log_Printf_V5F("[V5F] boot EEG+GLXSS merged mode, SystemCoreClk:%d\r\n", SystemCoreClock);
+    Delay_Ms(500);
     Hardware();
-#endif
-
-#ifdef GLXSS_ENABLED
-    {
-        glxss_err_t err = glxss_usb_host_init();
-        if (err != GLXSS_OK) {
-            while (1) {}
-        }
-        err = glxss_usb_wait_device(15000);
-        if (err != GLXSS_OK) {
-            while (1) {}
-        }
+    IPC_Log_SetStatus_V5F(IPC_LOG_STATUS_USB_INIT);
+    IPC_Log_Printf_V5F("[V5F] USBHS Host init...\r\n");
+    glxss_usb_host_init();
+    IPC_Log_Printf_V5F("[V5F] USBHS Host init done, PORT=0x%08lX\r\n", (unsigned long)USBHSH->PORT_STATUS);
+    IPC_Log_SetStatus_V5F(IPC_LOG_STATUS_USB_WAIT);
+    IPC_Log_Printf_V5F("[V5F] Waiting for display device...\r\n");
+    glxss_err_t err = glxss_usb_wait_device(GLXSS_DEVICE_VID, GLXSS_DEVICE_PID, 30000);
+    if (err != GLXSS_OK) {
+        IPC_Log_SetStatus_V5F(IPC_LOG_STATUS_ERROR);
+        IPC_Log_Printf_V5F("[V5F] Device wait failed: %d, EEG-only mode\r\n", err);
+    } else {
+        IPC_Log_SetStatus_V5F(IPC_LOG_STATUS_USB_READY);
+        IPC_Log_Printf_V5F("[V5F] Device found! Clearing halt...\r\n");
         glxss_usb_clear_halt(GLXSS_EP_DATA_OUT);
         g_endp_tog = 0;
         tick_init();
+        IPC_Log_Printf_V5F("[V5F] TIM4 calibrated: %lu ticks/ms\r\n", (unsigned long)g_ticks_per_ms);
         ssvep_precompute();
-        IPC_Log_Init_V5F();
-        IPC_Log_SetStatus_V5F(IPC_LOG_STATUS_IDLE);
+    }
+    IPC_Log_SetStatus_V5F(IPC_LOG_STATUS_IDLE);
+    IPC_Log_Printf_V5F("[V5F] EEG+GLXSS main loop\r\n");
 
-        while (1)
+    for (;;) {
+        DualCore_V5F_MainLoopProcess();
+        DualCore_V5F_SSVEP_RunPending();
+        handle_ipc_cmd();
+#ifdef V5F_MODE_GLXSS
+        mi_sim_step();
+        ssvep_sim_step();
+        collect_sim_step();
+#else
         {
-            DualCore_V5F_MainLoopProcess();
-            DualCore_V5F_SSVEP_RunPending();
-            handle_ipc_cmd();
-            mi_sim_step();
-            ssvep_sim_step();
-            collect_sim_step();
-            err = GLXSS_OK;
-            switch (g_mode) {
-            case MODE_IDLE:        err = idle_mode_step(); break;
-            case MODE_SSVEP:       err = ssvep_mode_step(); break;
-            case MODE_ARROW:       err = arrow_mode_step(); break;
-            case MODE_ARROW_TRAIN: err = train_mode_step(); break;
+            extern volatile uint8_t g_ipc_v5f_pred;
+            extern volatile int32_t g_ipc_v5f_score_left;
+            extern volatile int32_t g_ipc_v5f_score_right;
+            static uint8_t last_pred = IPC_PRED_UNKNOWN;
+            static uint32_t last_infer_count = 0;
+            extern volatile uint32_t g_ipc_v5f_infer_count;
+            if (g_mi_infer_active) {
+                uint8_t cur_pred = g_ipc_v5f_pred;
+                uint32_t cur_count = g_ipc_v5f_infer_count;
+                if (cur_count != last_infer_count || cur_pred != last_pred) {
+                    uint8_t pred_changed = (cur_pred != last_pred);
+                    last_pred = cur_pred;
+                    last_infer_count = cur_count;
+                    g_mi_sim_pred = cur_pred;
+                    g_mi_sim_sl = g_ipc_v5f_score_left;
+                    g_mi_sim_sr = g_ipc_v5f_score_right;
+                    g_mi_infer_count = cur_count;
+                    if (pred_changed)
+                        IPC_Log_Printf_V5F("[V5F] pred=%u sl=%ld sr=%ld\r\n",
+                            (unsigned)cur_pred, (long)g_mi_sim_sl, (long)g_mi_sim_sr);
+                    if (g_mode == MODE_ARROW)
+                        g_test_new_result = 1;
+                }
             }
-            if (err != GLXSS_OK) break;
+        }
+#endif
+        err = GLXSS_OK;
+        if (g_mode == MODE_SSVEP) {
+            err = ssvep_mode_step();
+        } else {
+            uint32_t now = tick_get_us();
+            if (now - g_last_disp_us >= 1000000) {
+                g_last_disp_us = now;
+                switch (g_mode) {
+                case MODE_IDLE:        err = idle_mode_step(); break;
+                case MODE_ARROW:       err = arrow_mode_step(); break;
+                case MODE_ARROW_TRAIN: err = train_mode_step(); break;
+                default: break;
+                }
+            }
+        }
+        if (err != GLXSS_OK) {
+            IPC_Log_SetStatus_V5F(IPC_LOG_STATUS_ERROR);
+            IPC_Log_Printf_V5F("[V5F] FAIL err=%d\r\n", err);
+            break;
         }
     }
+    while (1) {}
+
 #else
+    DualCore_IPC_Init_V5F();
+
     while (1)
     {
         DualCore_V5F_MainLoopProcess();
@@ -878,5 +879,4 @@ int main(void)
         __WFI();
     }
 #endif
-#endif /* V5F_MODE_GLXSS || GLXSS_ENABLED */
 }

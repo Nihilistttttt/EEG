@@ -1,6 +1,28 @@
 EEG项目更新记录
 ================
-最后更新: 2026-08-05
+最后更新: 2026-08-06
+
+================================================================================
+2026-08-06  方向识别AR眼镜显示重构为MCU完全命令驱动(方案B)+训练显示修复
+================================================================================
+
+更新内容:
+1. 架构决策: 方向识别的目标箭头由MCU生成并驱动V5F显示(方案B), 医生端只下发
+   模式配置(周期/随机+次数), 目标和脑电采集在同一时钟域严格同步
+   - 新增CMD_INFER_CFG(0x45)/CMD_INFER_CFG_OK(0x46)协议
+   - 新增V3F/EEG_Direction/eeg_infer_glxss.c状态机: TARGET(2s显示目标箭头)→
+     COLLECT(2s采集推理)→上报结果(含目标标签)→下一目标
+   - 推理结果CMD_RESULT_MI payload扩展为17字节(末尾追加target标签)
+   - EEG_MI_ResultPoll在GLXSS状态机激活时抑制重复上报
+2. V3F: CMD_MODE_TEST改为启动GLXSS_Infer_Start, CMD_STOP停止状态机
+   CMD_TARGET保留(医生端手动控制目标仍可用)
+3. 训练显示修复:
+   - is_in_arrow方向定义与协议对齐(0=LEFT,1=RIGHT)
+   - 医生端enterRestPhase发送CMD_MODE_SET(1)让眼镜显示RELAX
+   - train_mode_step休息时也更新进度条(5s 0→1000)
+4. V5F显示节流: 非SSVEP模式100ms发一帧, 消除WAIT闪烁/多个wait
+5. 医生端改造: InferenceFragment发CMD_INFER_CFG配置替代逐条CMD_TARGET,
+   onInferenceResult用结果携带的groundTruth记录
 
 ================================================================================
 2026-08-05  GLXSS双核显示功能实现(SD卡固件源+V3F上传+V5F显示驱动,Python控制验证通过)

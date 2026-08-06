@@ -13,21 +13,6 @@ void IPC_Log_Init_V3F(void)
     memset((void *)shared, 0, sizeof(IPC_Log_Shared_t));
     shared->v5f_status = IPC_LOG_STATUS_IDLE;
 
-    IPC_DeInit();
-    {
-        IPC_InitTypeDef ipc_init;
-        IPC_StructInit(&ipc_init);
-        ipc_init.IPC_CH = IPC_CH0;
-        ipc_init.TxCID = IPC_TxCID1;
-        ipc_init.RxCID = IPC_RxCID0;
-        IPC_Init(&ipc_init);
-    }
-    IPC_CH0_Lock();
-    IPC_WriteMSG(IPC_MSG0, 0);
-    IPC_SetFlagStatus(IPC_CH0, IPC_CH_Sta_Bit0);
-    IPC_ClearFlagStatus(IPC_CH0, IPC_CH_Sta_Bit1);
-    NVIC_SetPriority(IPC_CH0_IRQn, (1 << 7) | (1 << 4));
-    NVIC_EnableIRQ(IPC_CH0_IRQn);
 
     s_v3f_cmd_seq = 0;
 }
@@ -124,14 +109,5 @@ uint32_t IPC_GetSampleCount_V3F(void)
     return IPC_LOG_SHARED->sample_count;
 }
 
-#ifdef GLXSS_ENABLED
-void IPC_CH0_Handler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
-void IPC_CH0_Handler(void)
-{
-    if (IPC_GetITStatus(IPC_CH0, IPC_CH_Sta_Bit0) != RESET) {
-        IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit0, DISABLE);
-    }
-}
-#endif
 
 #endif

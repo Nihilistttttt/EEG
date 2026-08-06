@@ -19,6 +19,7 @@
 #include "glxss_sd_fw.h"
 #ifdef GLXSS_ENABLED
 #include "ipc_log.h"
+#include "Message_Parser.h"
 #include <string.h>
 #endif
 #endif
@@ -29,24 +30,15 @@
 #define ICM_42605_Mode       4
 #define MODE_GLXSS           5
 #define MODE_GLXSS_BURN      6
-#define SYSTEM_MODE          MODE_GLXSS
+#define SYSTEM_MODE          MODE_EEG_ANALYSIS
 
-#ifdef GLXSS_ENABLED
+#if defined(Core_V3F) && defined(GLXSS_ENABLED)
 #define AA55_HDR0   0xAA
 #define AA55_HDR1   0x55
 #define AA55_TAIL   0x7E
 #define AA55_ESC    0x7D
 #define AA55_XOR    0x20
 
-#define CMD_MODE_SET      0x01
-#define CMD_MODE_TRAIN    0x02
-#define CMD_MODE_TEST     0x03
-#define CMD_TRIAL         0x06
-#define CMD_STOP          0x07
-#define CMD_STATUS        0x08
-#define CMD_DISPLAY_CFG   0x0B
-#define CMD_SSVEP_START   0x0C
-#define CMD_SSVEP_STOP    0x0D
 
 static uint8_t  s_aa55_body[256];
 static uint16_t s_aa55_body_len;
@@ -85,17 +77,29 @@ static void process_aa55_frame(const uint8_t *body, uint16_t body_len)
             if (mode == 1) { g_app_mode = 1; IPC_Cmd_Send_V3F(IPC_CMD_COLLECT, 1); }
             else if (mode == 2) { g_app_mode = 2; IPC_Cmd_Send_V3F(IPC_CMD_MI_INFER, 0); }
             else if (mode == 3) { g_app_mode = 1; IPC_Cmd_Send_V3F(IPC_CMD_COLLECT, 3); }
+            {
+                uint8_t resp[2] = {CMD_MODE_SET, mode};
+                Pack_Frame(SERIAL_PORT_WIFI, CMD_MODE_SET_OK, resp, 2);
+            }
         }
         break;
     case CMD_MODE_TRAIN:
         Serial_Printf(SERIAL_PORT_DEBUG, "[V3F] MODE_TRAIN -> COLLECT\r\n");
         g_app_mode = 1;
         IPC_Cmd_Send_V3F(IPC_CMD_COLLECT, 1);
+        {
+            uint8_t resp[1] = {0};
+            Pack_Frame(SERIAL_PORT_WIFI, CMD_READY_TRAIN, resp, 1);
+        }
         break;
     case CMD_MODE_TEST:
         Serial_Printf(SERIAL_PORT_DEBUG, "[V3F] MODE_TEST -> MI_INFER\r\n");
         g_app_mode = 2;
         IPC_Cmd_Send_V3F(IPC_CMD_MI_INFER, 0);
+        {
+            uint8_t resp[1] = {0};
+            Pack_Frame(SERIAL_PORT_WIFI, CMD_READY_TEST, resp, 1);
+        }
         break;
     case CMD_TRIAL:
         if (data_len >= 1) {
@@ -106,6 +110,10 @@ static void process_aa55_frame(const uint8_t *body, uint16_t body_len)
             } else {
                 IPC_Cmd_Send_V3F(IPC_CMD_ARROW, side);
             }
+            {
+                uint8_t resp[1] = {side};
+                Pack_Frame(SERIAL_PORT_WIFI, CMD_TASK_START, resp, 1);
+            }
         }
         break;
     case CMD_STOP:
@@ -113,6 +121,10 @@ static void process_aa55_frame(const uint8_t *body, uint16_t body_len)
         g_app_mode = 0;
         IPC_Ctrl_SetFlags_V3F(0);
         IPC_Cmd_Send_V3F(IPC_CMD_RESET, 0);
+        {
+            uint8_t resp[1] = {0};
+            Pack_Frame(SERIAL_PORT_WIFI, CMD_TASK_STOPPED, resp, 1);
+        }
         break;
     case CMD_DISPLAY_CFG:
         if (data_len >= 1) {
@@ -121,6 +133,7 @@ static void process_aa55_frame(const uint8_t *body, uint16_t body_len)
             if (display_mode == 0) IPC_Cmd_Send_V3F(IPC_CMD_SSVEP, 0);
             else if (display_mode == 1) IPC_Cmd_Send_V3F(IPC_CMD_ARROW, 0);
             else if (display_mode == 2) IPC_Cmd_Send_V3F(IPC_CMD_ARROW_TRAIN, 0);
+            Pack_Frame(SERIAL_PORT_WIFI, CMD_DISPLAY_CFG, data, data_len);
         }
         break;
     case CMD_SSVEP_START:
@@ -134,12 +147,20 @@ static void process_aa55_frame(const uint8_t *body, uint16_t body_len)
             IPC_Ctrl_SetFlags_V3F(IPC_CTRL_SSVEP_ENABLE);
             IPC_Cmd_Send_V3F(IPC_CMD_SSVEP, 0);
         }
+        {
+            uint8_t resp[1] = {0};
+            Pack_Frame(SERIAL_PORT_WIFI, CMD_SSVEP_START, resp, 1);
+        }
         break;
     case CMD_SSVEP_STOP:
         Serial_Printf(SERIAL_PORT_DEBUG, "[V3F] SSVEP_STOP -> RESET\r\n");
         g_app_mode = 0;
         IPC_Ctrl_SetFlags_V3F(0);
         IPC_Cmd_Send_V3F(IPC_CMD_RESET, 0);
+        {
+            uint8_t resp[1] = {0};
+            Pack_Frame(SERIAL_PORT_WIFI, CMD_SSVEP_STOP, resp, 1);
+        }
         break;
     default:
         Serial_Printf(SERIAL_PORT_DEBUG, "[V3F] unhandled cmd=0x%02X\r\n", cmd);
@@ -188,37 +209,8 @@ void Hardware(void)
 #endif
 
 #if (SYSTEM_MODE == MODE_EEG_ANALYSIS)
-#ifdef GLXSS_ENABLED
-    Serial_Init(SERIAL_PORT_DEBUG);
-    {
-        int ret = SD_Init();
-        if (ret != 0) {
-            Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] SD init FAIL, skipping glasses\r\n");
-        } else {
-            uint32_t fw_size = glxss_sd_fw_get_size();
-            if (fw_size == 0) {
-                Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] No FW on SD, skipping glasses\r\n");
-            } else {
-                Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] FW %lu bytes, uploading...\r\n",
-                              (unsigned long)fw_size);
-                glxss_err_t err = glxss_init(glxss_sd_fw_read, fw_size, 15000);
-                if (err != GLXSS_OK) {
-                    Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] Init failed: %d, skipping\r\n", err);
-                } else {
-                    Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] Glasses ready!\r\n");
-                    glxss_set_brightness(200);
-                    Delay_Ms(500);
-                    glxss_power_switch(1);
-                    Delay_Ms(200);
-                    glxss_set_display_mode(0);
-                    Delay_Ms(200);
-                    IPC_Log_Init_V3F();
-                    Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] IPC log bridge ready\r\n");
-                }
-            }
-        }
-    }
-#endif
+    /* GLXSS_ENABLED: glasses firmware upload + IPC shared mem init done in
+     * V3F main.c BEFORE waking V5F, so V5F can take USB Host cleanly. */
     Signal_Analysis_Start();
 
 #elif (SYSTEM_MODE == MODE_SPI_TEST)
@@ -312,6 +304,8 @@ void Hardware(void)
 
     Serial_Printf(SERIAL_PORT_DEBUG, "[V3F] V5F running, waiting for AA55 commands...\r\n");
 
+    Serial_Init(SERIAL_PORT_WIFI);
+
     s_aa55_body_len = 0;
     s_aa55_state = 0;
     g_app_mode = 0;
@@ -323,6 +317,13 @@ void Hardware(void)
             if (Serial_IsDataReady(SERIAL_PORT_DEBUG)) {
                 uint8_t *rx_buf;
                 uint16_t rx_len = Serial_GetDataPacket(SERIAL_PORT_DEBUG, &rx_buf);
+                for (uint16_t i = 0; i < rx_len; i++) {
+                    aa55_feed(rx_buf[i]);
+                }
+            }
+            if (Serial_IsDataReady(SERIAL_PORT_WIFI)) {
+                uint8_t *rx_buf;
+                uint16_t rx_len = Serial_GetDataPacket(SERIAL_PORT_WIFI, &rx_buf);
                 for (uint16_t i = 0; i < rx_len; i++) {
                     aa55_feed(rx_buf[i]);
                 }
@@ -358,8 +359,10 @@ void Hardware(void)
 #endif
 
 #elif defined(Core_V5F)
-#ifdef V5F_MODE_GLXSS
+#if defined(V5F_MODE_GLXSS)
     /* GLXSS: V5F runs its own USB Host + display loop in main.c */
+#elif defined(GLXSS_ENABLED)
+    /* EEG+GLXSS merged: V5F init done in main(), return immediately */
 #else
     while (1) {
         /* V5F is intentionally idle outside IPC_CH0 interrupt. */

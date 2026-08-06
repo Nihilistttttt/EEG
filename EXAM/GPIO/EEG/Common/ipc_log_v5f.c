@@ -16,10 +16,12 @@ void IPC_Log_Init_V5F(void)
     shared->v5f_status = IPC_LOG_STATUS_IDLE;
     s_v5f_last_cmd_seq = shared->cmd_seq;
 
+#ifndef GLXSS_ENABLED
     IPC_ClearFlagStatus(IPC_CH0, IPC_CH_Sta_Bit1);
     NVIC_ClearPendingIRQ(IPC_CH0_IRQn);
     NVIC_SetPriority(IPC_CH0_IRQn, (2 << 5) | (0 << 4));
     NVIC_EnableIRQ(IPC_CH0_IRQn);
+#endif
 }
 
 void IPC_Log_SetStatus_V5F(uint32_t status)
@@ -62,7 +64,9 @@ void IPC_Log_Printf_V5F(const char *fmt, ...)
     __asm volatile ("fence iorw, iorw" ::: "memory");
     shared->write_pos = (wp + (uint32_t)len) % IPC_LOG_BUF_SIZE;
 
+#ifndef GLXSS_ENABLED
     IPC_ITConfig(IPC_CH0, IPC_CH_Sta_Bit1, ENABLE);
+#endif
 }
 
 uint32_t IPC_Cmd_Recv_V5F(uint32_t *param)

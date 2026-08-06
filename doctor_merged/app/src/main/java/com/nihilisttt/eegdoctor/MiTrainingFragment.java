@@ -141,6 +141,8 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
         currentState = STATE_REST;
         restStartTime = System.currentTimeMillis();
 
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_MODE_SET, new byte[]{1});
+
         tvDirection.setText("休息");
         tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.training_rest));
         tvHint.setText("放松，准备下一个想象任务");

@@ -146,7 +146,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
             TcpServerManager server = TcpServerManager.getInstance();
             server.setSsvepActive(true, index);
             server.sendDisplayToOutputAsync(EegProtocol.CMD_SSVEP_START_P, new byte[]{(byte) index}, null);
-            CommandSender.getInstance().ssvepStart();
+            CommandSender.getInstance().ssvepStart(index);
         }
     }
 
@@ -173,7 +173,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
             return;
         }
         TcpServerManager server = TcpServerManager.getInstance();
-        if (!server.isPatientControlConnected()) {
+        if (!SettingsStore.isGlxssOutput(requireContext()) && !server.isPatientControlConnected()) {
             setStatus("患者控制通道未连接", true);
             return;
         }
@@ -202,7 +202,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
 
             if (!ssvepRunning) return;
             // 41002 未连接时该命令只产生正常的未连接日志，不影响患者端和算法自测。
-            CommandSender.getInstance().ssvepStart();
+            CommandSender.getInstance().ssvepStart(freqIndex);
             if (selfTest) {
                 CommandSender.getInstance().ssvepSelftestStart(freqIndex);
                 analysis.confirmStimulusStarted(freqIndex, 240.0f);
@@ -366,6 +366,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
     @Override
     public void onPause() {
         super.onPause();
+        if (ssvepRunning) stopSsvep();
         DataDispatcher.getInstance().removeListener(this);
     }
 

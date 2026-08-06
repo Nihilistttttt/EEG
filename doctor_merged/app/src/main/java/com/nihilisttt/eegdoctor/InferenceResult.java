@@ -10,10 +10,14 @@ public class InferenceResult {
     private float confidence;
     private boolean trained;
     private long timestamp;
+    private String groundTruth;
 
     public InferenceResult() {
         this.timestamp = System.currentTimeMillis();
     }
+
+    public String getGroundTruth() { return groundTruth; }
+    public void setGroundTruth(String groundTruth) { this.groundTruth = groundTruth; }
 
     public int getWindow() { return window; }
     public void setWindow(int window) { this.window = window; }

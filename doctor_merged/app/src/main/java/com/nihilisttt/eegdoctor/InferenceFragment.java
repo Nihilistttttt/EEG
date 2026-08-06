@@ -25,7 +25,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.util.List;
 import java.util.Locale;
-import java.util.Random;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -69,9 +69,7 @@ public class InferenceFragment extends Fragment implements DataListener {
     });
 
     private String currentTarget = null;
-    private boolean targetIsLeft = true;
-    private int cycleCount = 0;
-    private final Random random = new Random();
+
     private final Handler targetHandler = new Handler(Looper.getMainLooper());
 
 
@@ -149,40 +147,18 @@ public class InferenceFragment extends Fragment implements DataListener {
         return spinnerRounds.getSelectedItemPosition() + 1;
     }
 
-    private String generateNextTarget() {
-        if (isCycleMode()) {
-            cycleCount++;
-            if (cycleCount > getCycleRounds()) {
-                cycleCount = 1;
-                targetIsLeft = !targetIsLeft;
-            }
-            return targetIsLeft ? "LEFT" : "RIGHT";
-        } else {
-            return random.nextBoolean() ? "LEFT" : "RIGHT";
-        }
-    }
-
-    private void sendTarget(String direction) {
-        currentTarget = direction;
-        boolean isLeft = "LEFT".equals(direction);
-        tvDirection.setText(isLeft ? "←" : "→");
-        tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.white));
-        tvDirection.setVisibility(View.VISIBLE);
-        tvResultDir.setVisibility(View.GONE);
-        tvTargetDir.setText(isLeft ? "◀ 左" : "右 ▶");
-        tvTargetDir.setTextColor(ContextCompat.getColor(requireContext(),
-                isLeft ? R.color.direction_left : R.color.direction_right));
-        TcpServerManager.getInstance().sendDisplayToOutput(EegProtocol.CMD_TARGET,
-                new byte[]{(byte) (isLeft ? 0 : 1)});
-    }
 
     private void startInference() {
         if (isInferencing) return;
         isInferencing = true;
         resultCountSinceLastRefresh = 0;
         currentTarget = null;
-        targetIsLeft = true;
-        cycleCount = 0;
+
+
+        int mode = isCycleMode() ? 0 : 1;
+        int rounds = isCycleMode() ? getCycleRounds() : 3;
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_INFER_CFG,
+                new byte[]{(byte) mode, (byte) rounds});
         CommandSender.getInstance().setModeInfer();
         CommandSender.getInstance().startTest();
         btnStartInfer.setEnabled(false);
@@ -190,9 +166,7 @@ public class InferenceFragment extends Fragment implements DataListener {
 
         tvConfidence.setText("置信度: --");
         tvScores.setText("L:-- R:--");
-
-        String target = generateNextTarget();
-        sendTarget(target);
+        tvTargetDir.setText(mode == 0 ? "周期 " + rounds + " 次" : "随机");
     }
 
     private void stopInference() {
@@ -312,9 +286,11 @@ public class InferenceFragment extends Fragment implements DataListener {
         rec.scoreLeft = result.getScoreLeft();
         rec.scoreRight = result.getScoreRight();
         rec.confidence = result.getConfidence();
-        if (currentTarget != null) {
-            rec.groundTruth = currentTarget;
-            rec.correct = currentTarget.equals(result.getIntent());
+        String gt = result.getGroundTruth();
+        if (gt != null) {
+            currentTarget = gt;
+            rec.groundTruth = gt;
+            rec.correct = gt.equals(result.getIntent());
         }
         recordWriter.execute(() -> InferenceRecordStore.addRecord(requireContext(), rec));
 
@@ -327,40 +303,30 @@ public class InferenceFragment extends Fragment implements DataListener {
         tvConfidence.setText(String.format(Locale.getDefault(), "置信度: %.1f%%", result.getConfidence() * 100));
         tvScores.setText(String.format(Locale.getDefault(), "L:%.3f R:%.3f", result.getScoreLeft(), result.getScoreRight()));
 
-        if (isInferencing && currentTarget != null) {
-            targetHandler.removeCallbacksAndMessages(null);
-
-            boolean correct = currentTarget.equals(result.getIntent());
-            int colorRes = correct ? R.color.accent_success : R.color.accent_error;
-            int color = ContextCompat.getColor(requireContext(), colorRes);
-            tvDirection.setTextColor(color);
+        if (isInferencing) {
+            if (gt != null) {
+                boolean isLeft = "LEFT".equals(gt);
+                tvDirection.setText(isLeft ? "←" : "→");
+                tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.white));
+                tvDirection.setVisibility(View.VISIBLE);
+                tvTargetDir.setText(isLeft ? "◀ 左" : "右 ▶");
+                tvTargetDir.setTextColor(ContextCompat.getColor(requireContext(),
+                        isLeft ? R.color.direction_left : R.color.direction_right));
+            }
 
             boolean resultIsLeft = "LEFT".equals(result.getIntent());
+            int colorRes = (gt != null && gt.equals(result.getIntent()))
+                    ? R.color.accent_success : R.color.accent_error;
+            int color = ContextCompat.getColor(requireContext(), colorRes);
             tvResultDir.setText(resultIsLeft ? "←" : "→");
             tvResultDir.setTextColor(color);
             tvResultDir.setVisibility(View.VISIBLE);
 
+            targetHandler.removeCallbacksAndMessages(null);
             targetHandler.postDelayed(() -> {
                 if (!isInferencing) return;
-                tvDirection.setVisibility(View.INVISIBLE);
-                tvResultDir.setVisibility(View.INVISIBLE);
-                String target = generateNextTarget();
-                currentTarget = target;
-                boolean isLeft = "LEFT".equals(target);
-                tvDirection.setText(isLeft ? "←" : "→");
-                tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.white));
-                tvTargetDir.setText(isLeft ? "◀ 左" : "右 ▶");
-                tvTargetDir.setTextColor(ContextCompat.getColor(requireContext(),
-                        isLeft ? R.color.direction_left : R.color.direction_right));
-                TcpServerManager.getInstance().sendDisplayToOutput(EegProtocol.CMD_TARGET,
-                        new byte[]{(byte) (isLeft ? 0 : 1)});
-            }, COMPARE_DISPLAY_MS);
-
-            targetHandler.postDelayed(() -> {
-                if (!isInferencing) return;
-                tvDirection.setVisibility(View.VISIBLE);
                 tvResultDir.setVisibility(View.GONE);
-            }, COMPARE_DISPLAY_MS + COMPARE_GAP_MS);
+            }, COMPARE_DISPLAY_MS);
         }
     }
 

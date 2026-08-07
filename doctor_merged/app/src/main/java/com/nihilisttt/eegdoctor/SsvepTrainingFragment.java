@@ -241,7 +241,11 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
 
     @Override
     public void stopForModeSwitch(TrainingModeCoordinator.Mode nextMode) {
-        stopSsvep();
+        ssvepRunning = false;
+        SsvepAnalysisManager.getInstance().stopSession();
+        TcpServerManager.getInstance().setSsvepActive(false, -1);
+        setRunningUi(false);
+        progressWindow.setProgress(0);
     }
 
     private void setRunningUi(boolean running) {

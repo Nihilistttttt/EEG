@@ -14,6 +14,7 @@
 
 #include "hardware.h"
 #include "wav_player.h"
+#include "ipc_log.h"
 
 #ifdef HAS_ICM42605
 #include "ICM42605.h"
@@ -122,7 +123,7 @@ void Signal_Analysis_Start (void) {
                     static uint32_t ipc_diag_count = 0;
                     ipc_diag_count++;
                     if ((ipc_diag_count % 50u) == 0u) {
-                        uint8_t diag_buf[38];
+                        uint8_t diag_buf[59];
                         uint32_t l0 = DualCore_IPC_GetAckCount();
                         uint32_t l1 = DualCore_IPC_GetNotifyCount();
                         uint32_t l2 = DualCore_IPC_GetParseOKCount();
@@ -132,6 +133,12 @@ void Signal_Analysis_Start (void) {
                         uint32_t l6 = (uint32_t)IPC->ENA;
                         uint32_t l7 = (uint32_t)IPC->STS;
                         uint32_t l8 = (uint32_t)IPC->ISR;
+                        uint32_t l9 = IPC_LOG_SHARED->ssvep_send_us;
+                        uint32_t l10 = IPC_LOG_SHARED->ssvep_late_us;
+                        uint32_t l11 = IPC_LOG_SHARED->ssvep_frame_cnt;
+                        uint8_t  l12 = IPC_LOG_SHARED->ssvep_mode_active;
+                        uint32_t l13 = IPC_LOG_SHARED->ssvep_rp_us;
+                        uint32_t l14 = IPC_LOG_SHARED->ssvep_rp_count;
                         diag_buf[0] = DIAG_TYPE_IPCDIAG;
                         memcpy(diag_buf + 1, &l0, 4);
                         memcpy(diag_buf + 5, &l1, 4);
@@ -143,6 +150,12 @@ void Signal_Analysis_Start (void) {
                         memcpy(diag_buf + 26, &l6, 4);
                         memcpy(diag_buf + 30, &l7, 4);
                         memcpy(diag_buf + 34, &l8, 4);
+                        memcpy(diag_buf + 38, &l9, 4);
+                        memcpy(diag_buf + 42, &l10, 4);
+                        memcpy(diag_buf + 46, &l11, 4);
+                        diag_buf[50] = l12;
+                        memcpy(diag_buf + 51, &l13, 4);
+                        memcpy(diag_buf + 55, &l14, 4);
                         Pack_Frame(SERIAL_PORT_DEBUG, CMD_DIAG, diag_buf, sizeof(diag_buf));
                         Pack_Frame(SERIAL_PORT_WIFI, CMD_DIAG, diag_buf, sizeof(diag_buf));
                     }
@@ -289,7 +302,7 @@ void Signal_Analysis_Start (void) {
             EEG_MI_ResultPoll();
             EEG_SSVEP_ResultPoll();
             GLXSS_Infer_Poll();
-            wav_player_poll();
+
         }
 
 #ifdef HAS_ICM42605
@@ -403,5 +416,7 @@ void Signal_Analysis_Start (void) {
             }
         }
 #endif /* HAS_ICM42605 */
+
+        if (!ring_buffer_has_frame()) wav_player_poll();
     }
 }

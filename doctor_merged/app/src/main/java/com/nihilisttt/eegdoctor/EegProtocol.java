@@ -100,6 +100,7 @@ public final class EegProtocol {
     public static final int DIAG_TYPE_POSTURE = 5;
     public static final int DIAG_TYPE_POSTURE_ANGLE = 6;
 
+
     public static final int EVENT_POSTURE_STATE = 0;
     public static final int EVENT_TURN = 1;
     public static final int EVENT_FALL = 2;

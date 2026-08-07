@@ -45,6 +45,7 @@ void IPC_Log_Poll_V3F(void)
     shared->read_pos = (rp + to_read) % IPC_LOG_BUF_SIZE;
 
     Serial_Printf(SERIAL_PORT_DEBUG, "%s", s_v3f_print_buf);
+
 }
 
 void IPC_Cmd_Send_V3F(uint32_t cmd, uint32_t param)

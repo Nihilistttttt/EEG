@@ -557,4 +557,14 @@ void I2C_ClockEnable (I2C_TypeDef *I2Cx);
 void USART_ClockEnable (USART_TypeDef *USARTx);
 void DMA_ClockEnable (DMA_TypeDef *DMAx);
 void AFIO_ClockEnable (void);
+
+/*============================================================================
+ * WAV audio + SD card time-sharing mode
+ *   0 = SD card and WAV playback may be used simultaneously (default)
+ *   1 = Time-share: wav_player_poll only runs when SD card is idle
+ *============================================================================*/
+#ifndef WAV_SD_TIME_SHARE
+#define WAV_SD_TIME_SHARE 0
+#endif
+
 #endif /* CONFIG_H */

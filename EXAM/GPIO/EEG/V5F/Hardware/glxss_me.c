@@ -217,7 +217,7 @@ glxss_err_t glxss_display_frame(uint16_t width, uint16_t height, const uint8_t *
 {
     uint32_t pixel_bytes = (uint32_t)width * height * 4;
     uint32_t total_bytes = IMG_HEADER_SIZE + pixel_bytes;
-    glxss_err_t err;
+
 
     if (data == NULL) return GLXSS_ERR_INVALID_PARAM;
     if (width == 0 || height == 0 || width > GLXSS_MAX_WIDTH || height > GLXSS_MAX_HEIGHT)
@@ -340,7 +340,7 @@ glxss_err_t glxss_init(glxss_fw_read_t fw_read,
         return err;
     }
 
-get_info:
+
     err = glxss_get_lcd_info(&s_lcd_info);
     if (err != GLXSS_OK) {
         GLXSS_ERR("Failed to get LCD info");

@@ -561,11 +561,15 @@ void ADS1299_ParseRawFrame (const uint8_t *frame_buf, uint32_t *status, int32_t 
 /* �ӻ��λ�������ȡһ֡���ݣ��ɹ����� 1�������ݷ��� 0 */
 uint8_t ring_buffer_get_frame (uint8_t *dest) {
     if (head == tail) {
-        return 0;  // ������Ϊ��
+        return 0;
     }
     memcpy (dest, ring_buffer[tail], FRAME_SIZE);
     tail = (tail + 1) % RING_BUF_SIZE;
     return 1;
+}
+
+uint8_t ring_buffer_has_frame (void) {
+    return (head != tail) ? 1u : 0u;
 }
 
 void DMA1_Channel1_IRQHandler (void) __attribute__ ((interrupt ("WCH-Interrupt-fast")));
@@ -661,7 +665,7 @@ void ADS1299_MeasureImpedance (float out_kohm[ADS1299_CHANNEL_NUM]) {
     float fs = 250.0f;
     float f0 = 7.8f;
     float omega = 2.0f * 3.14159265f * f0 / fs;
-    float coeff = 2.0f * cosf(omega);
+
     float i_na = ADS1299_IMPEDANCE_I_NA;
 
     for (ch = 0; ch < ADS1299_CHANNEL_NUM; ch++) {

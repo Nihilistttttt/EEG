@@ -132,7 +132,14 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
 
     @Override
     public void stopForModeSwitch(TrainingModeCoordinator.Mode nextMode) {
-        stopTrainingInternal(true);
+        isTraining = false;
+        waitingReadyTrain = false;
+        currentState = STATE_IDLE;
+        handler.removeCallbacksAndMessages(null);
+        if (getView() != null) {
+            btnStartTraining.setEnabled(true);
+            btnStopTraining.setEnabled(false);
+        }
     }
 
     private void enterRestPhase() {

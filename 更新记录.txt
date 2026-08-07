@@ -1,9 +1,267 @@
 EEG项目更新记录
 ================
-最后更新: 2026-08-06
+最后更新: 2026-08-07
 
 ================================================================================
-2026-08-06  语音提示集成脑2电训练/推理/SSVEP全场景+RAM_CODE扩容+DMA优先级修复+验证通过
+2026-08-07  SSVEP显示卡顿优化(FBCCA分步执行+IPCDIAG扩展)
+================================================================================
+
+问题: SSVEP闪烁时每隔一段时间卡顿, 17Hz时late=27567us
+  - FBCCA每2s触发一次, 集中在1帧执行约38.4ms
+  - 17Hz半周期29.4ms - 白帧send 25ms = while等待仅4.4ms
+  - 38.4ms远超4.4ms等待时间, 导致27.6ms帧延迟(late)
+  - 高频SSVEP(17Hz)等待时间最短, 最容易卡顿
+
+优化1: FBCCA分12步执行 (dualcore_v5f_ssvep.c)
+  - ssvep_analyze拆分为ssvep_analyze_init/step/finalize
+  - 4 targets × 3 freq_offsets = 12步, 每步~3ms
+  - 局部变量改为static(s_a_win/s_a_filt_win/s_a_ref_buf等)
+  - RunPending按s_analyze_step状态机调用(step 1=init, 2-13=12步, 14=finalize)
+
+优化2: RunPending移入SSVEP while等待循环 (V5F/User/main.c)
+  - while(1){RunPending(); if(tick>=target) break;}
+  - 利用每帧的while等待时间执行FBCCA分步
+  - 非SSVEP模式也在主循环else分支末尾调用RunPending
+
+优化3: canonical_corr除法转乘法 (dualcore_v5f_ssvep.c)
+  - /ws改为*inv_ws, 消除除法瓶颈
+
+优化4: IPCDIAG扩展到59字节 (ipc_log.h + Signal_Analysis.c)
+  - 添加ssvep_send_us/ssvep_late_us/ssvep_frame_cnt/ssvep_mode_active
+  - 添加ssvep_rp_us/ssvep_rp_count(RunPending耗时诊断)
+  - Python解析支持59字节格式
+
+验证结果: 17Hz late从27567us降为0us, 卡顿完全消除
+  - rp大部分10us(无pending), 偶尔3550us(单步执行)
+  - 单步3ms < 17Hz等待4.4ms, 不阻塞帧定时
+
+================================================================================
+2026-08-07  SSVEP显示卡顿优化(三角递推+RunPending后移)
+================================================================================
+
+问题: SSVEP闪烁时每隔一段时间卡顿, 卡顿后帧率变快一下然后恢复正常
+  - 引入音频播放前不卡顿, 引入音频后出现
+  - 音频播放结束一会后间歇性卡顿
+  - 卡顿后帧率变快是ssvep_mode_step的target补帧机制(阻塞后连续不等待追上时序)
+
+根因: V5F SSVEP FBCCA分析每2s触发一次, 阻塞主循环
+  - ssvep_analyze()中ssvep_generate_refs对每个样本调用sinf+cosf
+  - 4目标×3偏移×4子带=48次调用, 每次5000次sinf/cosf = 240,000次
+  - 在400MHz下约90ms, 加上CCA矩阵运算总计约100ms
+  - RunPending在ssvep_mode_step之前执行, 100ms阻塞延迟SSVEP帧发送
+  - 引入音频前100ms停留可能不明显(15Hz太快), 音频改变时序后变可感知
+
+优化1: 三角递推公式替代逐点sinf/cosf (dualcore_v5f_ssvep.c)
+  - ssvep_generate_refs: 对固定频率, 角度等差递增
+  - sin(a+δ)=sin(a)cos(δ)+cos(a)sin(δ), cos(a+δ)=cos(a)cos(δ)-sin(a)sin(δ)
+  - 每次调用从5000次sinf/cosf降为4次sinf/cosf+5000次乘加递推
+  - FBCCA分析从约100ms降到约10ms (加速约10倍)
+
+优化2: RunPending移到ssvep_mode_step之后 (V5F/User/main.c)
+  - 原顺序: MainLoopProcess → RunPending → handle_ipc_cmd → ssvep_mode_step
+  - 新顺序: MainLoopProcess → handle_ipc_cmd → ssvep_mode_step → RunPending
+  - SSVEP分析在显示帧发送之后执行, 10ms被下一次while等待吸收
+  - 15Hz半周期33ms: 22ms发送+11ms等待, 10ms分析后下一帧while等待1ms, 不卡顿
+  - 17Hz半周期29ms: 22ms发送+7ms等待, 10ms分析后轻微延迟3ms(2帧恢复), 可接受
+
+================================================================================
+2026-08-07  Android app模式切换修复+方案E优先级调度
+================================================================================
+
+问题: SSVEP界面点击"真实脑电刺激"后闪一小会就自动进入休息模式(rest.wav+RELAX)
+  用户什么都没做, 需点击"停止刺激"才能终止
+
+根因: Android app TrainingModeCoordinator模式切换时自动发CMD_STOP
+  - 用户之前在MI训练界面操作过, MI模式仍活跃
+  - 切换到SSVEP界面点"真实脑电刺激" → activate(SSVEP)
+  - 触发MI的stopForModeSwitch → stopTrainingInternal → 发CMD_STOP
+  - CMD_STOP → V3F: rest.wav + IPC_CMD_RESET → V5F IDLE/RELAX
+  - 之前V5F USB错误后break死循环不响应IPC_CMD_RESET, 用户没注意到
+  - 现在break→continue后V5F正确响应, 暴露了这个上位机bug
+
+修复(Android app):
+  1. MiTrainingFragment.stopForModeSwitch: 不调用stopTrainingInternal(不发CMD_STOP)
+     只清理UI状态(isTraining=false, handler.removeCallbacks, 按钮状态)
+  2. SsvepTrainingFragment.stopForModeSwitch: 不调用stopSsvep(不发CMD_SSVEP_STOP)
+     只清理UI状态(ssvepRunning=false, stopSession, setSsvepActive=false)
+
+方案E: V3F主循环严格优先级调度
+  - 新增ring_buffer_has_frame()函数(ADS1299.c/h)
+  - Signal_Analysis.c主循环: wav_player_poll前检查ring_buffer_has_frame
+  - 有新EEG帧时跳过wav_player_poll, 确保EEG帧处理绝对优先于音频推流
+
+修改文件:
+  - doctor_merged/.../MiTrainingFragment.java: stopForModeSwitch不发CMD_STOP
+  - doctor_merged/.../SsvepTrainingFragment.java: stopForModeSwitch不发CMD_SSVEP_STOP
+  - EXAM/GPIO/EEG/V3F/Hardware/ADS1299.c: 新增ring_buffer_has_frame
+  - EXAM/GPIO/EEG/V3F/Hardware/ADS1299.h: 新增ring_buffer_has_frame声明
+  - EXAM/GPIO/EEG/V3F/Hardware/Signal_Analysis.c: wav_player_poll优先级调度
+
+================================================================================
+2026-08-07  方案C: V5F USB错误恢复(break死循环→clear_halt+continue)
+================================================================================
+
+问题: V5F USB传输失败→主循环break→while(1){}死循环→永久白屏
+  任何瞬时USB错误(线缆抖动/端点STALL)都会导致AR眼镜永久白屏, 需复位
+
+修复(V5F/User/main.c):
+  1. break改为continue: USB错误后不退出主循环, 继续尝试下一帧
+  2. 错误恢复: 调用reset_toggle_full()(clear_halt+g_endp_tog=0+Delay_Ms(5))
+     清除端点HALT状态, 重置data toggle, 恢复USB传输
+  3. Delay_Ms(10): 错误后短暂等待, 避免无限快速循环打日志
+  4. reset_toggle_full去掉__attribute__((unused)), 现已使用
+
+效果:
+  - 瞬时USB错误: 永久白屏(需复位) → 15ms恢复后继续显示
+  - 持续USB断开: 不会狂打日志(每次15ms节流)
+
+修改文件:
+  - EXAM/GPIO/EEG/V5F/User/main.c: 错误处理break→continue+reset_toggle_full
+
+================================================================================
+2026-08-07  V5F SSVEP 2秒toggle重置BUG修复: 消除周期性白闪(用户核心症状)
+================================================================================
+
+问题: SSVEP闪烁时每进行一会卡一下显示白色, 不管什么频率都出现
+  这是用户报告的核心症状, V3F侧优化(wav_player分块等)无法修复
+
+根因: V5F/User/main.c ssvep_mode_step()第192行 g_ssvep_toggle = 1
+  - SSVEP每半周期发送1帧, toggle自然交替: 帧1白→帧2黑→帧3白→...
+  - 帧N颜色: N奇数→白(toggle=1), N偶数→黑(toggle=0)
+  - 每2秒重置时强制 g_ssvep_toggle = 1, 破坏自然交替
+  - 整数截断 half_us = 500000 // freq 导致帧略快, 2秒标记处N不是4*freq而是4*freq+1
+  - 验证(Python计算): 所有频率2秒处N都是奇数:
+    freq=11Hz: half_us=45454, N=45(奇)
+    freq=13Hz: half_us=38461, N=53(奇)
+    freq=15Hz: half_us=33333, N=61(奇)
+    freq=17Hz: half_us=29411, N=69(奇)
+  - 奇数N→帧N是白色→toggle翻转为0→重置为1→下一帧也是白色
+  - 连续两个白帧→可见白闪, 每2秒一次, 与用户症状完全吻合
+
+修复: 删除 g_ssvep_toggle = 1 这一行
+  - toggle自然交替, 2秒重置只重置count和t_start(频率统计用)
+  - 不再有白闪, SSVEP闪烁连续稳定
+
+修改文件:
+  - EXAM/GPIO/EEG/V5F/User/main.c: 删除ssvep_mode_step中g_ssvep_toggle = 1
+
+================================================================================
+2026-08-07  方案B5: V5F reset_toggle拆分, 正常模式切换消除50ms白屏
+================================================================================
+
+问题: V5F switch_mode → reset_toggle → Delay_Ms(50) → 50ms不发送USB帧 → AR白屏
+  触发: CMD_STOP(播rest.wav+IPC_CMD_RESET), CMD_SSVEP_START(播focus.wav+IPC_CMD_SSVEP)
+  影响: 每次session开始/结束50ms白屏, 与语音播放直接关联
+
+分析:
+  - reset_toggle只在模式真正切换时调用(switch_mode有相同模式保护)
+  - SSVEP闪烁期间不触发(V5F保持MODE_SSVEP), 推理后续目标不触发(保持MODE_ARROW)
+  - 正常切换时端点无halt(无STALL), clear_halt是多余的, 只需重置data toggle
+  - USB 2.0规范: CLEAR_FEATURE(HALT)后端点立即恢复, 不需要额外延迟
+  - Delay_Ms(50)是保守workaround, 实际不需要
+
+更新内容:
+  1. reset_toggle拆分为两个函数(V5F/User/main.c):
+     - reset_toggle_light(): 只g_endp_tog=0, 用于正常模式切换, 0ms开销
+     - reset_toggle_full(): clear_halt+g_endp_tog=0+Delay_Ms(5), 用于USB错误恢复
+       (预留方案C使用, 当前__attribute__((unused)))
+  2. switch_mode中reset_toggle()改为reset_toggle_light()
+  3. Delay_Ms(50)→Delay_Ms(5)(在reset_toggle_full中, 错误恢复路径)
+
+效果:
+  - 正常模式切换: 50ms白屏 → 0ms白屏
+  - USB错误恢复: 50ms → 5ms (方案C实施后生效)
+
+修改文件:
+  - EXAM/GPIO/EEG/V5F/User/main.c: reset_toggle拆分+switch_mode调用改为light
+
+================================================================================
+2026-08-07  wav_player分块读取消除f_read阻塞+非阻塞EOF+mount一次+移出EEG循环
+================================================================================
+
+问题现象:
+- AR眼镜闪烁时周期性卡顿显示白色(不管什么频率)
+- 语音播放结束时卡一下(体感)
+
+根因分析:
+1. f_read每42.7ms阻塞2-5ms(SD卡SPI轮询), 虽在EEG处理if块外, 仍阻塞主循环
+   → IPC帧(每4ms发V5F)延迟 → V5F收不到EEG数据 → AR显示白色
+2. Delay_Ms(50)在EOF时阻塞主循环50ms
+3. wav_player_play每次f_mount+f_open+fill_half×2阻塞10-30ms
+
+更新内容:
+1. f_read分块读取状态机(wav_player.c):
+   - fill_half拆分为fill_half_start(设置)+fill_half_finish(处理)+fill_half_sync(同步)
+   - wav_player_poll用WAV_ST_IDLE/WAV_ST_READING状态机
+   - 每次poll只读WAV_READ_CHUNK=1024字节(~0.3ms), 然后返回主循环
+   - 4KB半缓冲分4次poll完成, 主循环在chunk之间处理EEG帧+发IPC
+   - 最大单次阻塞0.3ms vs 原2-5ms, IPC jitter从5ms降到0.3ms
+
+2. 消除Delay_Ms(50)(wav_player.c):
+   - 非阻塞drain counter(s_eof_drain_count=3), EOF后等2次DMA半传输再停止
+   - 确保最后音频数据完整播放, 无阻塞
+
+3. f_mount只执行一次(wav_player.c):
+   - s_fs_mounted标志, 首次play时mount, 后续直接f_open
+   - 减少wav_player_play阻塞: 10-30ms → 5-10ms(省去f_mount的5-10ms)
+
+4. wav_player_poll移出EEG处理if块(Signal_Analysis.c):
+   - 从第292行(if块内)移到第407行(while循环末尾, ICM42605之后)
+   - f_read不再延迟当前帧的IPC发送/推理状态机
+
+5. 分时复用编译开关WAV_SD_TIME_SHARE(Config.h):
+   - 0=SD卡和WAV可同时使用(默认), 1=分时复用
+
+关键数据:
+- SD卡SPI1(25MHz): 1024字节≈0.3ms, 4096字节≈1.2ms(纯传输), 加SD协议开销~2-5ms
+- ADS1299 SPI3独立, MAX98357A I2S2独立, SD卡SPI1与OLED共享(不影响AR)
+- IPC每帧发送(250Hz/4ms), f_read的42.7ms周期≈每10帧一次阻塞
+- DMA半缓冲42.7ms = 4次poll × 0.3ms + 主循环处理, 远在窗口内
+
+修改文件:
+- EXAM/GPIO/EEG/V3F/Hardware/wav_player.c: 分块状态机+非阻塞EOF+mount一次
+- EXAM/GPIO/EEG/V3F/Hardware/Signal_Analysis.c: wav_player_poll移出if块
+- EXAM/GPIO/EEG/V3F/Hardware/Config.h: WAV_SD_TIME_SHARE编译开关
+
+================================================================================
+2026-08-06  wav_player_poll优化: 移出EEG处理循环+消除50ms阻塞+分时复用编译开关
+================================================================================
+
+更新内容:
+1. wav_player_poll移出EEG处理if块(Signal_Analysis.c):
+   - 原: 第292行, 在if(ring_buffer_get_frame())块内, EEG帧处理末尾
+   - 新: 第407行, 在if块外, ICM42605任务之后, while循环末尾
+   - 效果: f_read的2ms阻塞不再延迟当前帧的IPC发送/推理状态机/AR眼镜
+     f_read在帧间空闲期执行, 250Hz帧周期4ms, 2ms阻塞在帧间间隙内吸收
+
+2. 消除wav_player_poll中50ms阻塞Delay_Ms(50)(wav_player.c):
+   - 原: EOF到达后Delay_Ms(50)阻塞等待DMA播放完最后buffer
+   - 新: 非阻塞drain counter状态机, s_eof_drain_count=3
+     每次DMA HT/TC标志处理后递减, count<=0时停止
+     确保最后半缓冲音频数据完整播放后停止, 无阻塞
+   - drain count=3原因: EOF设置时DMA正在播放另一半, 需等2次半传输
+     (另一半播完→刚填充的半buffer播完), 加1次当前处理=3
+
+3. 分时复用编译开关WAV_SD_TIME_SHARE(Config.h):
+   - WAV_SD_TIME_SHARE=0(默认): SD卡和WAV播放可同时使用
+   - WAV_SD_TIME_SHARE=1: 分时复用, wav_player_poll仅在SD卡空闲时运行
+   - 预留接口, 后续SD卡EEG数据记录与音频播放共享SPI1时启用
+
+关键发现:
+- 原wav_player_poll在EEG处理if块内: f_read 2ms阻塞延迟ICM42605_Task和下一帧检查
+  虽然IPC发送(第118行)和推理轮询(第291行)在wav_player_poll之前不受影响,
+  但50ms Delay_Ms(50)是更严重问题, 直接阻塞主循环50ms
+- 移到if块外后: 有新帧时先处理EEG(IPC/FFT/推理), 无新帧时wav_player_poll用空闲时间
+  f_read不再与EEG帧处理竞争, 仅延迟下一帧检查(4ms间隙内)
+- drain counter=3确保最后音频数据完整播放: 1(当前fill)+1(另一半播完)+1(刚fill的播完)
+
+修改文件:
+- EXAM/GPIO/EEG/V3F/Hardware/Signal_Analysis.c: 移wav_player_poll出if块
+- EXAM/GPIO/EEG/V3F/Hardware/wav_player.c: 非阻塞drain counter替代Delay_Ms(50)
+- EXAM/GPIO/EEG/V3F/Hardware/Config.h: 添加WAV_SD_TIME_SHARE编译开关
+
+================================================================================
+2026-08-06  语音提示集成脑电训练/推理/SSVEP全场景+RAM_CODE扩容+DMA优先级修复+验证通过
 ================================================================================
 
 更新内容:

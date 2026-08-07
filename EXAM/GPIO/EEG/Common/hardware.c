@@ -164,7 +164,7 @@ static void process_aa55_frame(const uint8_t *body, uint16_t body_len)
     }
 }
 
-static void aa55_feed(uint8_t b)
+static void __attribute__((unused)) aa55_feed(uint8_t b)
 {
     switch (s_aa55_state) {
     case 0:

@@ -109,6 +109,7 @@ void ADS1299_ParseRawFrame(const uint8_t *frame_buf, uint32_t *status, int32_t c
 float ADS1299_CodeToVolt (int32_t code, float vref, float gain) ;
 float ADS1299_CodeToMicroVolt (int32_t code, float vref, float gain);
 uint8_t ring_buffer_get_frame(uint8_t *dest);
+uint8_t ring_buffer_has_frame(void);
 
 void ADS1299_EnterImpedanceMode(void);
 void ADS1299_ExitImpedanceMode(void);

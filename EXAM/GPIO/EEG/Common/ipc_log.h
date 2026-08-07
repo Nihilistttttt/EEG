@@ -55,6 +55,13 @@ typedef struct {
     volatile int32_t  feature_q[IPC_FEATURE_DIM];
     volatile uint32_t feature_seq;
     volatile uint32_t sample_count;
+
+    volatile uint32_t ssvep_send_us;
+    volatile uint32_t ssvep_late_us;
+    volatile uint32_t ssvep_frame_cnt;
+    volatile uint8_t  ssvep_mode_active;
+    volatile uint32_t ssvep_rp_us;
+    volatile uint32_t ssvep_rp_count;
 } IPC_Log_Shared_t;
 
 #define IPC_LOG_SHARED  ((volatile IPC_Log_Shared_t *)IPC_LOG_SHARED_ADDR)

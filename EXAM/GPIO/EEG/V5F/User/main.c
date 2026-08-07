@@ -15,6 +15,7 @@
 #include <string.h>
 #ifdef GLXSS_ENABLED
 #include "dualcore_ipc.h"
+#include "dualcore_v5f_ssvep.h"
 #endif
 #endif
 
@@ -84,11 +85,16 @@ static uint8_t find_bulk_out_ep(void)
     return 0;
 }
 
-static void reset_toggle(void)
+static void reset_toggle_light(void)
+{
+    g_endp_tog = 0;
+}
+
+static void reset_toggle_full(void)
 {
     glxss_usb_clear_halt(GLXSS_EP_DATA_OUT);
     g_endp_tog = 0;
-    Delay_Ms(50);
+    Delay_Ms(5);
 }
 
 /* ==================== SSVEP ==================== */
@@ -171,12 +177,32 @@ static glxss_err_t ssvep_mode_step(void)
 {
     uint8_t freq = g_ssvep_freqs[g_ssvep_fi];
     uint32_t half_us = 500000 / freq;
+    uint32_t t_send0 = tick_get_us();
     glxss_err_t err = send_ssvep_frame(g_ssvep_toggle);
     if (err != GLXSS_OK) return err;
+    uint32_t send_us = tick_get_us() - t_send0;
     g_ssvep_toggle = !g_ssvep_toggle;
     g_ssvep_count++;
     uint32_t target = g_ssvep_t_start + (uint32_t)g_ssvep_count * half_us;
-    while (tick_get_us() < target);
+    uint32_t now = tick_get_us();
+    uint32_t late_us = (now >= target) ? (now - target) : 0u;
+    {
+        volatile IPC_Log_Shared_t *shared = IPC_LOG_SHARED;
+        shared->ssvep_send_us = send_us;
+        shared->ssvep_late_us = late_us;
+        shared->ssvep_frame_cnt = g_ssvep_count;
+        shared->ssvep_mode_active = 1u;
+    }
+    while (1) {
+        uint32_t rp_t0 = tick_get_us();
+        DualCore_V5F_SSVEP_RunPending();
+        uint32_t rp_us = tick_get_us() - rp_t0;
+        if (rp_us > 0) {
+            IPC_LOG_SHARED->ssvep_rp_us = rp_us;
+            IPC_LOG_SHARED->ssvep_rp_count++;
+        }
+        if (tick_get_us() >= target) break;
+    }
     if (tick_get_us() - g_ssvep_t_start >= 2000000) {
         uint32_t elapsed_us = tick_get_us() - g_ssvep_t_start;
         uint32_t meas_hz_x10 = (uint32_t)g_ssvep_count * 5000 / (elapsed_us / 1000);
@@ -184,7 +210,7 @@ static glxss_err_t ssvep_mode_step(void)
             (unsigned long)g_ssvep_count, (unsigned long)(elapsed_us / 1000),
             (unsigned long)(meas_hz_x10 / 10), (unsigned long)(meas_hz_x10 % 10),
             freq);
-        g_ssvep_toggle = 1;
+
         g_ssvep_count = 0;
         g_ssvep_t_start = tick_get_us();
     }
@@ -593,7 +619,7 @@ static glxss_err_t train_mode_step(void)
 
 /* ==================== MI SIM ==================== */
 
-static void mi_sim_step(void)
+static void __attribute__((unused)) mi_sim_step(void)
 {
     if (!g_mi_infer_active) return;
     uint32_t now = tick_get_us();
@@ -618,7 +644,7 @@ static void mi_sim_step(void)
 static uint32_t g_ssvep_sim_timer = 0;
 static int8_t g_ssvep_sim_idx = -1;
 
-static void ssvep_sim_step(void)
+static void __attribute__((unused)) ssvep_sim_step(void)
 {
     uint32_t ctrl = IPC_Ctrl_GetFlags_V5F();
     if (!(ctrl & IPC_CTRL_SSVEP_ENABLE)) return;
@@ -648,7 +674,7 @@ static uint32_t lcg_next(void)
     return g_collect_seed;
 }
 
-static void collect_sim_step(void)
+static void __attribute__((unused)) collect_sim_step(void)
 {
     if (g_mode != MODE_ARROW_TRAIN || g_collect_mode == 0) return;
     uint32_t now = tick_get_us();
@@ -685,9 +711,10 @@ static void switch_mode(uint8_t new_mode)
 {
     if (new_mode == g_mode) return;
     IPC_Log_Printf_V5F("[V5F] switch %d->%d, reset toggle\r\n", g_mode, new_mode);
-    reset_toggle();
+    reset_toggle_light();
     g_mode = new_mode;
     g_last_disp_us = 0;
+    IPC_LOG_SHARED->ssvep_mode_active = (new_mode == MODE_SSVEP) ? 1u : 0u;
     switch (g_mode) {
     case MODE_SSVEP:       ssvep_mode_init(); break;
     case MODE_ARROW:       arrow_mode_init(); break;
@@ -875,7 +902,6 @@ int main(void)
 
     for (;;) {
         DualCore_V5F_MainLoopProcess();
-        DualCore_V5F_SSVEP_RunPending();
         handle_ipc_cmd();
 
         err = GLXSS_OK;
@@ -884,7 +910,7 @@ int main(void)
         } else {
             uint32_t now = tick_get_us();
             if (g_mode == MODE_ARROW) {
-                /* 箭头模式: 每次循环都检查相位转换(RESULT/GAP 400ms需及时切换),
+                /* 等头模式: 每次循环都检查相位转换(RESULT/GAP 400ms需及时切换),
                    脏标志保证无变化时不发送1MB帧 */
                 err = arrow_mode_step();
             } else if (now - g_last_disp_us >= 1000000) {
@@ -895,13 +921,19 @@ int main(void)
                 default: break;
                 }
             }
+            DualCore_V5F_SSVEP_RunPending();
         }
+
         if (err != GLXSS_OK) {
             IPC_Log_SetStatus_V5F(IPC_LOG_STATUS_ERROR);
-            IPC_Log_Printf_V5F("[V5F] FAIL err=%d\r\n", err);
-            break;
+            IPC_Log_Printf_V5F("[V5F] FAIL err=%d, USB recovery\r\n", err);
+            reset_toggle_full();
+            Delay_Ms(10);
+            continue;
         }
+
     }
+
     while (1) {}
 
 #else

@@ -1058,6 +1058,15 @@ class MainWindow(QMainWindow):
         self.stop_btn.setEnabled(False)
         btn_row.addWidget(self.stop_btn)
 
+        self.ssvep_freq_combo = QComboBox()
+        self.ssvep_freq_combo.setObjectName("ssvepFreqCombo")
+        self.ssvep_freq_combo.setFixedWidth(90)
+        for f in TARGET_FREQS:
+            self.ssvep_freq_combo.addItem(f"{f:.0f} Hz", f)
+        self.ssvep_freq_combo.setCurrentIndex(0)
+        self.ssvep_freq_combo.currentIndexChanged.connect(self.on_ssvep_freq_changed)
+        btn_row.addWidget(self.ssvep_freq_combo)
+
         self.ssvep_btn = QPushButton("SSVEP 刺激(闪烁)")
         self.ssvep_btn.setObjectName("ssvepBtn")
         self.ssvep_btn.setCheckable(True)
@@ -1418,10 +1427,19 @@ class MainWindow(QMainWindow):
             bad_rate = (bad / total * 100.0) if total > 0 else 0.0
             active_names = {0: "IDLE", 1: "COLLECT", 2: "INFER", 3: "CSP"}
             an = active_names.get(v5f_active, str(v5f_active))
+            extra = ""
+            if len(payload) >= 51:
+                send_us, late_us, frame_cnt = struct.unpack_from('<3I', payload, 38)
+                ssvep_active = payload[50]
+                if ssvep_active:
+                    extra = f" ssvep_send={send_us}us late={late_us}us frm={frame_cnt}"
+                    if len(payload) >= 59:
+                        rp_us, rp_count = struct.unpack_from('<2I', payload, 51)
+                        extra += f" rp={rp_us}us rpcnt={rp_count}"
             self.append_log(
                 f"[↑] DIAG IPCDIAG: ack={ack} notify={notify} parse_ok={ok} parse_bad={bad} "
                 f"bad率={bad_rate:.3f}% v5f_handler={v5fhb} wfi_wake={wfi_wake} "
-                f"v5f_active={an} ENA={ena} STS={sts} ISR={isr}", "gray"
+                f"v5f_active={an} ENA={ena} STS={sts} ISR={isr}{extra}", "gray"
             )
         else:
             self.append_log(f"[↑] DIAG {name} len={len(payload)}", "gray")
@@ -1584,13 +1602,29 @@ class MainWindow(QMainWindow):
             self.ssvep_info_label.setText("FBCCA(Python): 等待数据...")
             self.send_command(CMD_SSVEP_STOP)
         else:
-            self.append_log("[↓] FBCCA→MCU端，发送 SSVEP_START", "cyan")
+            freq_idx = self.ssvep_freq_combo.currentIndex()
+            self.append_log(f"[↓] FBCCA→MCU端，发送 SSVEP_START idx={freq_idx}", "cyan")
             self.ssvep_info_label.setText("FBCCA(MCU): 等待数据...")
-            self.send_command(CMD_SSVEP_START)
+            self.send_command(CMD_SSVEP_START, bytes([freq_idx]))
+
+    def on_ssvep_freq_changed(self, idx):
+        freq = self.ssvep_freq_combo.currentData()
+        if hasattr(self, 'stim_widget') and self.stim_widget is not None:
+            self.stim_widget.set_freq(float(freq))
+            self.stim_widget.freq_index = idx
+        self.append_log(f"[↓] SSVEP 频率切换 → {freq:.0f}Hz idx={idx}", "magenta")
+        if self.connection:
+            self.send_command(CMD_SSVEP_START, bytes([idx]))
 
     def toggle_ssvep_stim(self):
         if self.ssvep_btn.isChecked():
+            freq = self.ssvep_freq_combo.currentData()
+            self.stim_widget.set_freq(float(freq))
+            freq_idx = self.ssvep_freq_combo.currentIndex()
+            self.stim_widget.freq_index = freq_idx
             self.stim_widget.start_stim()
+            self.send_command(CMD_SSVEP_START, bytes([freq_idx]))
+            self.append_log(f"[↓] SSVEP 刺激启动 频率={freq:.0f}Hz idx={freq_idx}", "magenta")
             self.ssvep_btn.setText("停止 SSVEP 刺激")
             self.stop_btn.setEnabled(True)
             self.mode_label.setText("SSVEP刺激中")
@@ -1598,6 +1632,7 @@ class MainWindow(QMainWindow):
             self.update_central_status("SSVEP刺激中", "#9c88ff")
         else:
             self.stim_widget.stop_stim()
+            self.send_command(CMD_SSVEP_STOP)
             self.ssvep_btn.setText("SSVEP 刺激(闪烁)")
             if not self.is_training and not self.is_testing:
                 self.stop_btn.setEnabled(False)
@@ -1686,6 +1721,10 @@ class MainWindow(QMainWindow):
             "STOP": (CMD_STOP, b""),
             "STATUS": (CMD_STATUS, b""),
             "SSVEP,START": (CMD_SSVEP_START, b""),
+            "SSVEP,START,0": (CMD_SSVEP_START, bytes([0])),
+            "SSVEP,START,1": (CMD_SSVEP_START, bytes([1])),
+            "SSVEP,START,2": (CMD_SSVEP_START, bytes([2])),
+            "SSVEP,START,3": (CMD_SSVEP_START, bytes([3])),
             "SSVEP,STOP": (CMD_SSVEP_STOP, b""),
         }
         match = text_map.get(cmd.upper())

@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
+
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -1639,6 +1640,7 @@ public class TcpServerManager {
                         dispatcher.postIpcDiag(diag);
                     }
                     break;
+
                 default:
                     Log.i("FrameRx", "DIAG type=" + diagType + " len=" + payloadLen);
                     break;

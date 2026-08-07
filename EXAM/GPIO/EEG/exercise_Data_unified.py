@@ -1430,10 +1430,19 @@ class MainWindow(QMainWindow):
             bad_rate = (bad / total * 100.0) if total > 0 else 0.0
             active_names = {0: "IDLE", 1: "COLLECT", 2: "INFER", 3: "CSP"}
             an = active_names.get(v5f_active, str(v5f_active))
+            extra = ""
+            if len(payload) >= 51:
+                send_us, late_us, frame_cnt = struct.unpack_from('<3I', payload, 38)
+                ssvep_active = payload[50]
+                if ssvep_active:
+                    extra = f" ssvep_send={send_us}us late={late_us}us frm={frame_cnt}"
+                    if len(payload) >= 59:
+                        rp_us, rp_count = struct.unpack_from('<2I', payload, 51)
+                        extra += f" rp={rp_us}us rpcnt={rp_count}"
             self.append_log(
                 f"[↑] DIAG IPCDIAG: ack={ack} notify={notify} parse_ok={ok} parse_bad={bad} "
                 f"bad率={bad_rate:.3f}% v5f_handler={v5fhb} wfi_wake={wfi_wake} "
-                f"v5f_active={an} ENA={ena} STS={sts} ISR={isr}", "gray"
+                f"v5f_active={an} ENA={ena} STS={sts} ISR={isr}{extra}", "gray"
             )
         else:
             self.append_log(f"[↑] DIAG {name} len={len(payload)}", "gray")

@@ -13,9 +13,25 @@ static volatile int s_playing = 0;
 static volatile int s_dma_ht_flag = 0;
 static volatile int s_dma_tc_flag = 0;
 static volatile int s_eof = 0;
+static int s_eof_drain_count = 0;
 static uint32_t s_bytes_remaining;
 static uint32_t s_bytes_per_sample;
 static uint8_t  s_volume_pct = 5;
+static FATFS    s_fs;
+static int      s_fs_mounted = 0;
+
+#define WAV_READ_CHUNK  1024
+
+typedef enum {
+    WAV_ST_IDLE,
+    WAV_ST_READING,
+} wav_state_t;
+
+static wav_state_t s_state = WAV_ST_IDLE;
+static int        s_fill_half = 0;
+static uint32_t  s_read_total = 0;
+static UINT      s_read_done = 0;
+static UINT      s_read_actual = 0;
 
 static void dma_callback(int half) {
     if (half == 0) s_dma_ht_flag = 1;
@@ -56,22 +72,32 @@ static int parse_wav_header(wav_header_t *hdr) {
     return -7;
 }
 
-static void fill_half(int half) {
+static int fill_half_start(int half, uint32_t *out_read_total) {
     int16_t *dst = s_dma_buf + (half ? WAV_PLAYER_HALF_SAMPLES : 0);
 
     if (s_eof) {
         memset(dst, 0, WAV_PLAYER_HALF_SAMPLES * 2);
-        return;
+        return 0;
     }
 
     uint32_t frames = WAV_PLAYER_HALF_SAMPLES / 2;
     uint32_t to_read = frames * s_bytes_per_sample;
     if (to_read > s_bytes_remaining) to_read = s_bytes_remaining;
 
-    UINT br = 0;
-    if (to_read > 0) {
-        if (f_read(&s_wav_file, s_raw_buf, to_read, &br) != FR_OK) br = 0;
+    if (to_read == 0) {
+        s_eof = 1;
+        s_eof_drain_count = 3;
+        memset(dst, 0, WAV_PLAYER_HALF_SAMPLES * 2);
+        return 0;
     }
+
+    *out_read_total = to_read;
+    return 1;
+}
+
+static void fill_half_finish(int half, UINT br) {
+    int16_t *dst = s_dma_buf + (half ? WAV_PLAYER_HALF_SAMPLES : 0);
+
     s_bytes_remaining -= br;
 
     uint32_t frames_read = br / s_bytes_per_sample;
@@ -95,16 +121,31 @@ static void fill_half(int half) {
             dst[i] = (int16_t)((dst[i] * s_volume_pct) / 100);
     }
 
-    if (s_bytes_remaining == 0) s_eof = 1;
+    if (s_bytes_remaining == 0) {
+        if (!s_eof) {
+            s_eof = 1;
+            s_eof_drain_count = 3;
+        }
+    }
+}
+
+static void fill_half_sync(int half) {
+    uint32_t to_read;
+    if (!fill_half_start(half, &to_read)) return;
+    UINT br = 0;
+    if (f_read(&s_wav_file, s_raw_buf, to_read, &br) != FR_OK) br = 0;
+    fill_half_finish(half, br);
 }
 
 int wav_player_play(const char *filename) {
-    static FATFS fs;
     if (s_playing) wav_player_stop();
 
-    if (f_mount(&fs, "", 1) != FR_OK) {
-        Serial_Printf(SERIAL_PORT_DEBUG, "[WAV] mount FAIL\r\n");
-        return -1;
+    if (!s_fs_mounted) {
+        if (f_mount(&s_fs, "", 1) != FR_OK) {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[WAV] mount FAIL\r\n");
+            return -1;
+        }
+        s_fs_mounted = 1;
     }
 
     if (f_open(&s_wav_file, filename, FA_READ) != FR_OK) {
@@ -139,11 +180,13 @@ int wav_player_play(const char *filename) {
     s_bytes_per_sample = s_wav_hdr.channels * 2;
     s_bytes_remaining = s_wav_hdr.data_size;
     s_eof = 0;
+    s_eof_drain_count = 0;
     s_dma_ht_flag = 0;
     s_dma_tc_flag = 0;
+    s_state = WAV_ST_IDLE;
 
-    fill_half(0);
-    fill_half(1);
+    fill_half_sync(0);
+    fill_half_sync(1);
 
     max98357a_init(MAX98357A_GAIN_15DB_I2S);
     if (max98357a_play_stream(s_dma_buf, WAV_PLAYER_BUF_SAMPLES, dma_callback) != 0) {
@@ -163,8 +206,10 @@ void wav_player_stop(void) {
     f_close(&s_wav_file);
     s_playing = 0;
     s_eof = 0;
+    s_eof_drain_count = 0;
     s_dma_ht_flag = 0;
     s_dma_tc_flag = 0;
+    s_state = WAV_ST_IDLE;
 }
 
 int wav_player_is_playing(void) {
@@ -178,16 +223,51 @@ void wav_player_set_volume(uint8_t vol_pct) {
 
 void wav_player_poll(void) {
     if (!s_playing) return;
+
+    if (s_state == WAV_ST_READING) {
+        uint32_t remaining = s_read_total - s_read_done;
+        if (remaining > 0) {
+            uint32_t chunk = remaining > WAV_READ_CHUNK ? WAV_READ_CHUNK : remaining;
+            UINT br = 0;
+            if (f_read(&s_wav_file, s_raw_buf + s_read_done, chunk, &br) != FR_OK) br = 0;
+            s_read_done += br;
+            s_read_actual += br;
+            if (br < chunk) {
+                memset(s_raw_buf + s_read_done, 0, s_read_total - s_read_done);
+                s_read_done = s_read_total;
+            }
+        }
+        if (s_read_done >= s_read_total) {
+            fill_half_finish(s_fill_half, s_read_actual);
+            if (s_eof) s_eof_drain_count--;
+            s_state = WAV_ST_IDLE;
+        }
+        return;
+    }
+
     if (s_dma_ht_flag) {
         s_dma_ht_flag = 0;
-        fill_half(0);
-    }
-    if (s_dma_tc_flag) {
+        if (fill_half_start(0, &s_read_total)) {
+            s_fill_half = 0;
+            s_read_done = 0;
+            s_read_actual = 0;
+            s_state = WAV_ST_READING;
+        } else {
+            if (s_eof) s_eof_drain_count--;
+        }
+    } else if (s_dma_tc_flag) {
         s_dma_tc_flag = 0;
-        fill_half(1);
+        if (fill_half_start(1, &s_read_total)) {
+            s_fill_half = 1;
+            s_read_done = 0;
+            s_read_actual = 0;
+            s_state = WAV_ST_READING;
+        } else {
+            if (s_eof) s_eof_drain_count--;
+        }
     }
-    if (s_eof && !s_dma_ht_flag && !s_dma_tc_flag) {
-        Delay_Ms(50);
+
+    if (s_eof && s_eof_drain_count <= 0 && !s_dma_ht_flag && !s_dma_tc_flag) {
         wav_player_stop();
         Serial_Printf(SERIAL_PORT_DEBUG, "[WAV] done\r\n");
     }

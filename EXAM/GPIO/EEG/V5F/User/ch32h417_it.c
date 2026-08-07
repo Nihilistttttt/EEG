@@ -27,7 +27,7 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   uint32_t mepc   = __get_MEPC();
-  uint32_t mcause = __get_MCAUSE();
+
   uint32_t mtval  = __get_MTVAL();
 
   IPC_WriteMSG(IPC_MSG2, V5F_FAULT_MAGIC);

@@ -8,26 +8,36 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="0b740863-50a5-4d8e-af23-d41e8bac614c" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/Common/dualcore_v5f_ssvep.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/Common/dualcore_v5f_ssvep.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/Common/hardware.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/Common/hardware.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/Common/ipc_log_v3f.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/Common/ipc_log_v3f.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/ADS1299.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/ADS1299.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/ADS1299.h" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/ADS1299.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/Config.h" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/Config.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/ICM42605.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/ICM42605.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/Signal_Analysis.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/Signal_Analysis.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/glxss_me.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/glxss_me.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/wav_player.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V3F/Hardware/wav_player.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V5F/Hardware/glxss_me.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V5F/Hardware/glxss_me.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V5F/User/ch32h417_it.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V5F/User/ch32h417_it.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V5F/User/main.c" beforeDir="false" afterPath="$PROJECT_DIR$/../EXAM/GPIO/EEG/V5F/User/main.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/DataDispatcher.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/DataDispatcher.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/DataListener.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/DataListener.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/EegProtocol.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/EegProtocol.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/HomeActivity.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/HomeActivity.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/ImpedanceFragment.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/ImpedanceFragment.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/MainActivity.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/MainActivity.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/MiTrainingFragment.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/MiTrainingFragment.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/SsvepTrainingFragment.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/SsvepTrainingFragment.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/TcpServerManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/java/com/nihilisttt/eegdoctor/TcpServerManager.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/res/layout/activity_home.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/res/layout/activity_home.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../doctor_merged/app/src/main/res/layout/activity_main.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../doctor_merged/app/src/main/res/layout/activity_main.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../更新记录.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../更新记录.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[3167155715001XH]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />

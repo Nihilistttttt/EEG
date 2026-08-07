@@ -1,0 +1,523 @@
+EEG AR眼镜卡顿优化清单
+========================
+
+问题现象:
+  1. SSVEP闪烁时周期性卡顿显示白色(不管什么频率)
+  2. 语音播放开始/结束时卡一下(体感, 不一定准确)
+
+优先级: 信号采集处理 > SSVEP/采集/推理 > AR眼镜显示 > 音频播放
+
+================================================================================
+系统性架构分析 (2026-08-07, 不改代码, 仅分析)
+================================================================================
+
+一、性能问题
+------------
+
+P1 [高] V5F USB显示PIO轮询占用大量CPU
+  位置: V5F/User/main.c send_ssvep_frame/send_arrow_frame/send_train_frame
+  现象: 每帧1MB(2000个512B包), 每包busy-wait 20000次循环, 全PIO轮询
+  估计: 每帧~22ms(USBHS 480Mbps, 512B≈11μs/包×2000包)
+  影响: SSVEP模式下每半周期发1帧(15Hz→33ms), 22ms发送+11ms忙等待
+         发送期间V5F无法处理IPC命令, 停止响应延迟最多22ms
+         忙等待期间CPU 100%占用, 无法处理IPC帧
+  根因: USBHS无DMA传输, 纯PIO轮询INT_FLAG
+  建议: (1) while忙等待中插入DualCore_V5F_MainLoopProcess()处理积压IPC帧
+         (2) 长期: USBHS DMA传输, 解放V5F CPU
+
+P2 [中] V3F IPC发送关中断时间过长
+  位置: Common/dualcore_ipc_v3f.c DualCore_IPC_SendFrameFromV3F (行246-306)
+  现象: NVIC_DisableIRQ(IPC_CH0)关中断期间执行:
+         - 清24维feature数组(24次赋值)
+         - 清4通道×4字段(16次赋值)
+         - 拷贝27字节帧
+         - checksum16计算
+         - ADS1299_ParseRawFrame预解析
+         - 两次DUALCORE_FENCE内存屏障
+  估计: 关中断~50-100μs, 每4ms一次, 占2.5%中断禁用时间
+  影响: ADS1299 DRDY中断(EXTI最高优先级)响应延迟最多100μs
+         DMA1_Ch1中断(ADS RX)响应延迟
+  建议: (1) 只清关键字段(v5f_parse_valid=0), 其余由V5F填充时覆盖
+         (2) 将checksum和预解析移到关中断外(用本地变量)
+         (3) 减少DUALCORE_FENCE次数(只需slot写完后1次)
+
+P3 [中] V5F批量补帧可能堆积
+  位置: Common/dualcore_ipc_v5f.c DualCore_V5F_MainLoopProcess (行226-256)
+  现象: V5F主循环被USB发送阻塞22ms, 期间V3F发~5帧IPC
+         发送完后批量补帧: 5帧×ProcessPreprocess(4通道滤波+可能FFT推理)
+  估计: 5帧×4通道×3IIR≈0.5ms, 若触发FFT推理(每125帧)≈5-10ms
+  影响: 补帧期间又延迟下一帧SSVEP显示, 导致显示抖动
+         若堆积超过128帧(512ms), 旧帧被覆盖丢弃
+  建议: (1) 补帧时跳过中间帧, 只处理最新帧(降低延迟但丢推理精度)
+         (2) 或限制补帧数量(最多3帧), 超过则跳到最新
+         (3) P1的while插入IPC处理可减少堆积
+
+P4 [中] V3F主循环单帧处理时间可能接近4ms帧周期
+  位置: V3F/Hardware/Signal_Analysis.c 主循环(行111-293)
+  现象: 每帧处理: 8通道去漂移 + 8通道陷波 + 8通道带通 + FFT分步
+         + IPC发送 + 波形推送 + CSP流 + 推理轮询
+  估计: 24次IIR≈30μs + IPC发送≈100μs + FFT某步≈100-500μs
+         总计~0.5-1ms, 通常在4ms内
+  风险: FFT_STEP_TRANSFORM步(RISC-V 256点FFT)可能>1ms
+         叠加IPC发送关中断100μs + 波形推送串口DMA
+  影响: 超过4ms导致ring_buffer丢帧(head追上tail)
+  建议: (1) FFT分步已优化, 可进一步拆分TRANSFORM步
+         (2) 监测单帧处理时间, 超阈值时跳过非关键处理(波形推送)
+
+P5 [低] SD卡PIO轮询无DMA
+  位置: V3F/Hardware/sd_card.c
+  现象: SD卡SPI1纯PIO轮询SPI_I2S_FLAG_TXE/RXNE, 无DMA
+  估计: 1024B读取≈0.3ms(纯传输) + SD协议开销≈2-5ms
+  影响: wav_player_poll分块f_read阻塞0.3ms/chunk
+         SD卡操作期间CPU 100%占用, 无法处理其他任务
+  建议: (1) SD卡DMA传输(复杂, 需处理SD协议状态机)
+         (2) 当前分块1024B已将单次阻塞降到0.3ms, 可接受
+
+P6 [中] V5F SSVEP FBCCA计算量大
+  位置: Common/dualcore_v5f_ssvep.c
+  现象: 5s窗口1250样本, 4子带×4目标×3偏移×2通道CCA
+         每2s步长触发一次分析
+  估计: CCA涉及矩阵运算, 单次分析~10-50ms(V5F 400MHz)
+  影响: 分析期间V5F主循环阻塞, 延迟IPC处理和USB显示
+  建议: (1) FBCCA分步计算(类似V3F FFT分步状态机)
+         (2) 降低子带数或偏移数(精度换速度)
+         (3) 利用V5F硬件FPU和DSP指令优化矩阵运算
+
+P7 [中] V5F USB发送期间无法响应IPC命令
+  位置: V5F/User/main.c send_ssvep_frame (行117-153)
+  现象: send_ssvep_frame是同步阻塞调用, 发送1MB帧期间(~22ms)
+         V5F无法处理handle_ipc_cmd
+  影响: 用户点停止(IPC_CMD_RESET)后, V5F要等当前帧发送完才处理
+         停止响应延迟最多22ms
+  建议: (1) USB发送分块, 每发若干包后检查IPC pending_flag
+         (2) 或P1方案: while插入IPC处理
+
+P8 [高] V5F SSVEP while忙等待浪费CPU
+  位置: V5F/User/main.c ssvep_mode_step (行184)
+  现象: while (tick_get_us() < target); 纯忙等待
+         15Hz半周期33ms, 发送22ms, 等待11ms
+  影响: 11ms忙等待期间CPU 100%占用, 无法处理IPC帧和命令
+         每秒浪费~330ms CPU(15Hz×22帧×11ms)
+  建议: (1) 将while改为有限循环, 每次迭代调用DualCore_V5F_MainLoopProcess()
+         (2) 或用__WFI()低功耗等待(但TIM4 10us中断会频繁唤醒)
+
+P9 [低] V3F ICM42605_Task每帧调用但100Hz采样
+  位置: V3F/Hardware/Signal_Analysis.c (行296)
+  现象: 主循环250fps每帧调用ICM42605_Task, 但IMU 100Hz(10ms)
+  影响: 2/3的调用无新数据, 浪费CPU时间(函数调用开销)
+  建议: (1) 用时间戳门控: if (now - last_imu_tick >= 10ms) ICM42605_Task()
+
+
+二、架构问题
+------------
+
+A1 [中] V5F两个main循环分支不统一
+  位置: V5F/User/main.c
+  现象: #elif defined(V5F_MODE_GLXSS) (行833-851): 无IPC处理, break→while(1){}死循环
+         #elif defined(GLXSS_ENABLED) (行881-911): 有IPC处理, break→continue恢复
+  影响: V5F_MODE_GLXSS分支的USB错误仍是永久死循环
+         两个分支逻辑不一致, 维护困难
+  建议: (1) 统一两个分支的错误恢复逻辑
+         (2) 或废弃V5F_MODE_GLXSS分支(若已用GLXSS_ENABLED)
+
+A2 [低] IPC slot清零效率低
+  位置: Common/dualcore_ipc_v3f.c (行254-276)
+  现象: 每次发送清零24维feature + 4通道×4字段 = 40次赋值
+  影响: 增加关中断时间(见P2)
+  建议: (1) 只清v5f_parse_valid=0, 其余由V5F填充时覆盖
+         (2) 或用memset批量清零
+
+A3 [中] V5F SSVEP显示与IPC处理竞争
+  位置: V5F/User/main.c 主循环(行881-911)
+  现象: SSVEP模式下ssvep_mode_step每半周期发1MB帧(22ms)
+         发送期间IPC帧堆积, 发送完后批量补帧
+         补帧期间又延迟下一帧SSVEP显示
+  影响: SSVEP显示抖动, IPC处理延迟
+  建议: (1) P1+P8方案: USB发送和while等待中插入IPC处理
+         (2) 或将IPC处理移到TIM4中断(10us粒度)
+
+A4 [低] IPC帧槽128个可能过多
+  位置: Common/dualcore_ipc_shared.h DUALCORE_IPC_FRAME_SLOT_NUM=128
+  现象: 250fps×128槽=512ms缓冲, 每槽~200字节, 共~25KB
+  影响: 占用共享SRAM 25KB
+  建议: (1) 减少到32槽(128ms缓冲足够, V5F最多阻塞100ms)
+         (2) 节省~19KB共享SRAM
+
+A5 [中] V3F命令处理wav_player_play阻塞10-30ms
+  位置: V3F/EEG_Protocol/eeg_cmd_parser.c CMD_SSVEP_START等
+  现象: wav_player_play同步调用: f_mount(首次5-10ms) + f_open(5-10ms)
+         + fill_half_sync×2(2-5ms each) = 10-30ms
+  影响: 期间主循环不处理EEG帧, 丢失2-7帧IPC发送
+         ring_buffer有64帧缓冲不会丢ADS帧, 但IPC发送延迟
+  建议: (1) wav_player_play异步化: 只设s_pending_play标志+文件名
+             主循环分步执行f_open和fill_half
+         (2) 风险: f_open难以分步, 需FatFS异步IO支持
+
+A6 [低] V5F TIM4 10us中断频繁
+  位置: V5F/User/main.c tick_init
+  现象: TIM4 10us中断, 每秒100000次
+  影响: 中断开销~1-2% CPU(假设每次中断50周期@400MHz)
+  建议: (1) 改为100us中断(1ms精度), SSVEP帧率控制足够
+         (2) 或用RISC-V mtime硬件计数器替代TIM4中断
+
+A7 [低] V3F/V5F中断优先级编码可能不一致
+  位置: V3F IPC: (1<<7)|(1<<4)=0x90, V5F IPC: (2<<5)|(0<<4)=0x40
+  现象: WCH NVIC: bit[7]=使能, bit[6:4]=优先级
+         V3F: 使能+优先级1; V5F: 0x40的bit[7]=0?
+  风险: V5F IPC中断优先级编码可能有误(需确认WCH NVIC文档)
+  建议: (1) 确认WCH RISC-V NVIC优先级编码格式
+         (2) 统一V3F/V5F中断优先级设置方式
+
+A8 [中] V5F错误恢复后SSVEP时序偏移
+  位置: V5F/User/main.c ssvep_mode_step + break→continue
+  现象: USB错误后reset_toggle_full(5ms)+Delay_Ms(10)=15ms恢复
+         恢复后重新发送相同toggle帧(正确)
+         但15ms恢复时间导致SSVEP半周期偏移
+  影响: SSVEP频率精度下降(15ms/33ms=45%偏移)
+         连续错误时频率严重偏离目标
+  建议: (1) 错误恢复后调整g_ssvep_t_start补偿恢复时间
+         (2) 或忽略单次偏移, 2秒统计周期会自然平均
+
+A9 [低] V3F Send_WaveformBatch每帧发送占用串口带宽
+  位置: V3F/Hardware/Signal_Analysis.c
+  现象: 250fps×8通道×4字节=8KB/s波形数据, 通过2Mbps串口
+  影响: 占用~4%串口带宽, 可能与命令响应竞争
+  建议: (1) 降低波形发送频率(如50fps, 上位机插值显示)
+         (2) 或可配置波形发送频率
+
+
+三、已确认无问题的设计
+----------------------
+
+N1: DMA通道分配无冲突
+  DMA1: ADS1299(Ch1/2 VeryHigh/High) + I2S(Ch3 High) + USART(Ch4-7)
+  DMA2: ICM42605(Ch1/2)
+  优先级分层: ADS VeryHigh > I2S/USART High, 保证采集不丢帧
+
+N2: ADS1299 DMA中断上下文安全
+  DMA1_Channel1_IRQHandler仅memcpy 27字节+指针更新, 无锁无动态分配
+
+N3: V5F IPC中断延迟处理设计正确
+  IPC_CH0_Handler仅设pending_flag+存地址, 处理延迟到主循环
+  避免中断中重入DSP, 设计合理
+
+N4: V3F FFT分步状态机避免阻塞
+  Process_FFT_Step将FFT拆分为多步, 每步在主循环执行一次
+  避免单次FFT阻塞主循环, 设计合理
+
+N5: IPC内存序保证正确
+  DUALCORE_FENCE()=RISC-V fence iorw,iorw
+  V3F写后fence, V5F读前fence, 保证一致性
+
+N6: V5F批量补帧设计正确
+  从last_seq+1到latest_seq遍历所有未处理slot
+  超过128帧则跳到最旧有效帧, 避免无限追帧
+
+N7: ring_buffer 64帧缓冲足够
+  64帧×4ms=256ms, 最大阻塞30ms(wav_player_play)消耗8帧, 余量充足
+
+
+四、优化优先级排序
+------------------
+
+第一优先级(高收益低风险):
+  P8: V5F SSVEP while忙等待中插入IPC处理 — 消除11ms/帧CPU浪费
+  P1: V5F USB发送分块中插入IPC处理 — 减少停止响应延迟
+
+第二优先级(中收益中风险):
+  P2: V3F IPC发送减少关中断时间 — 降低DRDY中断延迟
+  P3: V5F批量补帧限制数量 — 避免补帧堆积抖动
+  A3: V5F SSVEP显示与IPC处理竞争(依赖P1+P8)
+
+第三优先级(中收益高风险):
+  P6: V5F SSVEP FBCCA分步计算 — 需重构算法
+  A5: V3F wav_player_play异步化 — 需FatFS异步IO
+
+第四优先级(低收益):
+  P4: V3F FFT分步进一步拆分
+  P5: SD卡DMA传输
+  P9: ICM42605_Task时间戳门控
+  A1: V5F两个main分支统一
+  A4: IPC帧槽减少到32
+  A6: TIM4改为100us
+  A8: V5F错误恢复时序补偿
+  A9: 波形发送频率降低
+
+================================================================================
+(以下为之前的优化清单内容)
+================================================================================
+
+================================================================================
+方案B (V5F): reset_toggle去掉Delay_Ms(50) — 详细分析
+================================================================================
+状态: 已实施(B5方案)
+文件: V5F/User/main.c:87-97
+
+────────────────────────────────────────────────────────────────────────────────
+B-1. 代码现状
+────────────────────────────────────────────────────────────────────────────────
+
+reset_toggle (main.c:87-92):
+  glxss_usb_clear_halt(GLXSS_EP_DATA_OUT);  // USB控制传输: CLEAR_FEATURE(HALT)
+  g_endp_tog = 0;                            // 重置data toggle
+  Delay_Ms(50);                              // 50ms阻塞等待
+
+switch_mode (main.c:684-695):
+  if (new_mode == g_mode) return;  // 相同模式不切换, 不调reset_toggle
+  reset_toggle();                   // 只有真正切换模式才调用
+  g_mode = new_mode;
+  ...
+
+glxss_usb_clear_halt (glxss_me_ch32h417.c:233-257):
+  USBHSH_ClearEndpStall(s_ep0_size, ep);  // 同步USB控制传输, 等待完成
+  // 重置端点data toggle
+  // 返回
+
+────────────────────────────────────────────────────────────────────────────────
+B-2. 调用路径完整追踪
+────────────────────────────────────────────────────────────────────────────────
+
+reset_toggle只在switch_mode中调用, switch_mode只在handle_ipc_cmd中调用:
+
+handle_ipc_cmd中的switch_mode调用 (main.c:698-788):
+  IPC_CMD_SSVEP       → switch_mode(MODE_SSVEP)       [无条件, 但有相同模式保护]
+  IPC_CMD_ARROW       → if(g_mode!=MODE_ARROW) switch_mode(MODE_ARROW)
+  IPC_CMD_ARROW_TRAIN → if(g_mode!=MODE_ARROW_TRAIN) switch_mode(MODE_ARROW_TRAIN)
+  IPC_CMD_MI_INFER    → switch_mode(MODE_ARROW)       [无条件]
+  IPC_CMD_MI_RESULT   → if(g_mode!=MODE_ARROW) switch_mode(MODE_ARROW)
+  IPC_CMD_COLLECT     → switch_mode(MODE_ARROW_TRAIN) [无条件]
+  IPC_CMD_SSVEP_CTRL  → switch_mode(MODE_SSVEP)       [无条件]
+  IPC_CMD_RESET       → switch_mode(MODE_IDLE)        [无条件]
+
+V3F发送IPC命令 + 播放语音的代码路径 (eeg_cmd_parser.c):
+  CMD_STOP(停止):
+    line 268: IPC_Cmd_Send_V3F(IPC_CMD_RESET, 0)     → V5F: →IDLE → reset_toggle
+    line 269: wav_player_play("rest.wav")             → V3F: 播放rest.wav
+    ★ 语音+模式切换同时发生, V5F白屏50ms
+
+  CMD_SSVEP_START:
+    line 341: IPC_Cmd_Send_V3F(IPC_CMD_SSVEP, idx)   → V5F: →SSVEP → reset_toggle
+    line 342: wav_player_play("focus.wav")            → V3F: 播放focus.wav
+    ★ 语音+模式切换同时发生, V5F白屏50ms
+
+  CMD_TRIAL(训练新轮次):
+    line 245: IPC_Cmd_Send_V3F(IPC_CMD_ARROW_TRAIN, side) → V5F: 已在ARROW_TRAIN, 不切换
+    line 246: wav_player_play("left.wav"/"right.wav")      → V3F: 播放
+    ★ 无模式切换, 无reset_toggle
+
+  MI推理新目标 (eeg_infer_glxss.c:189-190):
+    IPC_Cmd_Send_V3F(IPC_CMD_ARROW, dir)  → V5F: 已在ARROW, 不切换
+    wav_player_play("left.wav"/"right.wav") → V3F: 播放
+    ★ 无模式切换, 无reset_toggle
+
+────────────────────────────────────────────────────────────────────────────────
+B-3. 触发场景与频率分析
+────────────────────────────────────────────────────────────────────────────────
+
+场景1: SSVEP会话
+  开始: V3F发IPC_CMD_SSVEP + 播focus.wav → V5F: IDLE→SSVEP → reset_toggle → 50ms白屏
+  闪烁中: V5F保持MODE_SSVEP, 无模式切换, 无reset_toggle
+  ★ SSVEP闪烁期间的周期性卡顿不是reset_toggle导致
+
+场景2: MI推理会话
+  开始: V3F发IPC_CMD_MI_INFER → V5F: IDLE→ARROW → reset_toggle → 50ms白屏
+  后续目标: V3F发IPC_CMD_ARROW + 播left/right.wav → V5F: 已在ARROW, 不切换
+  ★ 推理中后续目标不触发reset_toggle, 只有第一个目标触发
+
+场景3: 停止/暂停
+  V3F发IPC_CMD_RESET + 播rest.wav → V5F: →IDLE → reset_toggle → 50ms白屏
+  ★ "播放完语音时卡一下"的直接原因: rest.wav播放 + IPC_CMD_RESET → V5F白屏50ms
+
+reset_toggle触发频率: 每个session边界1次(开始+结束), 非持续性
+
+────────────────────────────────────────────────────────────────────────────────
+B-4. Delay_Ms(50)存在原因分析
+────────────────────────────────────────────────────────────────────────────────
+
+glxss_usb_clear_halt做什么:
+  1. USBHSH_ClearEndpStall → 发送USB控制传输(CLEAR_FEATURE/HALT), 同步等待完成
+  2. 重置端点data toggle (HostCtl结构)
+  3. 返回
+
+USB 2.0规范:
+  - CLEAR_FEATURE(HALT)后, 端点data toggle重置为DATA0
+  - 端点在控制传输status stage ACK后立即恢复, 不需要额外延迟
+  - USBHSH_ClearEndpStall已同步等待控制传输完成
+
+50ms可能来源:
+  a. 对特定USB设备的保守workaround(某些设备恢复慢)
+  b. CH32H417 USBHS控制器内部状态更新需要时间
+  c. 防止clear_halt后立即bulk传输时设备未就绪
+
+关键认识:
+  - 正常模式切换时, 端点没有halt(无STALL错误), clear_halt本身是多余的
+  - 只需要重置data toggle (g_endp_tog = 0)
+  - clear_halt + 50ms只有在端点真正STALL后才需要
+
+────────────────────────────────────────────────────────────────────────────────
+B-5. 真实严重性评估
+────────────────────────────────────────────────────────────────────────────────
+
+严重性: 中等
+
+理由:
+  + 50ms白屏在session边界明显可感知(用户反馈"播放完语音卡一下")
+  + 与语音播放直接关联(同一代码路径, IPC命令+wav_player_play同时发生)
+  + CMD_STOP/CMD_SSVEP_START每次都触发, 使用频率高
+
+  - 只在session边界触发, 非持续性(不像SSVEP期间周期性卡顿)
+  - SSVEP闪烁期间不触发(V5F保持MODE_SSVEP)
+  - 推理中后续目标不触发(V5F保持MODE_ARROW)
+  - 不能解释"每进行一会闪烁后卡一下"的主要症状
+
+结论: 是"语音结束卡顿"的直接原因之一, 但不是"闪烁期间周期性卡顿"的原因
+
+────────────────────────────────────────────────────────────────────────────────
+B-6. 优化必要性评估
+────────────────────────────────────────────────────────────────────────────────
+
+必要性: 中等偏高
+
+  + 50ms在session边界明显可感知, 影响用户体验
+  + 优化简单(改1-2行代码), 成本极低
+  + 与语音播放直接关联, 用户已反馈
+
+  - 不是最频繁的问题(SSVEP期间周期性卡顿更频繁, 由问题C导致)
+  - 优先级应低于方案C(USB超时修复)
+  - session边界白屏可能被用户部分接受("切换时短暂白屏")
+
+────────────────────────────────────────────────────────────────────────────────
+B-7. 优化方案优劣对比
+────────────────────────────────────────────────────────────────────────────────
+
+B1: 直接删除Delay_Ms(50)
+  优势: 最简单, 立即消除50ms
+  劣势: USB设备clear_halt后可能需要恢复时间, 删除有风险
+  风险: 中(依赖设备是否需要恢复时间)
+  评分: 6/10
+
+B2: 缩短到Delay_Ms(5)
+  优势: 简单, 45ms改善, 保留安全余量
+  劣势: 某些设备可能需要>5ms(但USB 2.0规范不需要延迟)
+  风险: 低(5ms @ 400MHz = 200万周期, 足够)
+  评分: 8/10
+
+B3: 非阻塞等待(用tick_get_us状态机)
+  优势: 不阻塞主循环, 期间可处理IPC/推理
+  劣势: switch_mode需改为异步, 复杂度高, 模式切换中间态处理复杂
+  风险: 低, 但工程复杂度不值得(50ms→0ms的收益不 warrant这个复杂度)
+  评分: 7/10
+
+B4: 正常切换只重置toggle, 不调clear_halt
+  优势: 最快(0ms), 无USB控制传输开销
+  劣势: 如果端点确实halt(上次USB错误), 不clear会导致后续传输全失败
+  风险: 中高(需确保上次无错误)
+  评分: 5/10
+
+B5: 正常切换只重置toggle, 错误恢复才clear_halt+短delay [推荐]
+  优势:
+    - 正常模式切换: g_endp_tog=0 only → 0ms, 无USB开销
+    - USB错误恢复: clear_halt + g_endp_tog=0 + Delay_Ms(5) → 5ms
+    - 区分正常/错误路径, 最安全且最高效
+  劣势: 需区分正常切换和错误恢复两个路径
+  风险: 低(正常切换不碰USB控制传输, 错误恢复有5ms余量)
+  评分: 9/10
+
+────────────────────────────────────────────────────────────────────────────────
+B-8. 推荐方案B5的具体实现思路
+────────────────────────────────────────────────────────────────────────────────
+
+将reset_toggle拆分为两个函数:
+
+  // 正常模式切换: 只重置data toggle, 不碰USB控制传输
+  static void reset_toggle_light(void) {
+      g_endp_tog = 0;
+  }
+
+  // USB错误恢复: clear_halt + 重置toggle + 短延迟
+  static void reset_toggle_full(void) {
+      glxss_usb_clear_halt(GLXSS_EP_DATA_OUT);
+      g_endp_tog = 0;
+      Delay_Ms(5);  // 50ms→5ms, USB设备恢复余量
+  }
+
+调用点:
+  switch_mode中: reset_toggle() → 改为 reset_toggle_light()
+  USB传输错误恢复中(方案C): 调 reset_toggle_full()
+
+预期效果:
+  - SSVEP/推理/训练开始: 50ms白屏 → 0ms白屏
+  - 停止/暂停: 50ms白屏 → 0ms白屏
+  - USB错误恢复: 50ms → 5ms
+
+────────────────────────────────────────────────────────────────────────────────
+B-9. 风险与验证计划
+────────────────────────────────────────────────────────────────────────────────
+
+风险1: 正常切换不clear_halt, 端点实际halt
+  评估: 正常切换时端点不应该halt(无STALL), 风险低
+  验证: 实测多次模式切换, 观察USB传输是否正常
+
+风险2: 5ms不够设备恢复
+  评估: USB 2.0规范不需要延迟, 5ms是保守余量, 风险极低
+  验证: 实测USB错误恢复后5ms是否足够
+
+风险3: 某些设备clear_halt后必须等待
+  评估: 如果实测发现问题, 回退到Delay_Ms(10)或Delay_Ms(20)
+  验证: 在实际AR眼镜设备上测试
+
+验证步骤:
+  1. 修改代码(B5方案)
+  2. 编译烧录
+  3. 测试: 开始SSVEP → 观察是否还有白屏
+  4. 测试: 停止 → 观察是否还有白屏
+  5. 测试: 多次切换模式 → 观察USB稳定性
+  6. 如果USB传输失败 → 回退到B2(Delay_Ms(5)保留clear_halt)
+
+================================================================================
+方案C (V5F): USB超时增大 + 错误恢复不break
+================================================================================
+状态: 待实施
+文件: V5F/User/main.c:126,135,899-904
+问题: 每包超时20000循环≈200μs(正常50-100μs, 余量极小)
+      任一包超时 → send_ssvep_frame返回错误 → V5F主循环break → 永久停止
+方案: 超时增大到200000(≈2ms), 错误时reset_toggle+continue而非break
+
+================================================================================
+方案A (V3F): IPC发送移到ADS1299 DMA中断
+================================================================================
+状态: 待实施
+文件: V3F/Hardware/ADS1299.c:573 DMA1_Channel1_IRQHandler
+      V3F/Hardware/Signal_Analysis.c:118 当前IPC发送位置
+问题: IPC发送在主循环, 可被wav_player_play/f_read阻塞
+方案: DMA中断中直接发IPC(简化版, 只拷贝+触发, 不做解析/checksum)
+风险: DualCore_IPC_SendFrameFromV3F内部NVIC_DisableIRQ+解析, 需简化为ISR版本
+
+================================================================================
+方案E (V3F): 主循环严格优先级调度
+================================================================================
+状态: 待实施
+文件: V3F/Hardware/Signal_Analysis.c 主循环
+方案:
+  1. EEG帧处理 + IPC发送 (最高)
+  2. 推理状态机 (高)
+  3. 命令处理 (中)
+  4. 姿态 (低)
+  5. 音频 - 只在ring_buffer无新帧时执行 (最低)
+需要: ring_buffer_has_frame()函数(目前不存在, 需新增)
+
+================================================================================
+方案F (V3F): wav_player_play异步化
+================================================================================
+状态: 待实施
+文件: V3F/Hardware/wav_player.c
+问题: wav_player_play阻塞5-10ms(f_open+header+fill_half×2)
+方案: wav_player_play只设请求flag, 实际f_open+fill在wav_player_poll中分步完成
+复杂度: 中(需状态机管理play启动过程)
+
+================================================================================
+方案D (V5F): IPC中断处理推理, USB主循环发送 (长期目标)
+================================================================================
+状态: 远期
+方案: 将MainLoopProcess拆分, 推理放高优先级定时器中断, 主循环只做USB
+复杂度: 高(推理涉及浮点, 中断中可能影响其他中断)

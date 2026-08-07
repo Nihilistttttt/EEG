@@ -74,8 +74,7 @@ static int32_t ICM42605_WrapAngleNumerator(int32_t numerator);
 static int32_t ICM42605_AngleNumeratorToDeg10(int32_t numerator);
 static int32_t ICM42605_RoundFloatToInt32(float value);
 static float ICM42605_ClampFloat(float value, float min_value, float max_value);
-static void ICM42605_OLED_ShowAngleAxis(uint8_t line, char axis, int32_t angle_deg10);
-static void ICM42605_OLED_ShowAngle(void);
+
 
 static int16_t ICM42605_CombineInt16(uint8_t high_byte, uint8_t low_byte);
 static ICM42605_Status ICM42605_ReadInt16Single(

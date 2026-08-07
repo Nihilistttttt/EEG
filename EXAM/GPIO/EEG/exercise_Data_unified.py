@@ -24,6 +24,7 @@ from pathlib import Path
 from collections import deque, Counter
 
 import numpy as np
+from scipy.signal import butter, filtfilt
 import serial
 import serial.tools.list_ports
 from PyQt5.QtWidgets import (
@@ -1273,6 +1274,7 @@ class MainWindow(QMainWindow):
         self.bdf_figure = None
         self.bdf_canvas = None
         self.bdf_data = None
+        self.bdf_data_hp = None
         self.log_tabs.addTab(bdf_tab, "波形查看")
         self.log_tabs.currentChanged.connect(self.on_log_tab_changed)
         main_layout.addWidget(self.log_tabs, stretch=5)
@@ -1785,6 +1787,9 @@ class MainWindow(QMainWindow):
             return
         self.bdf_data = data
         channels, fs, n_samples, labels = data
+        b_hp, a_hp = butter(2, 1.0 / (fs / 2.0), btype='high')
+        channels_hp = [filtfilt(b_hp, a_hp, channels[ch].astype(float)) for ch in range(len(channels))]
+        self.bdf_data_hp = (channels_hp, fs, n_samples, labels)
         if self.bdf_canvas is not None:
             self.bdf_canvas.setParent(None)
             self.bdf_canvas = None
@@ -1817,6 +1822,8 @@ class MainWindow(QMainWindow):
         ax.set_facecolor('#101820')
         y_range = self.bdf_yrange_combo.currentData()
         do_dc = self.bdf_dc_check.isChecked()
+        if do_dc and self.bdf_data_hp:
+            channels = self.bdf_data_hp[0]
         window_samples = self.bdf_dur_spin.value() * fs
         start_idx = self.bdf_slider.value()
         end_idx = min(start_idx + window_samples, n_samples)
@@ -1827,8 +1834,6 @@ class MainWindow(QMainWindow):
         segs = []
         for ch in range(n_ch):
             seg = channels[ch][start_idx:end_idx].astype(float)
-            if do_dc:
-                seg = seg - np.mean(seg)
             segs.append(seg)
         if y_range == 0:
             all_data = np.concatenate(segs) if segs else np.array([0])
@@ -1880,21 +1885,19 @@ class MainWindow(QMainWindow):
             return None
         labels = []
         for i in range(n_ch):
-            off = 256 + i * 256
-            lbl = _s(raw[off:off + 16])
+            lbl = _s(raw[256 + i * 16:256 + i * 16 + 16])
             labels.append(lbl if lbl else f"Ch{i}")
-        srate_raw = _s(raw[256 + 216:256 + 224])
+        srate_raw = _s(raw[1984:1992])
         fs = int(srate_raw) if srate_raw else 250
         phys_min = []
         phys_max = []
         dig_min = []
         dig_max = []
         for i in range(n_ch):
-            off = 256 + i * 256
-            pmin_s = _s(raw[off + 104:off + 112])
-            pmax_s = _s(raw[off + 112:off + 120])
-            dmin_s = _s(raw[off + 120:off + 128])
-            dmax_s = _s(raw[off + 128:off + 136])
+            pmin_s = _s(raw[1088 + i * 8:1096 + i * 8])
+            pmax_s = _s(raw[1152 + i * 8:1160 + i * 8])
+            dmin_s = _s(raw[1216 + i * 8:1224 + i * 8])
+            dmax_s = _s(raw[1280 + i * 8:1288 + i * 8])
             pmin = float(pmin_s) if pmin_s else -187500.0
             pmax = float(pmax_s) if pmax_s else 187500.0
             dmin = float(dmin_s) if dmin_s else -8388608.0

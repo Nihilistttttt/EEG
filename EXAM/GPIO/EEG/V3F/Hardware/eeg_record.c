@@ -58,17 +58,16 @@ static int write_header(uint32_t start_tick) {
     fill_str(p + 252, tmp, 4);
 
     for (int ch = 0; ch < REC_CHANNELS; ch++) {
-        char *cp = p + 256 + ch * 256;
-        fill_str(cp + 0, s_ch_labels[ch], 16);
-        fill_str(cp + 16, "Ag-Cl Electrode", 80);
-        fill_str(cp + 96, "uV", 8);
-        fill_str(cp + 104, "-187500.", 8);
-        fill_str(cp + 112, "187500.", 8);
-        fill_str(cp + 120, "-8388608", 8);
-        fill_str(cp + 128, "8388607", 8);
-        fill_str(cp + 136, "HP:1Hz", 80);
+        fill_str(p + 256  + ch * 16, s_ch_labels[ch], 16);
+        fill_str(p + 384  + ch * 80, "Ag-Cl Electrode", 80);
+        fill_str(p + 1024 + ch * 8,  "uV", 8);
+        fill_str(p + 1088 + ch * 8,  "-187500.", 8);
+        fill_str(p + 1152 + ch * 8,  "187500.", 8);
+        fill_str(p + 1216 + ch * 8,  "-8388608", 8);
+        fill_str(p + 1280 + ch * 8,  "8388607", 8);
+        fill_str(p + 1344 + ch * 80, "HP:1Hz", 80);
         snprintf(tmp, sizeof(tmp), "%d", REC_SAMPLES_PER_RECORD);
-        fill_str(cp + 216, tmp, 8);
+        fill_str(p + 1984 + ch * 8,  tmp, 8);
     }
 
     UINT bw;

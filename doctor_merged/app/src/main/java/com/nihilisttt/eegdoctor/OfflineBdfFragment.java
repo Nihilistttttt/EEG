@@ -228,13 +228,7 @@ public class OfflineBdfFragment extends Fragment {
         if (len <= 0) return;
 
         for (int ch = 0; ch < nCh; ch++) {
-            float[] seg = bdf.getSegment(ch, startPos, len);
-            if (doDcRemove && seg.length > 0) {
-                float mean = 0f;
-                for (float v : seg) mean += v;
-                mean /= seg.length;
-                for (int i = 0; i < seg.length; i++) seg[i] -= mean;
-            }
+            float[] seg = doDcRemove ? bdf.getSegmentHp(ch, startPos, len) : bdf.getSegment(ch, startPos, len);
             for (int i = 0; i < seg.length; i++) {
                 stripView.addPoint(ch, seg[i] / 1_000_000f);
             }

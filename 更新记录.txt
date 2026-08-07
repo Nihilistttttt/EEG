@@ -1,6 +1,51 @@
 EEG项目更新记录
 ================
-最后更新: 2026-08-07
+最后更新: 2026-08-08
+
+================================================================================
+2026-08-08  BDF通道头部格式修复(EDF/BDF标准)+去直流方式改为1Hz高通滤波
+================================================================================
+
+功能1: BDF通道头部按字段类型排列 (eeg_record.c)
+  - 问题: MCU端write_header按通道排列(ch0完整256B→ch1完整256B...),
+    但EDF/BDF标准要求按字段类型排列(所有通道标签连续→所有transducer连续→...)
+  - MNE-Python的_read_edf_header按字段类型连续读取, 与MCU写入方式不匹配, 无法读取
+  - 修复: write_header通道头部改为按字段类型排列
+    label: 256+ch*16, transducer: 384+ch*80, units: 1024+ch*8,
+    phys_min: 1088+ch*8, phys_max: 1152+ch*8, dig_min: 1216+ch*8,
+    dig_max: 1280+ch*8, prefilter: 1344+ch*80, samples: 1984+ch*8
+  - 验证: MNE-Python成功读取修复后BDF, 8通道/250Hz/21秒/数据形状(8,5250)全正确
+
+功能2: 三端BDF解析同步修改 (Python+安卓)
+  - BdfReader.java: 通道头部解析偏移从i*256改为按字段类型(832+i*8等)
+  - exercise_Data_unified.py(两个): BDF解析偏移同步修改
+  - fix_bdf_header.py: 新建, 旧格式BDF→新格式转换工具
+  - verify_bdf.py: 新建, MNE-Python标准流程BDF验证脚本
+
+功能3: 去直流方式从减均值改为1Hz高通滤波 (三端同步)
+  - 问题: 离线BDF查看用seg-mean(seg)减窗口均值, 与实时显示效果不一致
+    减均值只去DC不去低频漂移, 窗口滑动时波形跳变
+    实测: 减均值后std=8314μV(漂移保留), 高通后std=116μV(干净脑电)
+  - 标准做法: 对整段数据做1Hz Butterworth二阶零相位高通滤波(filtfilt),
+    再截取窗口显示, 与MNE-Python/EEGLAB标准一致
+  - Python端(两个exercise_Data_unified.py):
+    添加scipy.signal.butter/filtfilt导入, 加载BDF时预计算bdf_data_hp,
+    显示时若勾选去直流则用滤波后数据替代减均值
+  - 安卓端(BdfReader.java):
+    添加channelsHp字段+HP_B0/B1/B2/A1/A2系数(1Hz@250Hz Butterworth),
+    highpassFiltfilt实现(含padlen=6奇扩展padding, 正向+反向IIR滤波),
+    iirForward二阶IIR前向滤波, parse末尾computeHighpass预计算
+  - 安卓端(OfflineBdfFragment.java):
+    loadSegment用getSegmentHp替代getSegment+减均值
+
+修改文件:
+  - EXAM/GPIO/EEG/V3F/Hardware/eeg_record.c: write_header通道头部按字段类型排列
+  - exercise_Data_unified.py: BDF解析偏移修正+scipy高通滤波
+  - EXAM/GPIO/EEG/exercise_Data_unified.py: 同上
+  - doctor_merged/.../BdfReader.java: 通道头部解析修正+高通滤波实现
+  - doctor_merged/.../OfflineBdfFragment.java: 用预滤波数据替代减均值
+  - fix_bdf_header.py: 新建BDF格式转换工具
+  - verify_bdf.py: 新建MNE验证脚本
 
 ================================================================================
 2026-08-07  BDF SD卡记录+Python端UI优化+安卓端离线BDF分析

@@ -14,6 +14,7 @@
 
 #include "hardware.h"
 #include "wav_player.h"
+#include "eeg_record.h"
 #include "ipc_log.h"
 
 #ifdef HAS_ICM42605
@@ -110,6 +111,8 @@ void Signal_Analysis_Start (void) {
 #endif
 
         if (ring_buffer_get_frame (frame_buf)) {
+
+            eeg_record_add_frame(frame_buf);
 
 #if DUALCORE_IPC_FRAME_SHARE_ENABLE
             ipc_frame_count++;
@@ -418,6 +421,9 @@ void Signal_Analysis_Start (void) {
         }
 #endif /* HAS_ICM42605 */
 
-        if (!ring_buffer_has_frame()) wav_player_poll();
+        if (!ring_buffer_has_frame()) {
+            wav_player_poll();
+            eeg_record_poll();
+        }
     }
 }

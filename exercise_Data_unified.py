@@ -30,10 +30,18 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTextEdit, QLabel, QComboBox, QGroupBox,
     QProgressBar, QMessageBox, QLineEdit, QPlainTextEdit, QTabWidget,
-    QStackedWidget, QFrame
+    QStackedWidget, QFrame, QFileDialog, QSpinBox, QSlider, QCheckBox
 )
 from PyQt5.QtCore import QThread, pyqtSignal, Qt, QTimer
 from PyQt5.QtGui import QFont, QIcon, QTextCursor, QPainter, QColor
+
+import matplotlib
+matplotlib.use('Qt5Agg')
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
 
 # ============================================================
 # AA55 二进制协议常量
@@ -85,6 +93,8 @@ CMD_TASK_DONE = 0x3B
 CMD_TASK_STOPPED = 0x3C
 CMD_MODE_SET_OK = 0x3D
 CMD_ALARM_ACK = 0x47
+CMD_RECORD_START = 0x48
+CMD_RECORD_STOP = 0x49
 
 WAVE_NUM_CH = 8
 WAVE_PAYLOAD = 1 + WAVE_NUM_CH * 4
@@ -103,7 +113,8 @@ CMD_NAMES = {
     CMD_DIRCSV: "DIRCSV", CMD_CSP: "CSP", CMD_TASK: "TASK", CMD_INTENT: "INTENT",
     CMD_EVENT: "EVENT", CMD_READY_TRAIN: "READY_TRAIN", CMD_READY_TEST: "READY_TEST",
     CMD_TASK_START: "TASK_START", CMD_TASK_DONE: "TASK_DONE", CMD_TASK_STOPPED: "TASK_STOPPED",
-    CMD_MODE_SET_OK: "MODE_SET_OK",
+    CMD_MODE_SET_OK: "MODE_SET_OK", CMD_ALARM_ACK: "ALARM_ACK",
+    CMD_RECORD_START: "RECORD_START", CMD_RECORD_STOP: "RECORD_STOP",
 }
 
 # ============================================================
@@ -146,27 +157,41 @@ def build_downstream_payload(cmd, data=b''):
 
 
 class FrameParser:
-    """AA55 帧状态机解析器（上行帧）。"""
+    """AA55 帧状态机解析器（上行帧），同时提取非帧文本日志。"""
 
     S_WAIT_AA = 0
     S_WAIT_55 = 1
     S_BODY = 2
     S_ESCAPE = 3
 
-    def __init__(self, callback):
+    def __init__(self, callback, text_cb=None):
         self.callback = callback
+        self.text_cb = text_cb
         self.state = self.S_WAIT_AA
         self.body = bytearray()
         self._max = 2048
+        self._text = bytearray()
 
     def feed(self, raw_bytes):
         for b in raw_bytes:
             self._feed_byte(b)
 
+    def _flush_text(self):
+        if self.text_cb and len(self._text) > 0:
+            line = self._text.decode('ascii', errors='replace').rstrip('\r\n')
+            if line:
+                self.text_cb(line)
+        self._text = bytearray()
+
     def _feed_byte(self, b):
         if self.state == self.S_WAIT_AA:
             if b == FRAME_HEADER0:
+                self._flush_text()
                 self.state = self.S_WAIT_55
+            else:
+                self._text.append(b)
+                if b == 0x0A:
+                    self._flush_text()
         elif self.state == self.S_WAIT_55:
             if b == FRAME_HEADER1:
                 self.state = self.S_BODY
@@ -584,6 +609,7 @@ def vote_result(new_result):
 class SerialConnection(QThread):
     """串口连接线程，接收二进制字节送入 FrameParser。"""
     frame_received = pyqtSignal(int, bytes)
+    text_received = pyqtSignal(str)
     status_signal = pyqtSignal(str)
 
     def __init__(self, port, baudrate=BAUDRATE):
@@ -592,10 +618,13 @@ class SerialConnection(QThread):
         self.baudrate = baudrate
         self.serial = None
         self.running = False
-        self.parser = FrameParser(self._on_frame)
+        self.parser = FrameParser(self._on_frame, self._on_text)
 
     def _on_frame(self, cmd, payload):
         self.frame_received.emit(cmd, payload)
+
+    def _on_text(self, line):
+        self.text_received.emit(line)
 
     def run(self):
         try:
@@ -1097,6 +1126,13 @@ class MainWindow(QMainWindow):
         self.posture_btn.setEnabled(False)
         btn_row.addWidget(self.posture_btn)
 
+        self.record_btn = QPushButton("BDF记录")
+        self.record_btn.setObjectName("recordBtn")
+        self.record_btn.setCheckable(True)
+        self.record_btn.clicked.connect(self.toggle_record)
+        self.record_btn.setEnabled(False)
+        btn_row.addWidget(self.record_btn)
+
         self.cmd_edit = QLineEdit()
         self.cmd_edit.setPlaceholderText("手动命令(如 MODE,SET,1)...")
         self.cmd_edit.returnPressed.connect(self.send_manual_cmd)
@@ -1110,21 +1146,21 @@ class MainWindow(QMainWindow):
         center_layout = QHBoxLayout()
         center_layout.setSpacing(10)
 
-        arrow_group = QGroupBox("状态反馈")
-        arrow_layout = QVBoxLayout(arrow_group)
+        self.arrow_group = QGroupBox("状态反馈")
+        arrow_layout = QVBoxLayout(self.arrow_group)
         arrow_layout.setContentsMargins(15, 15, 15, 15)
         self.arrow_label = QLabel()
         self.arrow_label.setObjectName("arrowLabel")
         self.arrow_label.setAlignment(Qt.AlignCenter)
-        self.arrow_label.setMinimumHeight(160)
-        self.arrow_label.setFont(QFont("Segoe UI", 48, QFont.Bold))
+        self.arrow_label.setMinimumHeight(80)
+        self.arrow_label.setFont(QFont("Segoe UI", 28, QFont.Bold))
         self.arrow_label.setText("空闲")
         self.arrow_label.setStyleSheet("color: #2f3640;")
         arrow_layout.addWidget(self.arrow_label)
-        center_layout.addWidget(arrow_group, stretch=1)
+        center_layout.addWidget(self.arrow_group, stretch=1)
 
-        stim_group = QGroupBox("SSVEP 刺激")
-        stim_layout = QVBoxLayout(stim_group)
+        self.stim_group = QGroupBox("SSVEP 刺激")
+        stim_layout = QVBoxLayout(self.stim_group)
         stim_layout.setContentsMargins(8, 8, 8, 8)
         self.stim_widget = SsvepStimWidget()
         self.stim_widget.setFocusPolicy(Qt.ClickFocus)
@@ -1141,12 +1177,12 @@ class MainWindow(QMainWindow):
         self.ssvep_info_label.setStyleSheet("color: #2f3640; font-size: 9pt;")
         ssvep_info_row.addWidget(self.ssvep_info_label, stretch=1)
         stim_layout.addLayout(ssvep_info_row)
-        center_layout.addWidget(stim_group, stretch=1)
+        center_layout.addWidget(self.stim_group, stretch=1)
         main_layout.addLayout(center_layout, stretch=1)
 
         # ---- 4. 进度区 ----
-        progress_group = QGroupBox("进度")
-        progress_layout = QVBoxLayout(progress_group)
+        self.progress_group = QGroupBox("进度")
+        progress_layout = QVBoxLayout(self.progress_group)
         progress_layout.setSpacing(6)
         progress_layout.setContentsMargins(15, 12, 15, 12)
         self.progress = QProgressBar()
@@ -1158,12 +1194,12 @@ class MainWindow(QMainWindow):
         self.posture_label = QLabel("姿态: 等待数据")
         self.posture_label.setStyleSheet("color: #00cec9; font-weight: bold; font-size: 9pt;")
         progress_layout.addWidget(self.posture_label)
-        main_layout.addWidget(progress_group)
+        main_layout.addWidget(self.progress_group)
 
         # ---- 5. 日志区 ----
-        log_tabs = QTabWidget()
-        log_tabs.setDocumentMode(True)
-        log_tabs.setTabPosition(QTabWidget.South)
+        self.log_tabs = QTabWidget()
+        self.log_tabs.setDocumentMode(True)
+        self.log_tabs.setTabPosition(QTabWidget.South)
 
         raw_tab = QWidget()
         raw_layout = QVBoxLayout(raw_tab)
@@ -1173,7 +1209,7 @@ class MainWindow(QMainWindow):
         self.raw_text.setFont(QFont("Consolas", 9))
         self.raw_text.setMaximumBlockCount(500)
         raw_layout.addWidget(self.raw_text)
-        log_tabs.addTab(raw_tab, "原始帧日志")
+        self.log_tabs.addTab(raw_tab, "原始帧日志")
 
         log_tab = QWidget()
         log_layout = QVBoxLayout(log_tab)
@@ -1182,8 +1218,62 @@ class MainWindow(QMainWindow):
         self.result_text.setReadOnly(True)
         self.result_text.setFont(QFont("Consolas", 9))
         log_layout.addWidget(self.result_text)
-        log_tabs.addTab(log_tab, "解析日志")
-        main_layout.addWidget(log_tabs, stretch=2)
+        self.log_tabs.addTab(log_tab, "解析日志")
+
+        bdf_tab = QWidget()
+        bdf_layout = QVBoxLayout(bdf_tab)
+        bdf_layout.setContentsMargins(4, 4, 4, 4)
+        bdf_ctrl_row = QHBoxLayout()
+        bdf_ctrl_row.addWidget(QLabel("BDF文件:"))
+        self.bdf_file_edit = QLineEdit()
+        self.bdf_file_edit.setReadOnly(True)
+        self.bdf_file_edit.setPlaceholderText("点击右侧按钮选择BDF文件...")
+        bdf_ctrl_row.addWidget(self.bdf_file_edit, stretch=1)
+        bdf_browse_btn = QPushButton("浏览...")
+        bdf_browse_btn.clicked.connect(self.bdf_browse_file)
+        bdf_ctrl_row.addWidget(bdf_browse_btn)
+        bdf_load_btn = QPushButton("加载并显示")
+        bdf_load_btn.setObjectName("applyModeBtn")
+        bdf_load_btn.clicked.connect(self.bdf_load_and_plot)
+        bdf_ctrl_row.addWidget(bdf_load_btn)
+        bdf_ctrl_row.addWidget(QLabel("窗口(s):"))
+        self.bdf_dur_spin = QSpinBox()
+        self.bdf_dur_spin.setRange(1, 60)
+        self.bdf_dur_spin.setValue(5)
+        self.bdf_dur_spin.valueChanged.connect(lambda: self.bdf_update_plot() if hasattr(self, 'bdf_data') and self.bdf_data else None)
+        bdf_ctrl_row.addWidget(self.bdf_dur_spin)
+        bdf_ctrl_row.addWidget(QLabel("Y范围:"))
+        self.bdf_yrange_combo = QComboBox()
+        self.bdf_yrange_combo.addItem("自动", 0)
+        for v in [50, 100, 200, 500, 1000]:
+            self.bdf_yrange_combo.addItem(f"{v}μV" if v < 1000 else f"{v//1000}mV", v)
+        self.bdf_yrange_combo.setCurrentIndex(0)
+        self.bdf_yrange_combo.currentIndexChanged.connect(lambda: self.bdf_update_plot() if hasattr(self, 'bdf_data') and self.bdf_data else None)
+        bdf_ctrl_row.addWidget(self.bdf_yrange_combo)
+        self.bdf_dc_check = QCheckBox("去直流")
+        self.bdf_dc_check.setChecked(True)
+        self.bdf_dc_check.stateChanged.connect(lambda: self.bdf_update_plot() if hasattr(self, 'bdf_data') and self.bdf_data else None)
+        bdf_ctrl_row.addWidget(self.bdf_dc_check)
+        bdf_layout.addLayout(bdf_ctrl_row)
+        self.bdf_canvas_label = QLabel("请选择BDF文件后点击加载")
+        self.bdf_canvas_label.setAlignment(Qt.AlignCenter)
+        self.bdf_canvas_label.setStyleSheet("color: #7f8c8d; font-size: 10pt;")
+        bdf_layout.addWidget(self.bdf_canvas_label)
+        bdf_slider_row = QHBoxLayout()
+        self.bdf_pos_label = QLabel("位置: 0.0s / 0.0s")
+        self.bdf_pos_label.setMinimumWidth(160)
+        bdf_slider_row.addWidget(self.bdf_pos_label)
+        self.bdf_slider = QSlider(Qt.Horizontal)
+        self.bdf_slider.setRange(0, 0)
+        self.bdf_slider.valueChanged.connect(self.bdf_on_slider_changed)
+        bdf_slider_row.addWidget(self.bdf_slider, stretch=1)
+        bdf_layout.addLayout(bdf_slider_row)
+        self.bdf_figure = None
+        self.bdf_canvas = None
+        self.bdf_data = None
+        self.log_tabs.addTab(bdf_tab, "波形查看")
+        self.log_tabs.currentChanged.connect(self.on_log_tab_changed)
+        main_layout.addWidget(self.log_tabs, stretch=5)
 
         self.update_central_status("空闲", "#7f8c8d")
 
@@ -1236,6 +1326,8 @@ class MainWindow(QMainWindow):
             self.connection = TcpConnection(ip, port, port)
 
         self.connection.frame_received.connect(self.on_frame_received)
+        if hasattr(self.connection, 'text_received'):
+            self.connection.text_received.connect(self.on_text_received)
         self.connection.status_signal.connect(self.on_conn_status)
         self.connection.start()
         self.connect_btn.setText("断开")
@@ -1256,6 +1348,7 @@ class MainWindow(QMainWindow):
             self.status_btn.setEnabled(True)
             self.ipcdiag_btn.setEnabled(True)
             self.posture_btn.setEnabled(True)
+            self.record_btn.setEnabled(True)
             self.append_log("[系统] 连接成功", "green")
             self.send_command(CMD_STATUS)
             self.update_central_status("空闲", "#7f8c8d")
@@ -1280,6 +1373,7 @@ class MainWindow(QMainWindow):
         self.status_btn.setEnabled(False)
         self.ipcdiag_btn.setEnabled(False)
         self.posture_btn.setEnabled(False)
+        self.record_btn.setEnabled(False)
         self.append_log("[系统] 已断开", "gray")
         self.update_central_status("空闲 (未连接)", "#7f8c8d")
 
@@ -1292,6 +1386,10 @@ class MainWindow(QMainWindow):
             self.connection.send_frame(cmd, data)
 
     # ----------------------- 帧接收 -----------------------
+    def on_text_received(self, line):
+        ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        self.raw_text.appendPlainText(f"[{ts}] {line}")
+
     def on_frame_received(self, cmd, payload):
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         name = CMD_NAMES.get(cmd, f"0x{cmd:02X}")
@@ -1644,19 +1742,208 @@ class MainWindow(QMainWindow):
                 self.mode_label.setStyleSheet("color: #7f8c8d; font-weight: bold;")
                 self.update_central_status("空闲", "#7f8c8d")
 
+    def toggle_record(self):
+        if self.record_btn.isChecked():
+            self.send_command(CMD_RECORD_START)
+            self.append_log("[↓] BDF记录启动", "magenta")
+            self.record_btn.setText("停止BDF记录")
+        else:
+            self.send_command(CMD_RECORD_STOP)
+            self.append_log("[↓] BDF记录停止", "magenta")
+            self.record_btn.setText("BDF记录")
+
+    # ----------------------- BDF 波形查看 -----------------------
+    def on_log_tab_changed(self, idx):
+        is_bdf = (idx == 2)
+        self.arrow_group.setVisible(not is_bdf)
+        self.stim_group.setVisible(not is_bdf)
+        self.progress_group.setVisible(not is_bdf)
+
+    def bdf_browse_file(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "选择BDF文件", "", "BDF文件 (*.bdf);;所有文件 (*)"
+        )
+        if path:
+            self.bdf_file_edit.setText(path)
+
+    def bdf_load_and_plot(self):
+        path = self.bdf_file_edit.text().strip()
+        if not path:
+            QMessageBox.warning(self, "提示", "请先选择BDF文件")
+            return
+        try:
+            data = self._parse_bdf(path)
+        except Exception as e:
+            QMessageBox.critical(self, "BDF解析错误", str(e))
+            return
+        if data is None:
+            QMessageBox.warning(self, "提示", "无法解析BDF文件")
+            return
+        self.bdf_data = data
+        channels, fs, n_samples, labels = data
+        if self.bdf_canvas is not None:
+            self.bdf_canvas.setParent(None)
+            self.bdf_canvas = None
+            self.bdf_figure = None
+        self.bdf_figure = Figure(figsize=(12, 8), facecolor='#101820')
+        self.bdf_ax = self.bdf_figure.add_subplot(111, facecolor='#101820')
+        canvas = FigureCanvas(self.bdf_figure)
+        canvas.setParent(self)
+        self.bdf_canvas = canvas
+        bdf_layout = self.bdf_canvas_label.parent().layout()
+        bdf_layout.replaceWidget(self.bdf_canvas_label, canvas)
+        self.bdf_canvas_label.hide()
+        window_samples = self.bdf_dur_spin.value() * fs
+        max_pos = max(0, n_samples - window_samples)
+        self.bdf_slider.setRange(0, max_pos)
+        self.bdf_slider.setValue(0)
+        self.bdf_update_plot()
+
+    def bdf_on_slider_changed(self, val):
+        if self.bdf_data:
+            self.bdf_update_plot()
+
+    def bdf_update_plot(self):
+        if not self.bdf_data or not self.bdf_figure:
+            return
+        channels, fs, n_samples, labels = self.bdf_data
+        n_ch = len(channels)
+        ax = self.bdf_ax
+        ax.clear()
+        ax.set_facecolor('#101820')
+        y_range = self.bdf_yrange_combo.currentData()
+        do_dc = self.bdf_dc_check.isChecked()
+        window_samples = self.bdf_dur_spin.value() * fs
+        start_idx = self.bdf_slider.value()
+        end_idx = min(start_idx + window_samples, n_samples)
+        if end_idx <= start_idx:
+            return
+        self.bdf_pos_label.setText(f"位置: {start_idx/fs:.2f}s / {n_samples/fs:.2f}s")
+        t = np.arange(start_idx, end_idx) / fs
+        segs = []
+        for ch in range(n_ch):
+            seg = channels[ch][start_idx:end_idx].astype(float)
+            if do_dc:
+                seg = seg - np.mean(seg)
+            segs.append(seg)
+        if y_range == 0:
+            all_data = np.concatenate(segs) if segs else np.array([0])
+            y_range = max(np.percentile(np.abs(all_data), 99), 10)
+        ch_spacing = 2 * y_range * 1.3
+        label_colors = {
+            'OZ': '#4FC3F7', 'O1': '#FF8A65', 'F3': '#81C784', 'F4': '#FFD54F',
+            'CP3': '#7C4DFF', 'CP4': '#4DD0E1', 'C3': '#F06292', 'C4': '#A1887F',
+        }
+        for ch in range(n_ch):
+            color = label_colors.get(labels[ch].upper().strip(), '#FFFFFF')
+            seg = segs[ch]
+            offset = (n_ch - 1 - ch) * ch_spacing
+            ax.plot(t, seg + offset, linewidth=3, color=color, alpha=0.12, solid_capstyle='round')
+            ax.plot(t, seg + offset, linewidth=0.8, color=color, solid_capstyle='round')
+            ax.text(t[-1] + (t[-1] - t[0]) * 0.012, offset, labels[ch],
+                    color=color, fontsize=8, va='center', ha='left', fontweight='bold')
+            ax.axhline(y=offset, color='#2A3441', linewidth=0.3, alpha=0.5)
+        for ch in range(n_ch + 1):
+            y = ch * ch_spacing
+            ax.axhline(y=y, color='#3A4A5C', linewidth=0.5, linestyle='--', alpha=0.5)
+        ax.set_xlim(t[0], t[-1])
+        ax.set_ylim(-ch_spacing * 0.5, n_ch * ch_spacing + ch_spacing * 0.5)
+        ax.tick_params(colors='#90A4AE', labelsize=7)
+        for spine in ax.spines.values():
+            spine.set_color('#2A3441')
+        ax.set_xlabel("时间 (s)", color='#90A4AE', fontsize=8)
+        ax.set_yticks([])
+        ax.grid(False)
+        self.bdf_figure.tight_layout()
+        self.bdf_canvas.draw()
+
+    @staticmethod
+    def _parse_bdf(path):
+        with open(path, 'rb') as f:
+            raw = f.read()
+        if len(raw) < 256:
+            return None
+
+        def _s(b):
+            return b.decode('ascii', errors='replace').replace('\x00', '').strip()
+
+        version = _s(raw[0:8])
+        n_records = int(_s(raw[236:244]))
+        dur_raw = _s(raw[244:252])
+        duration = float(dur_raw) if dur_raw else 1.0
+        n_ch = int(_s(raw[252:256]))
+        if n_ch <= 0 or n_ch > 64:
+            return None
+        labels = []
+        for i in range(n_ch):
+            off = 256 + i * 256
+            lbl = _s(raw[off:off + 16])
+            labels.append(lbl if lbl else f"Ch{i}")
+        srate_raw = _s(raw[256 + 216:256 + 224])
+        fs = int(srate_raw) if srate_raw else 250
+        phys_min = []
+        phys_max = []
+        dig_min = []
+        dig_max = []
+        for i in range(n_ch):
+            off = 256 + i * 256
+            pmin_s = _s(raw[off + 104:off + 112])
+            pmax_s = _s(raw[off + 112:off + 120])
+            dmin_s = _s(raw[off + 120:off + 128])
+            dmax_s = _s(raw[off + 128:off + 136])
+            pmin = float(pmin_s) if pmin_s else -187500.0
+            pmax = float(pmax_s) if pmax_s else 187500.0
+            dmin = float(dmin_s) if dmin_s else -8388608.0
+            dmax = float(dmax_s) if dmax_s else 8388607.0
+            phys_min.append(pmin)
+            phys_max.append(pmax)
+            dig_min.append(dmin)
+            dig_max.append(dmax)
+        header_size = 256 + n_ch * 256
+        data_bytes = len(raw) - header_size
+        sample_per_record = fs * int(duration) if duration >= 1 else fs
+        bytes_per_sample = 3
+        record_size = n_ch * sample_per_record * bytes_per_sample
+        if record_size == 0:
+            return None
+        n_avail = data_bytes // record_size
+        if n_avail < n_records:
+            n_records = n_avail
+        data = np.frombuffer(raw[header_size:header_size + n_records * record_size], dtype=np.uint8)
+        data = data.reshape(n_records, n_ch, sample_per_record, bytes_per_sample)
+        b1 = data[:, :, :, 0].astype(np.int32)
+        b2 = data[:, :, :, 1].astype(np.int32)
+        b3 = data[:, :, :, 2].astype(np.int32)
+        val = b1 | (b2 << 8) | (b3 << 16)
+        val = np.where(val >= 0x800000, val - 0x1000000, val)
+        val = val.reshape(n_ch, n_records * sample_per_record)
+        channels = []
+        for i in range(n_ch):
+            dmin = dig_min[i]
+            dmax = dig_max[i]
+            pmin = phys_min[i]
+            pmax = phys_max[i]
+            if dmax == dmin:
+                ch = val[i].astype(float)
+            else:
+                ch = (val[i].astype(float) - dmin) / (dmax - dmin) * (pmax - pmin) + pmin
+            channels.append(ch)
+        n_total = n_records * sample_per_record
+        return channels, fs, n_total, labels
+
     # ----------------------- 中央状态 -----------------------
     def update_central_status(self, text, color="#2f3640", is_arrow=False):
         if is_arrow:
             border_color = "#0984e3" if "左" in text else "#e84118"
             self.arrow_label.setStyleSheet(
                 f"color: {color}; background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-                f"stop:0 #dfe6e9, stop:1 #b2bec3); font-size: 56pt; font-weight: bold; "
+                f"stop:0 #dfe6e9, stop:1 #b2bec3); font-size: 32pt; font-weight: bold; "
                 f"border-radius: 12px; border: 3px solid {border_color};"
             )
         else:
             self.arrow_label.setStyleSheet(
                 f"color: {color}; background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-                f"stop:0 #f0f2f5, stop:1 #dcdde1); font-size: 40pt; font-weight: bold; "
+                f"stop:0 #f0f2f5, stop:1 #dcdde1); font-size: 22pt; font-weight: bold; "
                 f"border-radius: 12px; border: 2px solid #d0d7de;"
             )
         self.arrow_label.setText(text)

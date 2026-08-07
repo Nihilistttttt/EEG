@@ -36,6 +36,7 @@ public class HomeActivity extends AppCompatActivity implements TcpServerManager.
         findViewById(R.id.card_posture).setOnClickListener(v -> launchMonitor(8));
         findViewById(R.id.card_topomap).setOnClickListener(v -> launchMonitor(9));
         findViewById(R.id.card_system_config).setOnClickListener(v -> launchMonitor(10));
+        findViewById(R.id.card_offline_bdf).setOnClickListener(v -> launchMonitor(11));
         findViewById(R.id.card_display_setting).setOnClickListener(v -> {
             Intent intent = new Intent(this, DisplaySettingActivity.class);
             startActivity(intent);

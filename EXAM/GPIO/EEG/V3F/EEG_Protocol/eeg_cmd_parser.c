@@ -11,6 +11,7 @@
 #include "ADS1299.h"
 #include "eeg_infer_glxss.h"
 #include "wav_player.h"
+#include "eeg_record.h"
 #ifdef HAS_ICM42605
 #include "patient_monitor.h"
 #endif
@@ -452,6 +453,23 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
             uint8_t resp[2] = {CMD_ALARM_ACK, data[0]};
             Pack_Frame(SERIAL_PORT_DEBUG, CMD_ACK, resp, 2);
         }
+        break;
+
+    case CMD_RECORD_START:
+        {
+            int ret = eeg_record_start();
+            if (ret == 0) {
+                Send_RespOk(CMD_RECORD_START);
+            } else {
+                uint8_t resp[1] = {(uint8_t)(-ret)};
+                Send_Resp(CMD_NULL, resp, 1);
+            }
+        }
+        break;
+
+    case CMD_RECORD_STOP:
+        eeg_record_stop();
+        Send_RespOk(CMD_RECORD_STOP);
         break;
 
     default:

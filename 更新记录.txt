@@ -3,6 +3,47 @@ EEG项目更新记录
 最后更新: 2026-08-07
 
 ================================================================================
+2026-08-07  BDF SD卡记录+Python端UI优化+安卓端离线BDF分析
+================================================================================
+
+功能1: 八通道脑电数据BDF格式存入SD卡 (eeg_record.c/h)
+  - BDF头部2304字节(256通用头+8通道×256), 24位小端有符号, 250Hz×8通道
+  - eeg_record_add_frame: 每帧27字节, 大端→小端转置, 按通道分组写入s_buf
+  - eeg_record_poll: 满250帧(1秒)写入SD卡, f_sync每10秒
+  - CMD_RECORD_START(0x48)/CMD_RECORD_STOP(0x49)命令
+  - Signal_Analysis.c集成: 每帧add_frame + 空闲poll
+  - Bug修复: write_header中uint8_t hdr[2304]局部变量栈溢出→改为static
+
+功能2: Python端串口文本日志显示 (两个exercise_Data_unified.py)
+  - FrameParser添加text_cb参数, S_WAIT_AA状态累积非0xAA字节, 遇\n回调
+  - SerialConnection添加text_received信号, on_text_received在raw_text显示
+
+功能3: Python端UI布局调整 (两个exercise_Data_unified.py)
+  - 状态反馈区arrow_label高度160→80, 字体48→28
+  - update_central_status字体56pt/40pt→32pt/22pt
+  - 日志区stretch 2→5(输出区占比从~33%提升到~55%)
+  - 切换到"波形查看"标签页时隐藏状态反馈/SSVEP/进度区, 波形占满窗口
+
+功能4: Python端BDF波形查看页面 (两个exercise_Data_unified.py)
+  - matplotlib单Axes 8通道垂直堆叠, 深色背景#101820
+  - 8通道独立颜色(夜间亮色系), 光晕效果(3px粗线alpha=0.12+0.8px主线)
+  - 虚线通道分隔, 通道标签用本通道颜色
+  - 底部QSlider滑动进度条, 左侧显示当前位置/总时长
+  - Y范围选择(自动/50μV~1mV), 窗口大小(1~60s), 去直流复选框(默认ON)
+  - BDF解析修复: null字节清理replace('\x00',''), 通道头偏移修正(phys_min 192→104等)
+  - matplotlib中文字体设置(SimHei/Microsoft YaHei)
+
+功能5: 安卓端离线BDF分析 (doctor_merged)
+  - 新建BdfReader.java: 纯Java BDF解析器(24位小端有符号, 物理/数字范围转换)
+  - 新建OfflineBdfFragment.java + fragment_offline_bdf.xml
+  - 复用EegStripView八通道波形View, 显示效果与实时一致
+  - SAF文件选择→复制cache→BdfReader解析→addPoint喂入EegStripView
+  - 底部SeekBar滑动选择查看位置, 播放按钮自动滚动
+  - 工具栏: 打开BDF/播放/Y范围(EditText输入μV)/窗口(EditText输入秒)/去直流按钮
+  - 去直流: 对每通道减去当前窗口均值, 消除DC偏移导致波形飘出通道
+  - MainActivity.java注册page=11, activity_home.xml添加卡片, HomeActivity.java绑定
+
+================================================================================
 2026-08-07  坠床报警语音循环播报+WAV循环播放bug修复
 ================================================================================
 

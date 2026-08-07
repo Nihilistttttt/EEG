@@ -19,6 +19,7 @@ static uint32_t s_bytes_per_sample;
 static uint8_t  s_volume_pct = 5;
 static FATFS    s_fs;
 static int      s_fs_mounted = 0;
+static int      s_loop = 0;
 
 #define WAV_READ_CHUNK  1024
 
@@ -139,6 +140,7 @@ static void fill_half_sync(int half) {
 
 int wav_player_play(const char *filename) {
     if (s_playing) wav_player_stop();
+    s_loop = 0;
 
     if (!s_fs_mounted) {
         if (f_mount(&s_fs, "", 1) != FR_OK) {
@@ -221,6 +223,10 @@ void wav_player_set_volume(uint8_t vol_pct) {
     s_volume_pct = vol_pct;
 }
 
+void wav_player_set_loop(int enable) {
+    s_loop = enable ? 1 : 0;
+}
+
 void wav_player_poll(void) {
     if (!s_playing) return;
 
@@ -268,7 +274,17 @@ void wav_player_poll(void) {
     }
 
     if (s_eof && s_eof_drain_count <= 0 && !s_dma_ht_flag && !s_dma_tc_flag) {
-        wav_player_stop();
-        Serial_Printf(SERIAL_PORT_DEBUG, "[WAV] done\r\n");
+        if (s_loop) {
+            f_lseek(&s_wav_file, s_wav_hdr.data_offset);
+            s_bytes_remaining = s_wav_hdr.data_size;
+            s_eof = 0;
+            s_eof_drain_count = 0;
+            fill_half_sync(0);
+            fill_half_sync(1);
+            Serial_Printf(SERIAL_PORT_DEBUG, "[WAV] loop\r\n");
+        } else {
+            wav_player_stop();
+            Serial_Printf(SERIAL_PORT_DEBUG, "[WAV] done\r\n");
+        }
     }
 }

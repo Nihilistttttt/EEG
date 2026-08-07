@@ -293,6 +293,7 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
                 .setTitle(title)
                 .setMessage(message)
                 .setPositiveButton("已知晓", (DialogInterface dialog, int which) -> {
+                    TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_ALARM_ACK, null);
                     currentSafetyDialog = null;
                 });
         if (critical) {

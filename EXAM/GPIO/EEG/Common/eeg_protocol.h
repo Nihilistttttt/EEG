@@ -83,7 +83,8 @@ typedef enum {
     CMD_IMPEDANCE_CHECK    = 0x43,
     CMD_IMPEDANCE_RESULT   = 0x44,
     CMD_INFER_CFG          = 0x45,
-    CMD_INFER_CFG_OK       = 0x46
+    CMD_INFER_CFG_OK       = 0x46,
+    CMD_ALARM_ACK          = 0x47
 } ProtoCmd_t;
 
 typedef enum {

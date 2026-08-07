@@ -84,6 +84,7 @@ CMD_TASK_START = 0x3A
 CMD_TASK_DONE = 0x3B
 CMD_TASK_STOPPED = 0x3C
 CMD_MODE_SET_OK = 0x3D
+CMD_ALARM_ACK = 0x47
 
 WAVE_NUM_CH = 8
 WAVE_PAYLOAD = 1 + WAVE_NUM_CH * 4
@@ -1391,12 +1392,15 @@ class MainWindow(QMainWindow):
             self.fall_detected = True
             self.append_log("[↑] EVENT !!坠床!!", "red")
             self.update_posture_display()
-            QTimer.singleShot(10000, self.clear_fall_alert)
+            QMessageBox.critical(self, "坠床警报", "患者发生坠床！需要帮助！\n\n点击确定确认警报。")
+            self.send_command(CMD_ALARM_ACK, bytes([seq]))
+            self.clear_fall_alert()
         elif event_type == 3:  # NO_TURN
             if len(payload) < 6:
                 return
             dur = struct.unpack_from('<I', payload, 2)[0]
             self.append_log(f"[↑] EVENT 未翻身报警 已{dur}分钟未翻身!", "red")
+
         self.send_command(CMD_ACK, bytes([seq]))
 
     def _handle_spectrum(self, payload):

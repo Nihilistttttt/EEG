@@ -396,7 +396,8 @@ void Signal_Analysis_Start (void) {
                 Pack_Frame(SERIAL_PORT_DEBUG, CMD_EVENT, payload, sizeof(payload));
                 Pack_Frame(SERIAL_PORT_WIFI, CMD_EVENT, payload, sizeof(payload));
                 Retry_StoreEx(payload, sizeof(payload), CMD_EVENT, 20);
-                PM_ClearFall();
+                wav_player_play("fall.wav");
+                wav_player_set_loop(1);
                 break;
             }
             case PM_EVENT_NO_TURN: {

@@ -11,6 +11,9 @@
 #include "ADS1299.h"
 #include "eeg_infer_glxss.h"
 #include "wav_player.h"
+#ifdef HAS_ICM42605
+#include "patient_monitor.h"
+#endif
 #ifdef GLXSS_ENABLED
 #include "ipc_log.h"
 #endif
@@ -434,6 +437,20 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
             }
             resp[32] = ADS1299_RecheckBias();
             Send_Resp(CMD_IMPEDANCE_RESULT, resp, 33);
+        }
+        break;
+
+    case CMD_ALARM_ACK:
+        {
+            wav_player_set_loop(0);
+            wav_player_stop();
+#ifdef HAS_ICM42605
+            PM_ClearFall();
+
+#endif
+            Serial_Printf(SERIAL_PORT_DEBUG, "[ALARM] ack, stopped\r\n");
+            uint8_t resp[2] = {CMD_ALARM_ACK, data[0]};
+            Pack_Frame(SERIAL_PORT_DEBUG, CMD_ACK, resp, 2);
         }
         break;
 

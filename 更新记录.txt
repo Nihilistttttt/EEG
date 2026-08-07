@@ -3,6 +3,39 @@ EEG项目更新记录
 最后更新: 2026-08-07
 
 ================================================================================
+2026-08-07  坠床报警语音循环播报+WAV循环播放bug修复
+================================================================================
+
+功能: 坠床时循环播报fall.wav直至医生端确认, 未翻身不播报(仅上位机显示)
+
+新增1: WAV循环播放支持 (wav_player.c/h)
+  - 添加s_loop标志和wav_player_set_loop(enable)函数
+  - wav_player_poll末尾: s_eof时若s_loop=1则f_lseek回起点继续播放, 否则stop
+  - wav_player_play开头重置s_loop=0(修复bug: 未确认坠床后s_loop残留导致后续WAV误循环)
+
+新增2: CMD_ALARM_ACK命令 (eeg_protocol.h 0x47)
+  - eeg_cmd_parser.c: 收到后wav_player_set_loop(0)+wav_player_stop()+PM_ClearFall()
+  - 坠床事件(Signal_Analysis.c PM_EVENT_FALL): wav_player_play("fall.wav")+wav_player_set_loop(1)
+  - 未翻身事件(PM_EVENT_NO_TURN): 保持原有PM_ClearNoTurnAlert(), 不播报WAV
+
+新增3: Python端坠床弹窗确认 (两个exercise_Data_unified.py)
+  - EVENT_FALL: QMessageBox.critical弹窗 + 发CMD_ALARM_ACK + clear_fall_alert
+  - EVENT_NO_TURN: 保持原有日志显示, 不弹窗不播报
+  - 添加CMD_ALARM_ACK=0x47
+
+新增4: 安卓端坠床弹窗发送确认 (doctor_merged)
+  - EegProtocol.java: 添加CMD_ALARM_ACK=0x47
+  - MainActivity.java: showSafetyAlertDialog"已知晓"按钮发送CMD_ALARM_ACK
+  - onNoTurnAlert: 保持原有弹窗(久未翻身提醒), 不发CMD_ALARM_ACK
+
+Bug修复: s_loop未重置导致WAV误循环
+  - 现象: 坠床未确认时关闭采集进入SSVEP, rest.wav/focus.wav会循环播放
+  - 原因: wav_player_play不重置s_loop, 坠床设置的s_loop=1残留
+  - 修复: wav_player_play开头添加s_loop=0, Signal_Analysis.c中先play再set_loop(1)
+
+SD卡文件: 需放置fall.wav(坠床报警语音)
+
+================================================================================
 2026-08-07  SSVEP显示卡顿优化(FBCCA分步执行+IPCDIAG扩展)
 ================================================================================
 

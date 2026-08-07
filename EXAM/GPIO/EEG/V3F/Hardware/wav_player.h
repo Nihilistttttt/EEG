@@ -19,5 +19,6 @@ void wav_player_stop(void);
 int  wav_player_is_playing(void);
 void wav_player_poll(void);
 void wav_player_set_volume(uint8_t vol_pct);
+void wav_player_set_loop(int enable);
 
 #endif

@@ -10,6 +10,7 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.Spinner;
 import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -53,6 +54,8 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
     private TextView tvVote;
     private TextView tvProgress;
     private TextView tvWaveSource;
+    private TextView tvWaveType;
+    private int currentWaveType = EegChannels.WAVE_TYPE_FILT;
     private ProgressBar progressWindow;
     private MaterialButton btnFreq11;
     private MaterialButton btnFreq13;
@@ -92,6 +95,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         tvWaveYRange = view.findViewById(R.id.tv_wave_y_range);
         tvWaveXRange = view.findViewById(R.id.tv_wave_x_range);
         tvWaveLabelCount = view.findViewById(R.id.tv_wave_label_count);
+
         waveOZ = view.findViewById(R.id.wave_oz);
         waveO1 = view.findViewById(R.id.wave_o1);
         waveOZ.setWaveColor(ContextCompat.getColor(requireContext(), R.color.accent_info));
@@ -116,11 +120,15 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         btnSelfTest = view.findViewById(R.id.btn_ssvep_self_test);
         btnStop = view.findViewById(R.id.btn_ssvep_stop);
 
+        tvWaveType = view.findViewById(R.id.tv_wave_type);
+        tvWaveType.setOnClickListener(v -> toggleWaveType());
+
         tvSpecYRange.setOnClickListener(v -> showYRangeDialog());
         tvSpecXRange.setOnClickListener(v -> showXRangeDialog());
         tvWaveYRange.setOnClickListener(v -> showWaveYRangeDialog());
         tvWaveXRange.setOnClickListener(v -> showWaveXRangeDialog());
         tvWaveLabelCount.setOnClickListener(v -> showLabelCountDialog());
+
         btnFreq11.setOnClickListener(v -> selectFreq(0));
         btnFreq13.setOnClickListener(v -> selectFreq(1));
         btnFreq15.setOnClickListener(v -> selectFreq(2));
@@ -345,10 +353,19 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
                 result.getVote11(), result.getVote13(), result.getVote15(), result.getVote17()));
     }
 
+    private void toggleWaveType() {
+        currentWaveType = (currentWaveType + 1) % 3;
+        String[] labels = {"原始", "滤波", "基线"};
+        tvWaveType.setText(labels[currentWaveType]);
+        if (waveOZ != null) waveOZ.clear();
+        if (waveO1 != null) waveO1.clear();
+        sendDisplayConfig();
+    }
+
     private void sendDisplayConfig() {
         int[] p = new int[24];
-        p[0] = EegChannels.CH_O1; p[1] = EegChannels.WAVE_TYPE_FILT; p[2] = EegChannels.SPEC_TYPE_RAW;
-        p[3] = EegChannels.CH_OZ; p[4] = EegChannels.WAVE_TYPE_FILT; p[5] = EegChannels.SPEC_TYPE_RAW;
+        p[0] = EegChannels.CH_O1; p[1] = currentWaveType; p[2] = EegChannels.SPEC_TYPE_RAW;
+        p[3] = EegChannels.CH_OZ; p[4] = currentWaveType; p[5] = EegChannels.SPEC_TYPE_RAW;
         for (int i = 2; i < 8; i++) {
             p[i * 3] = 0;
             p[i * 3 + 1] = EegChannels.WAVE_TYPE_NONE;
@@ -591,7 +608,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
     }
 
     @Override public void onWaveData(int cmd, int ch, float val) {
-        if (cmd != EegChannels.CMD_WAVE_FILT) return;
+        if (cmd != EegChannels.waveTypeToCmd(currentWaveType)) return;
         if (ch == EegChannels.CH_OZ && waveOZ != null) waveOZ.addPoint(val);
         else if (ch == EegChannels.CH_O1 && waveO1 != null) waveO1.addPoint(val);
     }

@@ -3,6 +3,33 @@ EEG项目更新记录
 最后更新: 2026-08-08
 
 ================================================================================
+2026-08-08  安卓端SSVEP页波形类型切换+去直流高通滤波修复
+================================================================================
+
+功能1: SSVEP页波形类型可切换 (SsvepTrainingFragment.java + fragment_ssvep_training.xml)
+  - 问题: 原硬编码WAVE_TYPE_FILT, 无切换控件, 用户无法选择原始/滤波/基线波形
+  - 修改: 波形类型Spinner→TextView点击切换(ParamChip样式, 与Y轴/X轴框一致)
+    三态循环: 原始→滤波→基线→原始, 切换时清空波形并重发DISPLAY_CFG
+  - sendDisplayConfig: waveType从currentWaveType取值(不再硬编码)
+  - onWaveData: 用waveTypeToCmd(currentWaveType)动态过滤(不再只接FILT)
+  - 标签选择控件保留
+
+功能2: 去直流方式从减均值改为1Hz高通滤波 (三端同步, 承接上一条记录)
+  - Python端: scipy.signal.butter/filtfilt预计算bdf_data_hp, 显示时用滤波数据
+  - 安卓端BdfReader: highpassFiltfilt(含padding+正向反向IIR), channelsHp预计算
+  - 安卓端OfflineBdfFragment: getSegmentHp替代减均值
+  - 验证: 高通滤波后std=116μV(减均值std=8314μV, 漂移保留)
+
+修改文件:
+  - doctor_merged/.../SsvepTrainingFragment.java: 波形类型TextView切换+标签加回
+  - doctor_merged/.../fragment_ssvep_training.xml: Spinner→TextView(ParamChip)+标签加回
+  - doctor_merged/.../spinner_item_text.xml: 新建(未使用, 保留备用)
+  - exercise_Data_unified.py: scipy高通滤波
+  - EXAM/GPIO/EEG/exercise_Data_unified.py: 同上
+  - doctor_merged/.../BdfReader.java: 高通滤波实现
+  - doctor_merged/.../OfflineBdfFragment.java: 用预滤波数据
+
+================================================================================
 2026-08-08  BDF通道头部格式修复(EDF/BDF标准)+去直流方式改为1Hz高通滤波
 ================================================================================
 

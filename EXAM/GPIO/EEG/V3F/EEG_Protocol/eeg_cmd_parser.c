@@ -378,6 +378,10 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
                 g_v5f_active = V5F_ACTIVE_INFER;
                 DualCore_IPC_RequestV5FReset();
             }
+#ifdef GLXSS_ENABLED
+            IPC_Ctrl_SetFlags_V3F(IPC_CTRL_SSVEP_ENABLE);
+            IPC_Cmd_Send_V3F(IPC_CMD_SSVEP, freq_idx);
+#endif
             uint8_t resp[1] = {freq_idx};
             Send_Resp(CMD_SSVEP_SELFTEST_START, resp, 1);
         }

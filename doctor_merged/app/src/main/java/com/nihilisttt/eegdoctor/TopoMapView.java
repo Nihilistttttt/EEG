@@ -14,11 +14,12 @@ import androidx.core.content.ContextCompat;
 public class TopoMapView extends View {
 
     private static final int NUM_CH = 8;
-    private static final int GRID_SIZE = 80;
-    private static final float IDW_POWER = 2.0f;
+    private static final int GRID_SIZE = 160;
+    private static final float IDW_POWER = 3.0f;
     private static final int INVALIDATE_INTERVAL_MS = 50;
     private static final float EMA_ALPHA = 0.01f;
     private static final float GRID_EXTEND = 1.08f;
+    private static final int COLOR_LUT_SIZE = 256;
 
     private static final float[] ELECTRODE_X = {
         0.00f, -0.25f, -0.35f, 0.35f, -0.42f, 0.42f, -0.50f, 0.50f
@@ -41,6 +42,7 @@ public class TopoMapView extends View {
     private int[] colorBuffer;
     private Bitmap topoBitmap;
     private long lastInvalidateTime = 0;
+    private final int[] colorLut = new int[COLOR_LUT_SIZE];
 
     private float amplitudeMaxUv = 50f;
 
@@ -60,6 +62,22 @@ public class TopoMapView extends View {
     public TopoMapView(Context context, AttributeSet attrs) {
         super(context, attrs);
         precomputeIdwWeights();
+        initColorLut();
+    }
+
+    private void initColorLut() {
+        for (int i = 0; i < COLOR_LUT_SIZE; i++) {
+            float t = (float) i / (COLOR_LUT_SIZE - 1);
+            colorLut[i] = valueToColor(t);
+        }
+    }
+
+    public void setChannelAmplitudes(float[] rmsUv) {
+        for (int i = 0; i < NUM_CH && i < rmsUv.length; i++) {
+            channelAmplitude[i] = rmsUv[i];
+            emaSquared[i] = rmsUv[i] * rmsUv[i];
+        }
+        postInvalidate();
     }
 
     private void initPaints() {
@@ -105,7 +123,7 @@ public class TopoMapView extends View {
         colorBarBorderPaint.setStrokeWidth(1f);
         colorBarBorderPaint.setColor(ContextCompat.getColor(getContext(), R.color.surface_overlay));
 
-        bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
     }
 
     private void precomputeIdwWeights() {
@@ -205,7 +223,10 @@ public class TopoMapView extends View {
                     val += idwWeights[gx][gy][ch] * channelAmplitude[ch];
                 }
                 float normalized = val / range;
-                colorBuffer[idx] = valueToColor(normalized);
+                if (normalized < 0) normalized = 0;
+                if (normalized > 1) normalized = 1;
+                int lutIdx = (int) (normalized * (COLOR_LUT_SIZE - 1));
+                colorBuffer[idx] = colorLut[lutIdx];
             }
         }
         topoBitmap.setPixels(colorBuffer, 0, size, 0, 0, size, size);

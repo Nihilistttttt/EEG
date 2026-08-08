@@ -23,13 +23,13 @@ public class ImpedanceBarView extends View {
 
     public ImpedanceBarView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        bgPaint = new Paint(); bgPaint.setColor(0xFF101820); bgPaint.setStyle(Paint.Style.FILL);
-        barPaint = new Paint(); barPaint.setColor(0xFF4CAF50); barPaint.setStyle(Paint.Style.FILL);
-        barWarnPaint = new Paint(); barWarnPaint.setColor(0xFFFFC107); barWarnPaint.setStyle(Paint.Style.FILL);
-        barBadPaint = new Paint(); barBadPaint.setColor(0xFFF44336); barBadPaint.setStyle(Paint.Style.FILL);
-        textPaint = new Paint(); textPaint.setColor(0xFFE0E0E0); textPaint.setAntiAlias(true);
-        labelPaint = new Paint(); labelPaint.setColor(0xFF90A4AE); labelPaint.setAntiAlias(true);
-        threshPaint = new Paint(); threshPaint.setColor(0xFF4A5568); threshPaint.setStrokeWidth(0.5f);
+        bgPaint = new Paint(); bgPaint.setColor(ContextCompat.getColor(context, R.color.surface_low)); bgPaint.setStyle(Paint.Style.FILL);
+        barPaint = new Paint(); barPaint.setColor(ContextCompat.getColor(context, R.color.accent_success)); barPaint.setStyle(Paint.Style.FILL);
+        barWarnPaint = new Paint(); barWarnPaint.setColor(ContextCompat.getColor(context, R.color.accent_warning)); barWarnPaint.setStyle(Paint.Style.FILL);
+        barBadPaint = new Paint(); barBadPaint.setColor(ContextCompat.getColor(context, R.color.accent_error)); barPaint.setStyle(Paint.Style.FILL);
+        textPaint = new Paint(); textPaint.setColor(ContextCompat.getColor(context, R.color.text_primary)); textPaint.setAntiAlias(true);
+        labelPaint = new Paint(); labelPaint.setColor(ContextCompat.getColor(context, R.color.text_secondary)); labelPaint.setAntiAlias(true);
+        threshPaint = new Paint(); threshPaint.setColor(ContextCompat.getColor(context, R.color.axis_line)); threshPaint.setStrokeWidth(0.5f);
     }
 
     public void setImpedance(float[] values) {
@@ -78,7 +78,7 @@ public class ImpedanceBarView extends View {
                 if (v >= 1000f) s = String.format("%.0fMΩ", v / 1000f);
                 else if (v >= 1f) s = String.format("%.1fkΩ", v);
                 else s = String.format("%.0fΩ", v * 1000f);
-                textPaint.setColor(v <= THRESHOLD_OK ? 0xFF4CAF50 : (v <= THRESHOLD_WARN ? 0xFFFFC107 : 0xFFF44336));
+                textPaint.setColor(v <= THRESHOLD_OK ? ContextCompat.getColor(getContext(), R.color.accent_success) : (v <= THRESHOLD_WARN ? ContextCompat.getColor(getContext(), R.color.accent_warning) : ContextCompat.getColor(getContext(), R.color.accent_error)));
                 canvas.drawText(s, barRight + 6f, cy + rowH * 0.12f, textPaint);
             }
         }

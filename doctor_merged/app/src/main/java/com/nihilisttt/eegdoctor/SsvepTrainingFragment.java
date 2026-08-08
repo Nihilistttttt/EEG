@@ -216,6 +216,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
                 analysis.confirmStimulusStarted(freqIndex, 240.0f);
                 setStatus("MCU自测模式：V5F生成合成" + FbccaConfig.TARGET_FREQS[freqIndex] + "Hz信号", false);
             } else {
+                analysis.confirmStimulusStarted(freqIndex, 240.0f);
                 setStatus("患者刺激已下发；等待刺激首帧和脑电数据", false);
             }
         });
@@ -499,7 +500,7 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
     private void applyWaveXRange(float xMax) {
         if (waveOZ != null) waveOZ.setXMax(xMax);
         if (waveO1 != null) waveO1.setXMax(xMax);
-        tvWaveXRange.setText(String.format(Locale.US, "%.2f s", xMax));
+        tvWaveXRange.setText(String.format(Locale.US, "%.0f s", xMax));
         SettingsStore.setWaveXMax(requireContext(), xMax);
     }
 
@@ -561,16 +562,16 @@ public class SsvepTrainingFragment extends Fragment implements DataListener, Tra
         unitSpinner.setAdapter(ua);
         etValue.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
                 | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        etValue.setText(String.format(Locale.US, "%.2f",
+        etValue.setText(String.format(Locale.US, "%.1f",
                 SettingsStore.getWaveXMax(requireContext(), DEFAULT_X_MAX)));
         new AlertDialog.Builder(requireContext())
-                .setTitle("设置波形时间范围")
+                .setTitle("波形时间范围")
                 .setView(dialogView)
                 .setPositiveButton("确定", (d, which) -> {
                     String str = etValue.getText().toString().trim();
                     if (str.isEmpty()) return;
                     try {
-                        float val = Float.parseFloat(str);
+                        float val = Math.round(Float.parseFloat(str) * 10f) / 10f;
                         if (val <= 0) return;
                         applyWaveXRange(val);
                     } catch (NumberFormatException ignored) {}

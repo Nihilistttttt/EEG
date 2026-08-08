@@ -25,6 +25,7 @@ void DualCore_IPC_RequestSsvepReset(void);
 void DualCore_IPC_SetSsvepEnable(uint8_t enable);
 uint8_t DualCore_IPC_GetSsvepEnable(void);
 void DualCore_IPC_SetSsvepSelftest(uint8_t enable, uint8_t freq_index);
+uint8_t DualCore_IPC_GetSsvepSelftest(void);
 uint32_t DualCore_IPC_GetLastV5FWfiWake(void);
 void DualCore_V5F_MainLoopProcess(void);
 

@@ -306,6 +306,20 @@ void Signal_Analysis_Start (void) {
             EEG_SSVEP_ResultPoll();
             GLXSS_Infer_Poll();
 
+        } else if (g_ssvep_active && DualCore_IPC_GetSsvepSelftest()) {
+            static uint32_t s_selftest_last_tick = 0;
+            extern uint32_t SystemCoreClock;
+            uint32_t cycle;
+            __asm__ volatile("rdcycle %0" : "=r"(cycle));
+            uint32_t now_tick = cycle / (SystemCoreClock / 1000);
+            if ((uint32_t)(now_tick - s_selftest_last_tick) >= 4u) {
+                s_selftest_last_tick = now_tick;
+                memset(frame_buf, 0, ADS1299_FRAME_BYTE_NUM);
+                if (g_v5f_active != V5F_ACTIVE_IDLE) {
+                    DualCore_IPC_SendFrameFromV3F(frame_buf, ADS1299_FRAME_BYTE_NUM);
+                }
+                EEG_SSVEP_ResultPoll();
+            }
         }
 
 #ifdef HAS_ICM42605

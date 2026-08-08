@@ -5,10 +5,10 @@
 #include "hal_gpio.h"
 
 /*============================================================================
- * Board Version Selection — define exactly ONE of: BOARD_V1, BOARD_V2, BOARD_V3
- * If none is defined, BOARD_V1 is assumed.
+ * Board Version Selection — define exactly ONE of: BOARD_V1, BOARD_V2, BOARD_V3, BOARD_V4
+ * If none is defined, BOARD_V2 is assumed.
  *============================================================================*/
-#if !defined(BOARD_V1) && !defined(BOARD_V2) && !defined(BOARD_V3)
+#if !defined(BOARD_V1) && !defined(BOARD_V2) && !defined(BOARD_V3) && !defined(BOARD_V4)
 #define BOARD_V2
 #endif
 /*============================================================================
@@ -545,6 +545,184 @@
 
 /* Board feature flags */
 #define HAS_ICM42605
+
+/*============================================================================
+  ******************************************************************************
+  *                          BOARD V4
+  ******************************************************************************
+  *============================================================================*/
+#elif defined(BOARD_V4)
+
+#define EEG_OLED_DISABLED
+
+#ifdef __ADS1299_H
+/* ADS1299 EEG ADC - SPI1 */
+#define ADS1299_CS_PORT          0
+#define ADS1299_CS_PIN           4
+#define ADS1299_CS_PIN_ENC       HAL_GPIO_PIN(ADS1299_CS_PORT, ADS1299_CS_PIN)
+#define ADS1299_DRDY_PORT        2
+#define ADS1299_DRDY_PIN         5
+#define ADS1299_DRDY_PIN_ENC     HAL_GPIO_PIN(ADS1299_DRDY_PORT, ADS1299_DRDY_PIN)
+#define ADS1299_RESET_PORT       2
+#define ADS1299_RESET_PIN        4
+#define ADS1299_RESET_PIN_ENC    HAL_GPIO_PIN(ADS1299_RESET_PORT, ADS1299_RESET_PIN)
+#define ADS1299_START_PORT       1
+#define ADS1299_START_PIN        2
+#define ADS1299_START_PIN_ENC    HAL_GPIO_PIN(ADS1299_START_PORT, ADS1299_START_PIN)
+#define ADS1299_SPI_INSTANCE     SPI1
+#define ADS1299_SCK_PORT         0
+#define ADS1299_SCK_PIN          5
+#define ADS1299_SCK_AF           GPIO_AF5
+#define ADS1299_SCK_ENC          HAL_GPIO_PIN(ADS1299_SCK_PORT, ADS1299_SCK_PIN)
+#define ADS1299_MISO_PORT        0
+#define ADS1299_MISO_PIN         6
+#define ADS1299_MISO_AF          GPIO_AF5
+#define ADS1299_MISO_ENC         HAL_GPIO_PIN(ADS1299_MISO_PORT, ADS1299_MISO_PIN)
+#define ADS1299_MOSI_PORT        0
+#define ADS1299_MOSI_PIN         7
+#define ADS1299_MOSI_AF          GPIO_AF5
+#define ADS1299_MOSI_ENC         HAL_GPIO_PIN(ADS1299_MOSI_PORT, ADS1299_MOSI_PIN)
+#define ADS1299_DMA_INSTANCE     DMA1
+#define ADS1299_TX_DMA_REQUEST   67U
+#define ADS1299_RX_DMA_REQUEST   68U
+#define ADS1299_RX_DMA_CHANNEL   DMA1_Channel1
+#define ADS1299_TX_DMA_CHANNEL   DMA1_Channel2
+#define ADS1299_RX_DMAMUX_CHANNEL DMA_MuxChannel1
+#define ADS1299_TX_DMAMUX_CHANNEL DMA_MuxChannel2
+#define ADS1299_RX_DMA_TC_FLAG   DMA1_IT_TC1
+#define ADS1299_RX_DMA_TE_FLAG   DMA1_IT_TE1
+#define ADS1299_TX_DMA_TC_FLAG   DMA1_IT_TC2
+#define ADS1299_TX_DMA_TE_FLAG   DMA1_IT_TE2
+#define ADS1299_RX_DMA_IRQn      DMA1_Channel1_IRQn
+#define ADS1299_TX_DMA_IRQn      DMA1_Channel2_IRQn
+#endif /* __ADS1299_H */
+
+#ifdef __SERIAL_H
+/* Serial DEBUG (USART1) */
+#define SERIAL_DEBUG_USART_INSTANCE    USART1
+#define SERIAL_DEBUG_BAUDRATE          2000000
+#define SERIAL_DEBUG_TX_PORT           1
+#define SERIAL_DEBUG_TX_PIN            6
+#define SERIAL_DEBUG_TX_PIN_ENC        HAL_GPIO_PIN(SERIAL_DEBUG_TX_PORT, SERIAL_DEBUG_TX_PIN)
+#define SERIAL_DEBUG_TX_AF             GPIO_AF7
+#define SERIAL_DEBUG_RX_PORT           1
+#define SERIAL_DEBUG_RX_PIN            7
+#define SERIAL_DEBUG_RX_PIN_ENC        HAL_GPIO_PIN(SERIAL_DEBUG_RX_PORT, SERIAL_DEBUG_RX_PIN)
+#define SERIAL_DEBUG_RX_AF             GPIO_AF7
+#define SERIAL_DEBUG_DMA_INSTANCE       DMA1
+#define SERIAL_DEBUG_TX_DMA_CHANNEL     DMA1_Channel4
+#define SERIAL_DEBUG_TX_DMAMUX_CHANNEL  DMA_MuxChannel4
+#define SERIAL_DEBUG_TX_DMA_REQUEST     85U
+#define SERIAL_DEBUG_RX_DMA_CHANNEL     DMA1_Channel6
+#define SERIAL_DEBUG_RX_DMAMUX_CHANNEL  DMA_MuxChannel6
+#define SERIAL_DEBUG_RX_DMA_REQUEST     86U
+#define SERIAL_DEBUG_TX_DMA_TC_FLAG     DMA1_IT_TC4
+#define SERIAL_DEBUG_TX_DMA_TE_FLAG     DMA1_IT_TE4
+#define SERIAL_DEBUG_USART_IRQn         USART1_IRQn
+#define SERIAL_DEBUG_TX_DMA_IRQn        DMA1_Channel4_IRQn
+#define SERIAL_DEBUG_RX_BUF_SIZE        1024
+#define SERIAL_DEBUG_TX_RING_SIZE       2048
+
+/* Serial WiFi (USART2) - ESP8266 */
+#define SERIAL_WIFI_USART_INSTANCE      USART2
+#define SERIAL_WIFI_BAUDRATE            2000000
+#define SERIAL_WIFI_TX_PORT             0
+#define SERIAL_WIFI_TX_PIN              3
+#define SERIAL_WIFI_TX_PIN_ENC          HAL_GPIO_PIN(SERIAL_WIFI_TX_PORT, SERIAL_WIFI_TX_PIN)
+#define SERIAL_WIFI_TX_AF               GPIO_AF7
+#define SERIAL_WIFI_RX_PORT             0
+#define SERIAL_WIFI_RX_PIN              2
+#define SERIAL_WIFI_RX_PIN_ENC          HAL_GPIO_PIN(SERIAL_WIFI_RX_PORT, SERIAL_WIFI_RX_PIN)
+#define SERIAL_WIFI_RX_AF               GPIO_AF7
+#define SERIAL_WIFI_DMA_INSTANCE       DMA1
+#define SERIAL_WIFI_TX_DMA_CHANNEL      DMA1_Channel5
+#define SERIAL_WIFI_TX_DMAMUX_CHANNEL   DMA_MuxChannel5
+#define SERIAL_WIFI_TX_DMA_REQUEST     87U
+#define SERIAL_WIFI_RX_DMA_CHANNEL      DMA1_Channel7
+#define SERIAL_WIFI_RX_DMAMUX_CHANNEL   DMA_MuxChannel7
+#define SERIAL_WIFI_RX_DMA_REQUEST     88U
+#define SERIAL_WIFI_TX_DMA_TC_FLAG     DMA1_IT_TC5
+#define SERIAL_WIFI_TX_DMA_TE_FLAG     DMA1_IT_TE5
+#define SERIAL_WIFI_USART_IRQn          USART2_IRQn
+#define SERIAL_WIFI_TX_DMA_IRQn        DMA1_Channel5_IRQn
+#define SERIAL_WIFI_RX_BUF_SIZE         2048
+#define SERIAL_WIFI_TX_RING_SIZE       8192
+#endif /* __SERIAL_H */
+
+#ifdef __ICM42605_H
+/* ICM42605 IMU - I2C3 (V4改用I2C模式, 非SPI) */
+#define ICM42605_I2C_INSTANCE          I2C3
+#define ICM42605_I2C_ADDR              0x69
+#define ICM42605_SCL_PORT              0
+#define ICM42605_SCL_PIN               8
+#define ICM42605_SCL_PIN_ENC           HAL_GPIO_PIN(ICM42605_SCL_PORT, ICM42605_SCL_PIN)
+#define ICM42605_SCL_AF                GPIO_AF4
+#define ICM42605_SDA_PORT              2
+#define ICM42605_SDA_PIN               9
+#define ICM42605_SDA_PIN_ENC           HAL_GPIO_PIN(ICM42605_SDA_PORT, ICM42605_SDA_PIN)
+#define ICM42605_SDA_AF                GPIO_AF4
+#define ICM42605_INT_PORT              0
+#define ICM42605_INT_PIN               14
+#define ICM42605_INT_PIN_ENC           HAL_GPIO_PIN(ICM42605_INT_PORT, ICM42605_INT_PIN)
+#define ICM42605_DMA_FRAME_SIZE        13U
+#define ICM42605_RAW_DATA_SIZE         12U
+#endif /* __ICM42605_H */
+
+/* Board feature flags */
+#define HAS_ICM42605
+
+#ifdef __SD_CARD_H
+/* SD Card - SPI3 (与MAX98357A共享SPI3总线) */
+#define SD_SPI_INSTANCE         SPI3
+#define SD_SCK_PORT             2
+#define SD_SCK_PIN              10
+#define SD_SCK_PIN_ENC          HAL_GPIO_PIN(SD_SCK_PORT, SD_SCK_PIN)
+#define SD_SCK_AF               GPIO_AF6
+#define SD_MISO_PORT            2
+#define SD_MISO_PIN             11
+#define SD_MISO_PIN_ENC         HAL_GPIO_PIN(SD_MISO_PORT, SD_MISO_PIN)
+#define SD_MISO_AF              GPIO_AF6
+#define SD_MOSI_PORT            3
+#define SD_MOSI_PIN             6
+#define SD_MOSI_PIN_ENC         HAL_GPIO_PIN(SD_MOSI_PORT, SD_MOSI_PIN)
+#define SD_MOSI_AF              GPIO_AF5
+#define SD_CS_PORT              3
+#define SD_CS_PIN               7
+#define SD_CS_PIN_ENC           HAL_GPIO_PIN(SD_CS_PORT, SD_CS_PIN)
+#define SD_CD_PORT              3
+#define SD_CD_PIN               0
+#define SD_CD_PIN_ENC           HAL_GPIO_PIN(SD_CD_PORT, SD_CD_PIN)
+#endif /* __SD_CARD_H */
+
+#ifdef __MAX98357A_H
+/* MAX98357A - SPI3/I2S (与SD卡共享SPI3总线, WAV_SD_TIME_SHARE=1) */
+#define MAX98357A_I2S_INSTANCE      SPI3
+#define MAX98357A_WS_PORT           0
+#define MAX98357A_WS_PIN            15
+#define MAX98357A_WS_PIN_ENC        HAL_GPIO_PIN(MAX98357A_WS_PORT, MAX98357A_WS_PIN)
+#define MAX98357A_WS_AF             GPIO_AF6
+#define MAX98357A_CK_PORT           2
+#define MAX98357A_CK_PIN            10
+#define MAX98357A_CK_PIN_ENC        HAL_GPIO_PIN(MAX98357A_CK_PORT, MAX98357A_CK_PIN)
+#define MAX98357A_CK_AF             GPIO_AF6
+#define MAX98357A_DIN_PORT          3
+#define MAX98357A_DIN_PIN           6
+#define MAX98357A_DIN_PIN_ENC       HAL_GPIO_PIN(MAX98357A_DIN_PORT, MAX98357A_DIN_PIN)
+#define MAX98357A_DIN_AF            GPIO_AF5
+#define MAX98357A_MODE_PORT         3
+#define MAX98357A_MODE_PIN          3
+#define MAX98357A_MODE_PIN_ENC      HAL_GPIO_PIN(MAX98357A_MODE_PORT, MAX98357A_MODE_PIN)
+#define MAX98357A_DMA_INSTANCE      DMA1
+#define MAX98357A_TX_DMA_CHANNEL    DMA1_Channel3
+#define MAX98357A_TX_DMAMUX_CHANNEL DMA_MuxChannel3
+#define MAX98357A_TX_DMA_REQUEST    65U
+#define MAX98357A_TX_DMA_TC_FLAG    DMA1_IT_TC3
+#define MAX98357A_TX_DMA_IRQn       DMA1_Channel3_IRQn
+#endif /* __MAX98357A_H */
+
+#ifndef WAV_SD_TIME_SHARE
+#define WAV_SD_TIME_SHARE 1
+#endif
 
 #endif /* BOARD_Vx */
 

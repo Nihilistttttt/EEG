@@ -126,7 +126,7 @@
                         android:layout_height="wrap_content" />
 
                     <TextView
-                        android:text="Y轴"
+                        android:text="幅度"
                         style="@style/ControlLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -140,7 +140,7 @@
                         android:text="500uV" />
 
                     <TextView
-                        android:text="X轴"
+                        android:text="时间"
                         style="@style/ControlLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -154,7 +154,7 @@
                         android:text="2.05 s" />
 
                     <TextView
-                        android:text="标签"
+                        android:text="刻度"
                         style="@style/ControlLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -189,24 +189,10 @@
                     android:paddingBottom="4dp">
 
                     <TextView
-                        android:text="Y轴"
+                        android:text="频率"
                         style="@style/ControlLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
-
-                    <TextView
-                        android:id="@+id/tv_spec_y_range"
-                        style="@style/ParamChip"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="500 uV" />
-
-                    <TextView
-                        android:text="X轴"
-                        style="@style/ControlLabel"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp" />
 
                     <TextView
                         android:id="@+id/tv_spec_x_range"
@@ -214,6 +200,20 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="0-30 Hz" />
+
+                    <TextView
+                        android:text="幅度"
+                        style="@style/ControlLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp" />
+
+                    <TextView
+                        android:id="@+id/tv_spec_y_range"
+                        style="@style/ParamChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="500 uV" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

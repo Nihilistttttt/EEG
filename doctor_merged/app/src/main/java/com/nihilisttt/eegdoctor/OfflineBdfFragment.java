@@ -27,6 +27,7 @@ public class OfflineBdfFragment extends Fragment {
     private static final int PLAY_INTERVAL_MS = 50;
 
     private EegStripView stripView;
+    private TopoMapView topoMapView;
     private TextView tvFilename;
     private TextView tvInfo;
     private TextView tvPosStart;
@@ -66,6 +67,7 @@ public class OfflineBdfFragment extends Fragment {
         View root = inflater.inflate(R.layout.fragment_offline_bdf, container, false);
 
         stripView = root.findViewById(R.id.eeg_strip_view);
+        topoMapView = root.findViewById(R.id.topo_map_view);
         tvFilename = root.findViewById(R.id.tv_bdf_filename);
         tvInfo = root.findViewById(R.id.tv_bdf_info);
         tvPosStart = root.findViewById(R.id.tv_pos_start);
@@ -75,7 +77,7 @@ public class OfflineBdfFragment extends Fragment {
         etWindow = root.findViewById(R.id.et_window);
         btnPlayPause = root.findViewById(R.id.btn_play_pause);
         btnDcRemove = root.findViewById(R.id.btn_dc_remove);
-
+ 
         root.findViewById(R.id.btn_open_bdf).setOnClickListener(v -> openFile());
 
         btnPlayPause.setOnClickListener(v -> togglePlay());
@@ -222,16 +224,25 @@ public class OfflineBdfFragment extends Fragment {
 
         stripView.clear();
         stripView.setXMax(getWindowSeconds());
+        if (topoMapView != null) topoMapView.clear();
 
         int nCh = bdf.nChannels;
         int len = Math.min(windowSamples, bdf.totalSamples - startPos);
         if (len <= 0) return;
 
+        float[] rmsUv = new float[nCh];
         for (int ch = 0; ch < nCh; ch++) {
             float[] seg = doDcRemove ? bdf.getSegmentHp(ch, startPos, len) : bdf.getSegment(ch, startPos, len);
+            float sumSq = 0f;
             for (int i = 0; i < seg.length; i++) {
                 stripView.addPoint(ch, seg[i] / 1_000_000f);
+                sumSq += seg[i] * seg[i];
             }
+            rmsUv[ch] = (float) Math.sqrt(sumSq / seg.length);
+        }
+
+        if (topoMapView != null) {
+            topoMapView.setChannelAmplitudes(rmsUv);
         }
 
         float startSec = startPos / (float) fs;

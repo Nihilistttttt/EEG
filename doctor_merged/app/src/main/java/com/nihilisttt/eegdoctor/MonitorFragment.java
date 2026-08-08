@@ -67,12 +67,16 @@ public class MonitorFragment extends Fragment implements DataListener {
     private int[] waveMode = {0, 0};
 
     private boolean is8ChMode = false;
+    private boolean isTopoMode = false;
     private EegStripView stripView;
+    private TopoMapView topoMapView;
     private View btn8ch;
+    private View btnTopo;
     private View btnDisplayCfg;
     private View tvSpecLabel;
     private View tvHzLabel;
     private int current8ChWaveType = EegChannels.WAVE_TYPE_FILT;
+    private int currentTopoWaveType = EegChannels.WAVE_TYPE_FILT;
     private float saved2ChXMax = DEFAULT_X_MAX;
 
 
@@ -126,7 +130,7 @@ public class MonitorFragment extends Fragment implements DataListener {
         buildChannelViews(channelContainer);
 
 
-        tvWaveLabelCount = root.findViewById(R.id.tv_wave_label_count);
+
         tvWaveRange = root.findViewById(R.id.tv_wave_range);
         tvXRange = root.findViewById(R.id.tv_x_range);
         tvSpectrumRange = root.findViewById(R.id.tv_spectrum_range);
@@ -145,8 +149,11 @@ public class MonitorFragment extends Fragment implements DataListener {
         tvHzLabel = root.findViewById(R.id.tv_hz_label);
 
         stripView = root.findViewById(R.id.eeg_strip_view);
+        topoMapView = root.findViewById(R.id.topo_map_view);
         btn8ch = root.findViewById(R.id.btn_8ch);
         btn8ch.setOnClickListener(v -> toggle8ChMode());
+        btnTopo = root.findViewById(R.id.btn_topo);
+        btnTopo.setOnClickListener(v -> toggleTopoMode());
 
         connectionListener = new TcpServerManager.ConnectionListener() {
             @Override
@@ -289,7 +296,7 @@ public class MonitorFragment extends Fragment implements DataListener {
     }
 
     private void setupRangeSelectors() {
-        tvWaveLabelCount.setOnClickListener(v -> showLabelCountDialog());
+
         tvWaveRange.setOnClickListener(v -> showWaveRangeDialog());
         tvXRange.setOnClickListener(v -> showXRangeDialog());
         tvSpectrumRange.setOnClickListener(v -> showSpectrumRangeDialog());
@@ -303,9 +310,9 @@ public class MonitorFragment extends Fragment implements DataListener {
         String specUnit = SettingsStore.getSpecUnit(requireContext(), "uV");
 
         currentLabelCount = labelCount;
-        tvWaveLabelCount.setText(String.valueOf(labelCount));
+
         tvWaveRange.setText(step + stepUnit);
-        tvXRange.setText(String.format("%.3f s", xMax));
+        tvXRange.setText(String.format("%.0f s", xMax));
         tvSpectrumRange.setText((Math.abs(specRange - Math.round(specRange)) < 0.001f ? String.format("%.0f", specRange) : String.format("%.3g", specRange)) + " " + specUnit);
 
         applyWaveStep(step, stepUnit, labelCount);
@@ -331,7 +338,7 @@ public class MonitorFragment extends Fragment implements DataListener {
                 .setSingleChoiceItems(labels, currentIndex, (dialog, which) -> {
                     int newCount = Integer.parseInt(labels[which]);
                     currentLabelCount = newCount;
-                    tvWaveLabelCount.setText(String.valueOf(newCount));
+
                     String stepText = tvWaveRange.getText().toString();
                     String numericPart = stepText.replaceAll("[^0-9]", "");
                     String unitPart = stepText.replaceAll("[0-9]", "");
@@ -405,7 +412,7 @@ public class MonitorFragment extends Fragment implements DataListener {
     private void applyXRange(float xMax) {
         for (WaveformView wv : waveformViews) { wv.setXMax(xMax); }
         if (is8ChMode) stripView.setXMax(xMax);
-        tvXRange.setText(String.format("%.3f s", xMax));
+        tvXRange.setText(String.format("%.0f s", xMax));
     }
 
     private void showXRangeDialog() {
@@ -414,17 +421,17 @@ public class MonitorFragment extends Fragment implements DataListener {
         Spinner unitSpinner = dialogView.findViewById(R.id.unit_spinner);
         unitSpinner.setVisibility(View.GONE);
         etValue.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        etValue.setHint("例如 2.048");
+        etValue.setHint("例如 2");
         String current = tvXRange.getText().toString().replace(" s", "");
         etValue.setText(current);
         new AlertDialog.Builder(requireContext())
-                .setTitle("设置 X 轴时间范围 (秒)")
+                .setTitle("时间范围 (秒)")
                 .setView(dialogView)
                 .setPositiveButton("确定", (d, which) -> {
                     String str = etValue.getText().toString().trim();
                     if (str.isEmpty()) return;
                     try {
-                        float xMax = Float.parseFloat(str);
+                        float xMax = Math.round(Float.parseFloat(str) * 10f) / 10f;
                         if (xMax <= 0) return;
                         applyXRange(xMax);
                         SettingsStore.setWaveXMax(requireContext(), xMax);
@@ -661,6 +668,9 @@ public class MonitorFragment extends Fragment implements DataListener {
         if (is8ChMode) {
             data = EegChannels.build8ChannelDisplayConfigData(
                     current8ChWaveType, EegChannels.SPEC_TYPE_NONE);
+        } else if (isTopoMode) {
+            data = EegChannels.build8ChannelDisplayConfigData(
+                    currentTopoWaveType, EegChannels.SPEC_TYPE_NONE);
         } else {
             int[] p = new int[24];
             p[0] = waveCh[0]; p[1] = waveType[0]; p[2] = specType[0];
@@ -834,6 +844,12 @@ public class MonitorFragment extends Fragment implements DataListener {
             }
             return;
         }
+        if (isTopoMode) {
+            if (EegChannels.isWaveCmd(cmd) && cmd == EegChannels.waveTypeToCmd(currentTopoWaveType)) {
+                topoMapView.addSample(ch, val);
+            }
+            return;
+        }
         if (EegChannels.isWaveCmd(cmd)) {
             for (int i = 0; i < 2; i++) {
                 if (ch == waveCh[i] && cmd == waveTypeToCmd(waveType[i])
@@ -851,6 +867,11 @@ public class MonitorFragment extends Fragment implements DataListener {
             for (int i = 0; i < ch.length; i++) stripView.addPoint(i, ch[i]);
             return;
         }
+        if (isTopoMode) {
+            float[] ch = frame.getChannels();
+            for (int i = 0; i < ch.length; i++) topoMapView.addSample(i, ch[i]);
+            return;
+        }
         if (waveformViews.isEmpty()) return;
         float[] ch = frame.getChannels();
         for (int i = 0; i < waveformViews.size() && i < ch.length; i++) {
@@ -860,7 +881,7 @@ public class MonitorFragment extends Fragment implements DataListener {
 
     @Override
     public void onSpectrumData(int cmd, float[] mags) {
-        if (isPaused || is8ChMode) return;
+        if (isPaused || is8ChMode || isTopoMode) return;
         int ch = EegChannels.spectrumCmdToChannel(cmd);
         int specTypeIdx = EegChannels.spectrumCmdToType(cmd);
         if (ch < 0 || specTypeIdx < 0) return;
@@ -877,6 +898,7 @@ public class MonitorFragment extends Fragment implements DataListener {
     }
 
     private void toggle8ChMode() {
+        if (isTopoMode) return;
         is8ChMode = !is8ChMode;
         LinearLayout channelContainer = requireView().findViewById(R.id.channel_container);
         if (is8ChMode) {
@@ -896,7 +918,7 @@ public class MonitorFragment extends Fragment implements DataListener {
             saved2ChXMax = SettingsStore.getWaveXMax(requireContext(), DEFAULT_X_MAX);
             float x8 = saved2ChXMax * 2f;
             stripView.setXMax(x8);
-            tvXRange.setText(String.format("%.3f s", x8));
+            tvXRange.setText(String.format("%.0f s", x8));
 
             btnDisplayCfg.setOnClickListener(v -> toggle8ChWaveType());
             if (btnDisplayCfg instanceof TextView) ((TextView) btnDisplayCfg).setText(
@@ -924,6 +946,52 @@ public class MonitorFragment extends Fragment implements DataListener {
             if (btn8ch instanceof TextView) ((TextView) btn8ch).setText("8CH");
             sendDisplayConfig();
         }
+    }
+
+    private void toggleTopoMode() {
+        if (is8ChMode) return;
+        isTopoMode = !isTopoMode;
+        LinearLayout channelContainer = requireView().findViewById(R.id.channel_container);
+        if (isTopoMode) {
+            channelContainer.setVisibility(View.GONE);
+            topoMapView.setVisibility(View.VISIBLE);
+
+            btnDisplayCfg.setOnClickListener(v -> toggleTopoWaveType());
+            if (btnDisplayCfg instanceof TextView) ((TextView) btnDisplayCfg).setText(
+                    currentTopoWaveType == EegChannels.WAVE_TYPE_FILT ? "滤波" : "基线");
+
+            tvSpecLabel.setVisibility(View.GONE);
+            tvSpectrumRange.setVisibility(View.GONE);
+            tvHzLabel.setVisibility(View.GONE);
+            tvSpecXRange.setVisibility(View.GONE);
+            if (btnTopo instanceof TextView) ((TextView) btnTopo).setText("退出");
+            sendDisplayConfig();
+        } else {
+            channelContainer.setVisibility(View.VISIBLE);
+            topoMapView.setVisibility(View.GONE);
+
+            btnDisplayCfg.setOnClickListener(v -> showDisplayConfigDialog());
+            if (btnDisplayCfg instanceof TextView) ((TextView) btnDisplayCfg).setText("通道");
+
+            tvSpecLabel.setVisibility(View.VISIBLE);
+            tvSpectrumRange.setVisibility(View.VISIBLE);
+            tvHzLabel.setVisibility(View.VISIBLE);
+            tvSpecXRange.setVisibility(View.VISIBLE);
+            if (btnTopo instanceof TextView) ((TextView) btnTopo).setText("地形图");
+            sendDisplayConfig();
+        }
+    }
+
+    private void toggleTopoWaveType() {
+        if (currentTopoWaveType == EegChannels.WAVE_TYPE_FILT) {
+            currentTopoWaveType = EegChannels.WAVE_TYPE_BASELINE;
+            if (btnDisplayCfg instanceof TextView) ((TextView) btnDisplayCfg).setText("基线");
+        } else {
+            currentTopoWaveType = EegChannels.WAVE_TYPE_FILT;
+            if (btnDisplayCfg instanceof TextView) ((TextView) btnDisplayCfg).setText("滤波");
+        }
+        topoMapView.clear();
+        sendDisplayConfig();
     }
 
     private void toggle8ChWaveType() {

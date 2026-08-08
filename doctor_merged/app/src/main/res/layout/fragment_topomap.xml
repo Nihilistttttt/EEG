@@ -38,7 +38,7 @@
                 android:text="滤波" />
 
             <TextView
-                android:text="范围"
+                android:text="幅度"
                 style="@style/ControlLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

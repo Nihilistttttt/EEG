@@ -3,6 +3,97 @@ EEG项目更新记录
 最后更新: 2026-08-08
 
 ================================================================================
+2026-08-08  安卓端UI重构+MI训练融合+SSVEP结果修复+白天模式适配+显示设置合并
+================================================================================
+
+功能1: MI训练与方向识别融合 (MiTrainingFragment.java + fragment_mi_training.xml)
+  - 问题: MI训练和方向识别(推理)为两个独立页面, 用户需切换, 体验不连贯
+  - 修改: 合并为单页面, 左波形+右ScrollView(控制栏+模式切换按钮+训练卡片+推理卡片)
+  - 模式切换: "采集"模式=运动想象训练卡片(采集EEG数据), "训练"模式=推理卡片(统计+记录)
+  - 按钮样式: 开始训练/停止与推理卡片一致(40dp+OutlinedButton)
+  - 推理功能: InferenceRecordStore静态API调用, 模式/轮次Spinner, 统计/导出/清空
+  - 移除InferenceFragment: MainActivity/HomeActivity/activity_home.xml清理方向识别独立页面
+
+功能2: 波形频谱对比合并 (CompareFragment.java + fragment_compare.xml)
+  - 问题: 波形对比和频谱对比为两个独立页面
+  - 修改: 新建CompareFragment合并, "频谱"/"波形"按钮切换, 频谱模式隐藏波形标签
+
+功能3: 显示设置合并到系统配置 (ConfigFragment.java + fragment_config.xml)
+  - 问题: 显示设置为独立Activity, 与系统配置功能重叠
+  - 修改: fragment_config.xml改为ScrollView, 添加刺激显示设备卡片+连接状态监控卡片
+  - ConfigFragment实现ConnectionListener, updateHint/updateStatusDots
+  - 移除HomeActivity中显示设置卡片, 离线BDF分析移到Row3
+
+功能4: 首页卡片布局优化 (activity_home.xml + MainActivity.java)
+  - 布局: 3行×3列等宽(原Row2/3/4各2个卡片导致列宽不一致)
+  - 副标题与内部页面匹配:
+    脑电监测: 波形·频谱·专注度 → 波形·频谱·地形图(已集成地形图)
+    SSVEP训练: 校准·采集·模型训练 → 刺激·自测·实时分析
+    MI训练: 运动想象·CSP分类 → 采集·推理·统计(已融合)
+    系统配置: WiFi·设备·参数 → WiFi·显示·状态(已合并显示设置)
+  - pageTitles: "专注度" → "专注度分析"(与卡片名称一致)
+
+功能5: 标签统一与时间显示整数化
+  - 标签命名: "X轴"→"时间", "Y轴"→"幅度", "频谱"→"幅度", "Hz"→"频率", "范围"→"幅度"
+  - 标签顺序: 时间→幅度→频率→幅度(先X后Y)
+  - 时间显示: 所有页面"%.1f s"→"%.0f s", 输入限一位小数四舍五入
+  - 影响布局: fragment_monitor/eeg8ch/ssvep_training/mi_training/topomap.xml
+
+功能6: 脑电监测页面集成地形图 (MonitorFragment.java + fragment_monitor.xml)
+  - 新增"地形图"按钮切换模式, 与8CH互斥
+  - 移除地形图独立页面(MainActivity/HomeActivity/activity_home.xml)
+
+功能7: 白天模式适配 (EegStripView.java + ImpedanceBarView.java)
+  - 问题: 两个自定义View硬编码深色颜色, 白天模式下显示异常
+  - 修复: EegStripView initPaints() 6处硬编码→ContextCompat.getColor资源引用
+  - 修复: ImpedanceBarView构造函数7处+onDraw 1处硬编码→资源引用
+  - 颜色: surface_low/surface_high/axis_line/grid_line/text_primary/text_secondary/accent_*
+
+功能8: SSVEP自测结果修复 (Signal_Analysis.c + eeg_cmd_parser.c + dualcore_ipc_v3f.c)
+  - 问题: 自测时无ADS帧→GSSVEP_ResultPoll不调用, V5F不生成合成数据, 安卓收不到结果
+  - 修复1: V3F主循环else分支, 自测模式下每4ms构造全零帧发送V5F+调用EEG_SSVEP_ResultPoll
+  - 修复2: CMD_SSVEP_SELFTEST_START补全IPC_Ctrl_SetFlags_V3F+IPC_Cmd_Send_V3F通知V5F
+  - 修复3: 新增DualCore_IPC_GetSsvepSelftest()getter函数
+  - 修复4: HAL_GetTick()不存在→用rdcycle指令+SystemCoreClock获取毫秒tick
+
+功能9: SSVEP真实结果修复 (SsvepTrainingFragment.java)
+  - 问题: 真实模式else分支未调用analysis.confirmStimulusStarted(), running保持false
+  - 根因: onMcuSsvepResult中if(!running) return; 丢弃所有MCU结果
+  - 修复: 真实模式else分支添加confirmStimulusStarted设置running=true, synthetic=false
+
+功能10: EegStripView子集显示+离线BDF地形图+TopoMapView质量提升
+  - EegStripView: visibleChCount/channelMap/setVisibleChannels支持通道子集
+  - fragment_offline_bdf.xml: 水平布局+TopoMapView+RMS计算
+  - TopoMapView: GRID_SIZE=160, IDW_POWER=3.0, 256色LUT, DITHER_FLAG
+
+修改文件:
+  - doctor_merged/.../MiTrainingFragment.java: MI训练+推理融合, 模式切换
+  - doctor_merged/.../fragment_mi_training.xml: 左波形+右ScrollView布局
+  - doctor_merged/.../CompareFragment.java: 新建, 合并波形+频谱对比
+  - doctor_merged/.../fragment_compare.xml: 新建, 合并布局
+  - doctor_merged/.../ConfigFragment.java: 添加显示设置+连接状态监控
+  - doctor_merged/.../>fragment_config.xml: ScrollView+刺激显示设备+当前状态卡片
+  - doctor_merged/.../SsvepTrainingFragment.java: 真实模式调用confirmStimulusStarted
+  - doctor_merged/.../EegStripView.java: 白天模式适配+通道子集
+  - doctor_merged/.../ImpedanceBarView.java: 白天模式适配
+  - doctor_merged/.../MonitorFragment.java: 地形图模式+标签统一+时间整数化
+  - doctor_merged/.../MainActivity.java: 移除InferenceFragment, pageTitles调整
+  - doctor_merged/.../HomeActivity.java: 移除显示设置卡片, 页面编号调整
+  - doctor_merged/.../activity_home.xml: 3×3等宽布局+副标题优化
+  - doctor_merged/.../fragment_monitor.xml: 地形图按钮+标签改名
+  - doctor_merged/.../fragment_eeg8ch.xml: 标签改名
+  - doctor_merged/.../fragment_ssvep_training.xml: 标签改名+顺序调整
+  - doctor_merged/.../fragment_topomap.xml: "范围"→"幅度"
+  - doctor_merged/.../fragment_offline_bdf.xml: 水平布局+TopoMapView
+  - doctor_merged/.../TopoMapView.java: GRID_SIZE/IDW_POWER/LUT/DITHER提升
+  - doctor_merged/.../OfflineBdfFragment.java: 地形图RMS计算
+  - EXAM/GPIO/EEG/V3F/Hardware/Signal_Analysis.c: SSVEP自测无ADS帧驱动V5F
+  - EXAM/GPIO/EEG/V3F/EEG_Protocol/eeg_cmd_parser.c: CMD_SSVEP_SELFTEST_START补全V5F通知
+  - EXAM/GPIO/EEG/Common/dualcore_ipc_v3f.c: 新增GetSsvepSelftest getter
+  - EXAM/GPIO/EEG/Common/dualcore_ipc.h: GetSsvepSelftest声明
+  - EXAM/GPIO/EEG/V3F/Hardware/Config.h: V4板级配置
+
+================================================================================
 2026-08-08  安卓端SSVEP页波形类型切换+去直流高通滤波修复
 ================================================================================
 

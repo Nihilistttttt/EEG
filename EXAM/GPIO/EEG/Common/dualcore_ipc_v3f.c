@@ -104,6 +104,11 @@ void DualCore_IPC_SetSsvepSelftest(uint8_t enable, uint8_t freq_index)
     g_ipc_v3f_ssvep_selftest_idx = freq_index & 0x03u;
 }
 
+uint8_t DualCore_IPC_GetSsvepSelftest(void)
+{
+    return g_ipc_v3f_ssvep_selftest;
+}
+
 uint32_t DualCore_IPC_GetLastV5FWfiWake(void)
 {
     return g_ipc_v3f_last_v5f_wfi_wake;

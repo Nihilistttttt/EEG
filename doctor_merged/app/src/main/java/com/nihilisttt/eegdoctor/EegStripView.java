@@ -57,16 +57,33 @@ public class EegStripView extends View {
 
     private float lastSpanY = 0;
 
+    private int visibleChCount = NUM_CH;
+    private int[] channelMap = null;
+
+    public void setVisibleChannels(int[] channels) {
+        if (channels == null || channels.length == 0) {
+            channelMap = null;
+            visibleChCount = NUM_CH;
+        } else {
+            channelMap = new int[channels.length];
+            for (int i = 0; i < channels.length; i++) {
+                channelMap[i] = Math.max(0, Math.min(NUM_CH - 1, channels[i]));
+            }
+            visibleChCount = channels.length;
+        }
+        invalidate();
+    }
+
     public EegStripView(Context context, AttributeSet attrs) {
         super(context, attrs);
         initPaints();
     }
 
     private void initPaints() {
-        int bgColor = 0xFF101820;
-        int sepColor = 0xFF2A3441;
-        int axisColor = 0xFF4A5568;
-        int textColor = 0xFF90A4AE;
+        int bgColor = ContextCompat.getColor(getContext(), R.color.surface_low);
+        int sepColor = ContextCompat.getColor(getContext(), R.color.surface_high);
+        int axisColor = ContextCompat.getColor(getContext(), R.color.axis_line);
+        int textColor = ContextCompat.getColor(getContext(), R.color.text_secondary);
 
         bgPaint = new Paint();
         bgPaint.setColor(bgColor);
@@ -81,13 +98,13 @@ public class EegStripView extends View {
         axisPaint.setStrokeWidth(0.5f);
 
         gridPaint = new Paint();
-        gridPaint.setColor(0xFF3A4A5C);
+        gridPaint.setColor(ContextCompat.getColor(getContext(), R.color.grid_line));
         gridPaint.setStrokeWidth(0.5f);
         gridPaint.setStyle(Paint.Style.STROKE);
         gridPaint.setPathEffect(new android.graphics.DashPathEffect(new float[]{6f, 4f}, 0f));
 
         gridLabelPaint = new Paint();
-        gridLabelPaint.setColor(0xFF607D8B);
+        gridLabelPaint.setColor(textColor);
         gridLabelPaint.setAntiAlias(true);
 
         labelPaint = new Paint();
@@ -197,9 +214,9 @@ public class EegStripView extends View {
 
         canvas.drawRect(0, 0, width, height, bgPaint);
 
-        float edgePad = height / (float) (NUM_CH + 1) * 0.5f;
+        float edgePad = height / (float) (visibleChCount + 1) * 0.5f;
         float drawAreaHeight = height - 2 * edgePad;
-        float channelHeight = drawAreaHeight / (float) NUM_CH;
+        float channelHeight = drawAreaHeight / (float) visibleChCount;
         float yMin = -yRange;
         float yMax = yRange;
         float drawHalf = channelHeight * (0.5f + OVERFLOW_RATIO);
@@ -207,18 +224,19 @@ public class EegStripView extends View {
         float rulerStepUv = yRange * 2f * 1_000_000f;
         gridLabelPaint.setTextSize(Math.min(10f, channelHeight * 0.22f));
 
-        for (int line = 0; line <= NUM_CH; line++) {
+        for (int line = 0; line <= visibleChCount; line++) {
             float lineY = edgePad + line * channelHeight;
             canvas.drawLine(left, lineY, right, lineY, gridPaint);
-            float valUv = (NUM_CH - line) * rulerStepUv;
+            float valUv = (visibleChCount - line) * rulerStepUv;
             String label = formatUvPositive(valUv);
             canvas.drawText(label, left + 2f, lineY - 1f, gridLabelPaint);
         }
 
         labelPaint.setTextSize(Math.min(14f, channelHeight * 0.35f));
 
-        for (int ch = 0; ch < NUM_CH; ch++) {
-            float centerY = edgePad + (ch + 0.5f) * channelHeight;
+        for (int dispCh = 0; dispCh < visibleChCount; dispCh++) {
+            int ch = (channelMap != null) ? channelMap[dispCh] : dispCh;
+            float centerY = edgePad + (dispCh + 0.5f) * channelHeight;
             float drawTop = centerY - drawHalf;
             float drawBottom = centerY + drawHalf;
             float yScale = (drawBottom - drawTop) / (yMax - yMin);

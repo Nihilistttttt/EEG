@@ -29,18 +29,12 @@ public class HomeActivity extends AppCompatActivity implements TcpServerManager.
         findViewById(R.id.card_realtime).setOnClickListener(v -> launchMonitor(1));
         findViewById(R.id.card_focus).setOnClickListener(v -> launchMonitor(2));
         findViewById(R.id.card_wave_compare).setOnClickListener(v -> launchMonitor(3));
-        findViewById(R.id.card_spectrum_compare).setOnClickListener(v -> launchMonitor(4));
-        findViewById(R.id.card_training).setOnClickListener(v -> launchMonitor(5));
-        findViewById(R.id.card_inference).setOnClickListener(v -> launchMonitor(7));
-        findViewById(R.id.card_mi_train).setOnClickListener(v -> launchMonitor(6));
-        findViewById(R.id.card_posture).setOnClickListener(v -> launchMonitor(8));
-        findViewById(R.id.card_topomap).setOnClickListener(v -> launchMonitor(9));
-        findViewById(R.id.card_system_config).setOnClickListener(v -> launchMonitor(10));
-        findViewById(R.id.card_offline_bdf).setOnClickListener(v -> launchMonitor(11));
-        findViewById(R.id.card_display_setting).setOnClickListener(v -> {
-            Intent intent = new Intent(this, DisplaySettingActivity.class);
-            startActivity(intent);
-        });
+        findViewById(R.id.card_training).setOnClickListener(v -> launchMonitor(4));
+        findViewById(R.id.card_mi_train).setOnClickListener(v -> launchMonitor(5));
+        findViewById(R.id.card_posture).setOnClickListener(v -> launchMonitor(6));
+        findViewById(R.id.card_system_config).setOnClickListener(v -> launchMonitor(7));
+        findViewById(R.id.card_offline_bdf).setOnClickListener(v -> launchMonitor(8));
+
     }
 
     @Override

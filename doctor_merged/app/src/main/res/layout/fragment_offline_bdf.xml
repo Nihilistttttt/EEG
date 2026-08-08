@@ -109,11 +109,26 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <com.nihilisttt.eegdoctor.EegStripView
-        android:id="@+id/eeg_strip_view"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <com.nihilisttt.eegdoctor.EegStripView
+            android:id="@+id/eeg_strip_view"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="3" />
+
+        <com.nihilisttt.eegdoctor.TopoMapView
+            android:id="@+id/topo_map_view"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="2"
+            android:layout_marginStart="2dp" />
+
+    </LinearLayout>
 
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"

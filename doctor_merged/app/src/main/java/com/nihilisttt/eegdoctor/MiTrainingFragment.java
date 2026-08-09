@@ -113,8 +113,14 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
 
     private RecyclerView rvDirFiles;
     private DirFileAdapter dirFileAdapter;
-    private View btnTrainSelected, btnSendWeight, btnMergeSelected, btnDeleteSelected, btnDirBack, btnImportFile, btnExportModel;
+    private RecyclerView rvDirModels;
+    private DirModelAdapter dirModelAdapter;
+    private View btnTrainSelected, btnSendWeight, btnMergeSelected, btnDeleteSelected, btnDirBack, btnImportFile, btnExportModel, btnDeleteModel, btnScanSd;
+    private Spinner spinnerPatient;
+    private final List<String[]> patientList = new ArrayList<>();
+    private int selectedPatientIdx = 0;
     private static final int REQ_IMPORT_DIR_FILE = 1001;
+    private static final String PREF_PATIENTS = "dir_patients_data";
     private TextView tvTrainResult, tvDirLog;
     private DirLdaTrainer.TrainResult lastDirResult = null;
     private final List<DirTrainStore.StoredSample> dirCollectBuffer = new ArrayList<>();
@@ -835,17 +841,26 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
         btnDirBack = root.findViewById(R.id.btn_dir_back);
         btnImportFile = root.findViewById(R.id.btn_import_file);
         btnExportModel = root.findViewById(R.id.btn_export_model);
+        btnDeleteModel = root.findViewById(R.id.btn_delete_model);
+        btnScanSd = root.findViewById(R.id.btn_scan_sd);
         tvTrainResult = root.findViewById(R.id.tv_train_result);
         tvDirLog = root.findViewById(R.id.tv_log);
+        spinnerPatient = root.findViewById(R.id.spinner_patient);
         tvDirLog.setMovementMethod(new android.text.method.ScrollingMovementMethod());
         dirFileAdapter = new DirFileAdapter();
         rvDirFiles.setLayoutManager(new LinearLayoutManager(requireContext()));
         rvDirFiles.setAdapter(dirFileAdapter);
+        rvDirModels = root.findViewById(R.id.rv_dir_models);
+        dirModelAdapter = new DirModelAdapter();
+        rvDirModels.setLayoutManager(new LinearLayoutManager(requireContext()));
+        rvDirModels.setAdapter(dirModelAdapter);
         btnTrainSelected.setOnClickListener(v -> trainSelected());
-        btnSendWeight.setOnClickListener(v -> sendDirWeight());
+        btnSendWeight.setOnClickListener(v -> sendSelectedModel());
         btnMergeSelected.setOnClickListener(v -> mergeSelected());
         btnDeleteSelected.setOnClickListener(v -> deleteSelected());
         btnDirBack.setOnClickListener(v -> toggleMode());
+        btnDeleteModel.setOnClickListener(v -> deleteSelectedModel());
+        btnScanSd.setOnClickListener(v -> scanSdModels());
         btnImportFile.setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
             intent.setType("*/*");
@@ -853,7 +868,96 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
             startActivityForResult(intent, REQ_IMPORT_DIR_FILE);
         });
         btnExportModel.setOnClickListener(v -> exportDirModel());
+        setupPatientSpinner();
         refreshDirFileList();
+        refreshDirModelList();
+    }
+
+    private void setupPatientSpinner() {
+        loadPatientList();
+        refreshPatientSpinner();
+    }
+
+    private void loadPatientList() {
+        patientList.clear();
+        android.content.SharedPreferences prefs = requireContext().getSharedPreferences("dir_train_prefs", 0);
+        String data = prefs.getString(PREF_PATIENTS, "");
+        if (!data.isEmpty()) {
+            for (String entry : data.split("\\|")) {
+                String[] kv = entry.split(":", 2);
+                if (kv.length == 2) patientList.add(new String[]{kv[0], kv[1]});
+            }
+        }
+    }
+
+    private void savePatientList() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < patientList.size(); i++) {
+            if (i > 0) sb.append("|");
+            sb.append(patientList.get(i)[0]).append(":").append(patientList.get(i)[1]);
+        }
+        android.content.SharedPreferences prefs = requireContext().getSharedPreferences("dir_train_prefs", 0);
+        prefs.edit().putString(PREF_PATIENTS, sb.toString()).apply();
+    }
+
+    private void refreshPatientSpinner() {
+        List<String> labels = new ArrayList<>();
+        for (String[] p : patientList) labels.add(p[0] + " " + p[1]);
+        labels.add("＋ 新增患者");
+        android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, labels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerPatient.setAdapter(adapter);
+        if (selectedPatientIdx >= patientList.size()) selectedPatientIdx = 0;
+        spinnerPatient.setSelection(selectedPatientIdx);
+        spinnerPatient.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                if (position == patientList.size()) {
+                    showNewPatientDialog();
+                } else {
+                    selectedPatientIdx = position;
+                }
+            }
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+    }
+
+    private void showNewPatientDialog() {
+        android.widget.EditText input = new android.widget.EditText(requireContext());
+        input.setHint("患者姓名/编号");
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(20)});
+        new AlertDialog.Builder(requireContext())
+                .setTitle("新增患者")
+                .setView(input)
+                .setPositiveButton("确定", (d, w) -> {
+                    String name = input.getText().toString().trim();
+                    if (name.isEmpty()) name = "unnamed";
+                    name = name.replaceAll("[^a-zA-Z0-9_\\-\\u4e00-\\u9fa5]", "_");
+                    int nextId = patientList.size() + 1;
+                    String idStr = String.format(Locale.US, "P%03d", nextId);
+                    patientList.add(new String[]{idStr, name});
+                    savePatientList();
+                    selectedPatientIdx = patientList.size() - 1;
+                    refreshPatientSpinner();
+                    appendDirLog("新增患者: " + idStr + " " + name);
+                })
+                .setNegativeButton("取消", (d, w) -> refreshPatientSpinner())
+                .setCancelable(false)
+                .show();
+    }
+
+    private String getCurrentPatientIdStr() {
+        if (selectedPatientIdx >= 0 && selectedPatientIdx < patientList.size())
+            return patientList.get(selectedPatientIdx)[0];
+        return "P000";
+    }
+
+    private String getCurrentPatientName() {
+        if (selectedPatientIdx >= 0 && selectedPatientIdx < patientList.size())
+            return patientList.get(selectedPatientIdx)[1];
+        return "unnamed";
     }
 
     private void refreshDirFileList() {
@@ -956,16 +1060,178 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
                     for (int i = 0; i < 6; i++) sb.append(String.format(Locale.getDefault(), "  w[%d]=%.6e\n", i, result.weight[i]));
                     tvTrainResult.setText(sb.toString());
                     appendDirLog(String.format(Locale.getDefault(), "训练完成, bAcc=%.1f%%", result.balancedAccuracy * 100));
+                    autoExportModel(result);
                 });
             }
         });
     }
 
-    private void sendDirWeight() {
-        if (lastDirResult == null || !lastDirResult.valid) { appendDirLog("请先训练模型"); return; }
-        byte[] payload = DirLdaTrainer.packWeightPayload(lastDirResult);
-        appendDirLog("下发权重 " + payload.length + " 字节");
-        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_DIR_WEIGHT, payload);
+    private void sendSelectedModel() {
+        List<DirModelAdapter.ModelInfo> selected = dirModelAdapter.getSelected();
+        if (!selected.isEmpty()) {
+            DirModelAdapter.ModelInfo info = selected.get(0);
+            DirLdaTrainer.TrainResult r = loadModelFromFile(info.file);
+            if (r == null || !r.valid) { appendDirLog("模型加载失败: " + info.name); return; }
+            byte[] payload = DirLdaTrainer.packWeightPayload(r);
+            appendDirLog("下发模型 " + info.name + " (" + payload.length + "字节)");
+            TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_DIR_MODEL_PUSH, payload);
+            return;
+        }
+        if (lastDirResult != null && lastDirResult.valid) {
+            byte[] payload = DirLdaTrainer.packWeightPayload(lastDirResult);
+            appendDirLog("下发当前训练模型 (" + payload.length + "字节)");
+            TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_DIR_MODEL_PUSH, payload);
+            return;
+        }
+        appendDirLog("请先选择模型文件或训练模型");
+    }
+
+    private DirLdaTrainer.TrainResult loadModelFromFile(java.io.File file) {
+        DirLdaTrainer.TrainResult r = new DirLdaTrainer.TrainResult();
+        try (java.io.BufferedReader br = new java.io.BufferedReader(new java.io.FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",");
+                if (parts.length < 2) continue;
+                String key = parts[0].trim();
+                String val = parts[1].trim();
+                try {
+                    if (key.equals("bias")) r.bias = Float.parseFloat(val);
+                    else if (key.startsWith("w") && key.length() > 1) {
+                        int idx = Integer.parseInt(key.substring(1));
+                        if (idx < r.weight.length) r.weight[idx] = Float.parseFloat(val);
+                    } else if (key.startsWith("mean") && key.length() > 4) {
+                        int idx = Integer.parseInt(key.substring(4));
+                        if (idx < r.mean.length) r.mean[idx] = Float.parseFloat(val);
+                    } else if (key.startsWith("scale") && key.length() > 5) {
+                        int idx = Integer.parseInt(key.substring(5));
+                        if (idx < r.scale.length) r.scale[idx] = Float.parseFloat(val);
+                    } else if (key.equals("balanced_accuracy")) r.balancedAccuracy = Float.parseFloat(val);
+                    else if (key.equals("shrinkage")) r.shrinkage = Float.parseFloat(val);
+                } catch (NumberFormatException ignored) {}
+            }
+            r.valid = true;
+        } catch (java.io.IOException e) {
+            Log.e("MiTraining", "loadModel error", e);
+            return null;
+        }
+        return r;
+    }
+
+    private void autoExportModel(DirLdaTrainer.TrainResult r) {
+        Context ctx = getContext();
+        if (ctx == null) return;
+        String pidStr = getCurrentPatientIdStr();
+        String pname = getCurrentPatientName();
+        dirBgExecutor.execute(() -> {
+            try {
+                java.io.File dir = new java.io.File(ctx.getExternalFilesDir(null), "dir_models");
+                if (!dir.exists()) dir.mkdirs();
+                String ts = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new java.util.Date());
+                String filename = "dir_model_" + pidStr + "_" + pname + "_" + ts + ".csv";
+                java.io.File file = new java.io.File(dir, filename);
+                writeModelFile(file, r, pidStr, pname);
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        appendDirLog("模型已自动导出: " + filename);
+                        refreshDirModelList();
+                    });
+                }
+            } catch (java.io.IOException e) {
+                Log.e("MiTraining", "autoExport error", e);
+                if (getActivity() != null) getActivity().runOnUiThread(() -> appendDirLog("自动导出失败: " + e.getMessage()));
+            }
+        });
+    }
+
+    private void writeModelFile(java.io.File file, DirLdaTrainer.TrainResult r, String pidStr, String pname) throws java.io.IOException {
+        try (java.io.FileWriter fw = new java.io.FileWriter(file)) {
+            fw.append("param,value\n");
+            fw.append("patient_id,").append(pidStr).append("\n");
+            fw.append("patient_name,").append(pname).append("\n");
+            fw.append("bias,").append(String.format(Locale.US, "%.10e", r.bias)).append("\n");
+            for (int i = 0; i < r.weight.length; i++)
+                fw.append("w").append(String.valueOf(i)).append(",")
+                  .append(String.format(Locale.US, "%.10e", r.weight[i])).append("\n");
+            for (int i = 0; i < r.mean.length; i++)
+                fw.append("mean").append(String.valueOf(i)).append(",")
+                  .append(String.format(Locale.US, "%.10e", r.mean[i])).append("\n");
+            for (int i = 0; i < r.scale.length; i++)
+                fw.append("scale").append(String.valueOf(i)).append(",")
+                  .append(String.format(Locale.US, "%.10e", r.scale[i])).append("\n");
+            fw.append("balanced_accuracy,").append(String.format(Locale.US, "%.6f", r.balancedAccuracy)).append("\n");
+            fw.append("shrinkage,").append(String.format(Locale.US, "%.10e", r.shrinkage)).append("\n");
+            fw.append("correct,").append(String.valueOf(r.correctCount)).append("\n");
+            fw.append("total,").append(String.valueOf(r.totalCount)).append("\n");
+            fw.append("left,").append(String.valueOf(r.leftCount)).append("\n");
+            fw.append("right,").append(String.valueOf(r.rightCount)).append("\n");
+        }
+    }
+
+    private void refreshDirModelList() {
+        Context ctx = getContext();
+        if (ctx == null) return;
+        dirBgExecutor.execute(() -> {
+            java.io.File dir = new java.io.File(ctx.getExternalFilesDir(null), "dir_models");
+            List<DirModelAdapter.ModelInfo> list = new ArrayList<>();
+            if (dir.exists() && dir.isDirectory()) {
+                java.io.File[] files = dir.listFiles((d, name) -> name.endsWith(".csv"));
+                if (files != null) {
+                    java.util.Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+                    for (java.io.File f : files) {
+                        DirModelAdapter.ModelInfo info = parseModelInfo(f);
+                        list.add(info);
+                    }
+                }
+            }
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> dirModelAdapter.setData(list));
+            }
+        });
+    }
+
+    private DirModelAdapter.ModelInfo parseModelInfo(java.io.File file) {
+        DirModelAdapter.ModelInfo info = new DirModelAdapter.ModelInfo();
+        info.file = file;
+        info.name = file.getName();
+        info.patientId = "";
+        info.patientName = "";
+        info.dateStr = new java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(new java.util.Date(file.lastModified()));
+        try (java.io.BufferedReader br = new java.io.BufferedReader(new java.io.FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",");
+                if (parts.length < 2) continue;
+                String key = parts[0].trim();
+                String val = parts[1].trim();
+                if (key.equals("patient_id")) info.patientId = val;
+                else if (key.equals("patient_name")) info.patientName = val;
+                else if (key.equals("balanced_accuracy")) {
+                    try { info.balancedAccuracy = Float.parseFloat(val); info.accuracyValid = true; } catch (NumberFormatException ignored) {}
+                }
+            }
+        } catch (java.io.IOException ignored) {}
+        return info;
+    }
+
+    private void deleteSelectedModel() {
+        List<DirModelAdapter.ModelInfo> selected = dirModelAdapter.getSelected();
+        if (selected.isEmpty()) { appendDirLog("请先选择模型文件"); return; }
+        new AlertDialog.Builder(requireContext())
+                .setTitle("删除模型")
+                .setMessage("确定删除 " + selected.size() + " 个模型文件？")
+                .setPositiveButton("确定", (d, w) -> {
+                    for (DirModelAdapter.ModelInfo info : selected) info.file.delete();
+                    appendDirLog("已删除 " + selected.size() + " 个模型文件");
+                    refreshDirModelList();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void scanSdModels() {
+        appendDirLog("发送SD卡扫描命令...");
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_DIR_MODEL_SCAN, new byte[0]);
     }
 
     private void exportDirModel() {
@@ -973,33 +1239,21 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
         Context ctx = getContext();
         if (ctx == null) return;
         DirLdaTrainer.TrainResult r = lastDirResult;
+        String pidStr = getCurrentPatientIdStr();
+        String pname = getCurrentPatientName();
         dirBgExecutor.execute(() -> {
             try {
-                java.io.File dir = new java.io.File(ctx.getExternalFilesDir(null), "dir_model");
+                java.io.File dir = new java.io.File(ctx.getExternalFilesDir(null), "dir_models");
                 if (!dir.exists()) dir.mkdirs();
                 String ts = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new java.util.Date());
-                java.io.File file = new java.io.File(dir, "model_" + ts + ".csv");
-                try (java.io.FileWriter fw = new java.io.FileWriter(file)) {
-                    fw.append("param,value\n");
-                    fw.append("bias,").append(String.format(Locale.US, "%.10e", r.bias)).append("\n");
-                    for (int i = 0; i < r.weight.length; i++)
-                        fw.append("w").append(String.valueOf(i)).append(",")
-                          .append(String.format(Locale.US, "%.10e", r.weight[i])).append("\n");
-                    for (int i = 0; i < r.mean.length; i++)
-                        fw.append("mean").append(String.valueOf(i)).append(",")
-                          .append(String.format(Locale.US, "%.10e", r.mean[i])).append("\n");
-                    for (int i = 0; i < r.scale.length; i++)
-                        fw.append("scale").append(String.valueOf(i)).append(",")
-                          .append(String.format(Locale.US, "%.10e", r.scale[i])).append("\n");
-                    fw.append("balanced_accuracy,").append(String.format(Locale.US, "%.6f", r.balancedAccuracy)).append("\n");
-                    fw.append("shrinkage,").append(String.format(Locale.US, "%.10e", r.shrinkage)).append("\n");
-                    fw.append("correct,").append(String.valueOf(r.correctCount)).append("\n");
-                    fw.append("total,").append(String.valueOf(r.totalCount)).append("\n");
-                    fw.append("left,").append(String.valueOf(r.leftCount)).append("\n");
-                    fw.append("right,").append(String.valueOf(r.rightCount)).append("\n");
-                }
+                String filename = "dir_model_" + pidStr + "_" + pname + "_" + ts + ".csv";
+                java.io.File file = new java.io.File(dir, filename);
+                writeModelFile(file, r, pidStr, pname);
                 if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> appendDirLog("模型已导出: " + file.getAbsolutePath()));
+                    getActivity().runOnUiThread(() -> {
+                        appendDirLog("模型已导出: " + filename);
+                        refreshDirModelList();
+                    });
                 }
             } catch (java.io.IOException e) {
                 Log.e("MiTraining", "export model error", e);

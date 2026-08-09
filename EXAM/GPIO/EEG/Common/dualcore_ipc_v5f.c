@@ -215,6 +215,17 @@ void DualCore_V5F_MainLoopProcess(void)
         latest_idx = latest_seq % DUALCORE_IPC_FRAME_SLOT_NUM;
         base_slot = latest_slot - latest_idx;
 
+        {
+            volatile DualCore_IPC_DirWeight_t *weight_slot =
+                (volatile DualCore_IPC_DirWeight_t *)(base_slot + DUALCORE_IPC_FRAME_SLOT_NUM);
+            DUALCORE_FENCE();
+            if (weight_slot->update_flag) {
+                DualCore_V5F_UpdateDirWeight(weight_slot);
+                DUALCORE_FENCE();
+                weight_slot->update_flag = 0u;
+            }
+        }
+
         start_seq = g_ipc_v5f_last_seq + 1u;
         if (latest_seq >= DUALCORE_IPC_FRAME_SLOT_NUM) {
             uint32_t oldest_valid_seq = latest_seq - DUALCORE_IPC_FRAME_SLOT_NUM + 1u;

@@ -24,7 +24,7 @@
 #define MODE_GLXSS_BURN      6
 #define MODE_MAX98357A_TEST  7
 #define MODE_WAV_TEST        8
-#define SYSTEM_MODE          MODE_WAV_TEST
+#define SYSTEM_MODE          MODE_EEG_ANALYSIS
 
 void Hardware(void);
 

@@ -79,6 +79,7 @@ public final class EegProtocol {
     public static final int CMD_ALARM_ACK = 0x47;
     public static final int CMD_RECORD_START = 0x48;
     public static final int CMD_RECORD_STOP = 0x49;
+    public static final int CMD_DIR_WEIGHT = 0x4A;
 
 
     public static final int WAVE_NUM_CH = 8;

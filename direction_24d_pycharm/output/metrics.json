@@ -1,55 +1,56 @@
 {
-  "row_count": 384,
-  "left_count": 192,
-  "right_count": 192,
-  "trial_group_count": 24,
-  "session_file_count": 6,
+  "row_count": 192,
+  "left_count": 96,
+  "right_count": 96,
+  "trial_group_count": 12,
+  "session_file_count": 3,
   "model_type": "spatial_narrow14_shrinkage_lda",
   "solver": "lsqr",
   "shrinkage": "auto",
   "protocol_feature_dim": 24,
   "model_feature_dim": 14,
-  "trial_cv_balanced_accuracy": 0.5703125,
-  "trial_cv_pred_right_ratio": 0.5182291666666666,
+  "trial_cv_balanced_accuracy": 0.484375,
+  "trial_cv_pred_right_ratio": 0.4739583333333333,
   "trial_cv_confusion_matrix": [
     [
-      106,
-      86
+      49,
+      47
     ],
     [
-      79,
-      113
+      52,
+      44
     ]
   ],
   "quality_warnings": [
+    "每类独立试次少于10个；建议至少完成5次四组COLLECT采集，再训练正式展示权重",
     "按试次验证平衡准确率低于0.60，建议重新采集更多独立试次"
   ],
-  "session_cv_balanced_accuracy": 0.5416666666666666,
-  "session_cv_pred_right_ratio": 0.5,
+  "session_cv_balanced_accuracy": 0.5052083333333334,
+  "session_cv_pred_right_ratio": 0.4114583333333333,
   "session_cv_confusion_matrix": [
     [
-      104,
-      88
+      57,
+      39
     ],
     [
-      88,
-      104
+      56,
+      40
     ]
   ],
-  "train_balanced_accuracy": 0.6041666666666667,
-  "train_pred_right_ratio": 0.4895833333333333,
+  "train_balanced_accuracy": 0.625,
+  "train_pred_right_ratio": 0.5729166666666666,
   "train_confusion_matrix": [
     [
-      118,
-      74
+      53,
+      43
     ],
     [
-      78,
-      114
+      29,
+      67
     ]
   ],
   "mcu_margin_max_abs_error": 2.220446049250313e-16,
-  "mcu_float32_margin_max_abs_error": 2.8150733610843304e-07,
+  "mcu_float32_margin_max_abs_error": 2.8870645141232387e-07,
   "mcu_float32_prediction_mismatch_count": 0,
   "generated_header": "D:\\Libraries\\Projects\\EEG\\direction_24d_pycharm\\output\\DualCore_Direction_Model_4ch_Weights.h",
   "firmware_header": "D:\\Libraries\\Projects\\EEG\\direction_24d_pycharm\\..\\..\\Common\\DualCore_Direction_Model_4ch_Weights.h"

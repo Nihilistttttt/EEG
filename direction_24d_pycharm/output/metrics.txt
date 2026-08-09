@@ -1,27 +1,28 @@
 24列协议/14维空间窄带特征 + 收缩LDA训练报告
 ====================================================
-数据行：384（LEFT=192, RIGHT=192）
-独立试次：24
-文件/会话：6
+数据行：192（LEFT=96, RIGHT=96）
+独立试次：12
+文件/会话：3
 模型：前14维空间窄带 Shrinkage LDA（solver=lsqr, shrinkage=auto）
 协议：DIRCSV仍为24列，feat14..feat23不参与训练或推理
 
-按试次验证平衡准确率：0.5703
-按试次验证RIGHT比例：0.5182
+按试次验证平衡准确率：0.4844
+按试次验证RIGHT比例：0.4740
 按试次混淆矩阵（行真值LEFT/RIGHT，列预测LEFT/RIGHT）：
-[[106  86]
- [ 79 113]]
+[[49 47]
+ [52 44]]
 
 数据质量警告：
+- 每类独立试次少于10个；建议至少完成5次四组COLLECT采集，再训练正式展示权重
 - 按试次验证平衡准确率低于0.60，建议重新采集更多独立试次
 
-跨文件验证平衡准确率：0.5417
-跨文件验证RIGHT比例：0.5000
+跨文件验证平衡准确率：0.5052
+跨文件验证RIGHT比例：0.4115
 
-全数据训练平衡准确率：0.6042
+全数据训练平衡准确率：0.6250
 MCU公式最大margin误差：2.220e-16
-MCU float32最大margin误差：2.815e-07
-MCU float32左右判定不一致：0/384
+MCU float32最大margin误差：2.887e-07
+MCU float32左右判定不一致：0/192
 生成权重：D:\Libraries\Projects\EEG\direction_24d_pycharm\output\DualCore_Direction_Model_4ch_Weights.h
 固件权重：D:\Libraries\Projects\EEG\direction_24d_pycharm\..\..\Common\DualCore_Direction_Model_4ch_Weights.h
 

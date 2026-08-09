@@ -27,6 +27,7 @@ uint8_t DualCore_IPC_GetSsvepEnable(void);
 void DualCore_IPC_SetSsvepSelftest(uint8_t enable, uint8_t freq_index);
 uint8_t DualCore_IPC_GetSsvepSelftest(void);
 uint32_t DualCore_IPC_GetLastV5FWfiWake(void);
+void DualCore_IPC_UpdateDirWeight(const uint8_t *payload, uint16_t len);
 void DualCore_V5F_MainLoopProcess(void);
 
 #ifdef __cplusplus

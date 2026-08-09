@@ -71,6 +71,23 @@ DualCore_IIR_SOS_Coeff_t g_v5f_csp_bandpass_coeff = {
 };
 DualCore_IIR_SOS_State_t g_v5f_csp_bandpass_state[DUALCORE_ADS1299_ACTIVE_CH_NUM] = {0};
 
+void DualCore_V5F_UpdateDirWeight(const volatile DualCore_IPC_DirWeight_t *src)
+{
+    uint8_t i;
+    if (src == 0) {
+        return;
+    }
+    DUALCORE_FENCE();
+    for (i = 0; i < DUALCORE_DIR_WEIGHT_DIM; i++) {
+        dir4ch_mean[i] = src->mean[i];
+        dir4ch_scale[i] = src->scale[i];
+        dir4ch_svm_weight[i] = src->weight[i];
+    }
+    dir4ch_svm_bias = src->bias;
+    DUALCORE_FENCE();
+    g_ipc_v5f_model_trained = 1u;
+}
+
 static float DualCore_IIR_Step(float input, const DualCore_IIR_Coeff_t *coeff, DualCore_IIR_State_t *state)
 {
     float wn = input - coeff->a1 * state->w1 - coeff->a2 * state->w2;

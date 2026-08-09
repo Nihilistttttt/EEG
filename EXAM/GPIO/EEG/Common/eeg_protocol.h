@@ -86,7 +86,8 @@ typedef enum {
     CMD_INFER_CFG_OK       = 0x46,
     CMD_ALARM_ACK          = 0x47,
     CMD_RECORD_START       = 0x48,
-    CMD_RECORD_STOP        = 0x49
+    CMD_RECORD_STOP        = 0x49,
+    CMD_DIR_WEIGHT         = 0x4A
 } ProtoCmd_t;
 
 typedef enum {

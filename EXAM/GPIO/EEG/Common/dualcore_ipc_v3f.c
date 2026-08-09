@@ -59,6 +59,7 @@ static volatile uint8_t g_ipc_v3f_ssvep_selftest = 0;
 static volatile uint8_t g_ipc_v3f_ssvep_selftest_idx = 0;
 
 static volatile DualCore_IPC_FrameSlot_t g_ipc_v3f_frame_slot[DUALCORE_IPC_FRAME_SLOT_NUM];
+volatile DualCore_IPC_DirWeight_t g_ipc_v3f_dir_weight;
 static volatile uint16_t g_ipc_v3f_tx_checksum_hist[DUALCORE_IPC_TX_HISTORY_SIZE];
 static volatile uint32_t g_ipc_v3f_tx_status_hist[DUALCORE_IPC_TX_HISTORY_SIZE];
 static volatile int32_t  g_ipc_v3f_tx_ch_hist[DUALCORE_IPC_TX_HISTORY_SIZE][DUALCORE_ADS1299_ACTIVE_CH_NUM];
@@ -112,6 +113,44 @@ uint8_t DualCore_IPC_GetSsvepSelftest(void)
 uint32_t DualCore_IPC_GetLastV5FWfiWake(void)
 {
     return g_ipc_v3f_last_v5f_wfi_wake;
+}
+
+void DualCore_IPC_UpdateDirWeight(const uint8_t *payload, uint16_t len)
+{
+    uint16_t i;
+    const uint8_t *p;
+    uint32_t tmp_u32;
+
+    if (payload == 0 || len < (uint16_t)(DUALCORE_DIR_WEIGHT_DIM * 4u * 3u + 4u)) {
+        return;
+    }
+
+    p = payload;
+    for (i = 0; i < DUALCORE_DIR_WEIGHT_DIM; i++) {
+        tmp_u32 = (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+                  ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+        g_ipc_v3f_dir_weight.mean[i] = *(volatile float *)(void *)&tmp_u32;
+        p += 4;
+    }
+    for (i = 0; i < DUALCORE_DIR_WEIGHT_DIM; i++) {
+        tmp_u32 = (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+                  ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+        g_ipc_v3f_dir_weight.scale[i] = *(volatile float *)(void *)&tmp_u32;
+        p += 4;
+    }
+    for (i = 0; i < DUALCORE_DIR_WEIGHT_DIM; i++) {
+        tmp_u32 = (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+                  ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+        g_ipc_v3f_dir_weight.weight[i] = *(volatile float *)(void *)&tmp_u32;
+        p += 4;
+    }
+    tmp_u32 = (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+              ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+    g_ipc_v3f_dir_weight.bias = *(volatile float *)(void *)&tmp_u32;
+
+    DUALCORE_FENCE();
+    g_ipc_v3f_dir_weight.update_flag = 1u;
+    DUALCORE_FENCE();
 }
 
 
@@ -195,6 +234,17 @@ void DualCore_IPC_Init_V3F(void)
         for (i = 0; i < DUALCORE_IPC_FRAME_LEN; i++) {
             g_ipc_v3f_frame_slot[s].frame[i] = 0;
         }
+    }
+
+    {
+        uint16_t w;
+        g_ipc_v3f_dir_weight.update_flag = 0u;
+        for (w = 0; w < DUALCORE_DIR_WEIGHT_DIM; w++) {
+            g_ipc_v3f_dir_weight.mean[w] = 0.0f;
+            g_ipc_v3f_dir_weight.scale[w] = 1.0f;
+            g_ipc_v3f_dir_weight.weight[w] = 0.0f;
+        }
+        g_ipc_v3f_dir_weight.bias = 0.0f;
     }
 
     IPC_DeInit();

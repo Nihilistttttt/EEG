@@ -7,6 +7,7 @@
 
 void DualCore_V5F_DSP_Init(void);
 void DualCore_V5F_DSP_Reset(void);
+void DualCore_V5F_UpdateDirWeight(const volatile DualCore_IPC_DirWeight_t *src);
 
 float DualCore_IIR_SOS_Step(float input, const DualCore_IIR_SOS_Coeff_t *coeff, DualCore_IIR_SOS_State_t *state);
 float DualCore_RemoveRealtimeDrift(float x, DualCore_DriftRemove_t *st);

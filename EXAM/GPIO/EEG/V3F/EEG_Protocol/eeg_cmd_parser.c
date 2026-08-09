@@ -476,6 +476,14 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         Send_RespOk(CMD_RECORD_STOP);
         break;
 
+    case CMD_DIR_WEIGHT:
+        {
+            DualCore_IPC_UpdateDirWeight(data, dlen);
+            Serial_Printf(SERIAL_PORT_DEBUG, "[DIR] weight updated, len=%u\r\n", (unsigned)dlen);
+            Send_RespOk(CMD_DIR_WEIGHT);
+        }
+        break;
+
     default:
         Send_RespErr(0xFF);
         break;

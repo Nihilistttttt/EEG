@@ -2,8 +2,11 @@ package com.nihilisttt.eegdoctor;
 
 import com.nihilisttt.eegdoctor.R;
 
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -28,6 +31,10 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.card.MaterialCardView;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -78,10 +85,11 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
     private float splitXMax = 2.0f;
     private float xMax = 4.0f;
     private boolean isCombinedMode = true;
-    private boolean isTrainMode = false;
+    private int miMode = 0;
 
     private View cardTraining;
     private View cardInference;
+    private View cardDirTrain;
     private View btnModeToggle;
 
     private TextView tvInferDirection;
@@ -102,6 +110,17 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
     private View btnClearRecords;
     private RecyclerView rvRecords;
     private InferenceRecordAdapter inferAdapter;
+
+    private RecyclerView rvDirFiles;
+    private DirFileAdapter dirFileAdapter;
+    private View btnTrainSelected, btnSendWeight, btnMergeSelected, btnDeleteSelected, btnDirBack, btnImportFile, btnExportModel;
+    private static final int REQ_IMPORT_DIR_FILE = 1001;
+    private TextView tvTrainResult, tvDirLog;
+    private DirLdaTrainer.TrainResult lastDirResult = null;
+    private final List<DirTrainStore.StoredSample> dirCollectBuffer = new ArrayList<>();
+    private final ExecutorService dirBgExecutor = Executors.newSingleThreadExecutor(r -> { Thread t = new Thread(r, "dir-train-bg"); t.setDaemon(true); return t; });
+    private final StringBuilder dirLogBuilder = new StringBuilder();
+    private final java.text.SimpleDateFormat dirTimeFmt = new java.text.SimpleDateFormat("HH:mm:ss", Locale.getDefault());
 
     private boolean isInferencing = false;
     private int resultCountSinceLastRefresh = 0;
@@ -155,8 +174,12 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
 
         cardTraining = root.findViewById(R.id.card_mi_training);
         cardInference = root.findViewById(R.id.card_mi_inference);
+        cardDirTrain = root.findViewById(R.id.card_dir_train);
         btnModeToggle = root.findViewById(R.id.btn_mi_mode_toggle);
         btnModeToggle.setOnClickListener(v -> toggleMode());
+
+        initDirTrainViews(root);
+        applyMode();
 
         tvInferDirection = root.findViewById(R.id.tv_infer_direction);
 
@@ -202,19 +225,30 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
     }
 
     private void toggleMode() {
-        isTrainMode = !isTrainMode;
-        if (isTrainMode) {
-            cardTraining.setVisibility(View.GONE);
-            cardInference.setVisibility(View.VISIBLE);
-            btnModeToggle.setSelected(true);
-            ((com.google.android.material.button.MaterialButton) btnModeToggle).setText("切换到采集");
-        } else {
+        miMode = (miMode + 1) % 3;
+        applyMode();
+        sendMiDisplayConfig();
+    }
+
+    private void applyMode() {
+        com.google.android.material.button.MaterialButton btn = (com.google.android.material.button.MaterialButton) btnModeToggle;
+        if (miMode == 0) {
             cardTraining.setVisibility(View.VISIBLE);
             cardInference.setVisibility(View.GONE);
-            btnModeToggle.setSelected(false);
-            ((com.google.android.material.button.MaterialButton) btnModeToggle).setText("切换到训练");
+            cardDirTrain.setVisibility(View.GONE);
+            btn.setText("切换到推理");
+        } else if (miMode == 1) {
+            cardTraining.setVisibility(View.GONE);
+            cardInference.setVisibility(View.VISIBLE);
+            cardDirTrain.setVisibility(View.GONE);
+            btn.setText("切换到训练");
+        } else {
+            cardTraining.setVisibility(View.GONE);
+            cardInference.setVisibility(View.GONE);
+            cardDirTrain.setVisibility(View.VISIBLE);
+            btn.setText("切换到采集");
+            refreshDirFileList();
         }
-        sendMiDisplayConfig();
     }
 
     private static final long READY_TRAIN_TIMEOUT_MS = 15000L;
@@ -226,6 +260,7 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
         isTraining = true;
         currentTrialIndex = 0;
         waitingReadyTrain = true;
+        synchronized (dirCollectBuffer) { dirCollectBuffer.clear(); }
 
         btnStartTraining.setEnabled(false);
         btnStopTraining.setEnabled(true);
@@ -265,6 +300,7 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
             TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_STOP, null);
             TcpServerManager.getInstance().sendDisplayToOutput(EegProtocol.CMD_TRAIN_STOP, null);
         }
+        saveDirCollectBuffer();
         if (updateUi && getView() != null) {
             btnStartTraining.setEnabled(true);
             btnStopTraining.setEnabled(false);
@@ -385,10 +421,11 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
 
         tvDirection.setText("训练完成");
         tvDirection.setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_success));
-        tvHint.setText("可以前往方向识别页面测试");
+        tvHint.setText("数据已保存，可切换到训练页面查看");
         tvTrialCount.setText("");
         progressTrial.setIndeterminate(false);
         progressTrial.setProgress(progressTrial.getMax());
+        saveDirCollectBuffer();
     }
 
     private void handleReadyTrain() {
@@ -612,6 +649,14 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
     }
 
     @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQ_IMPORT_DIR_FILE || resultCode != Activity.RESULT_OK || data == null) return;
+        Uri uri = data.getData();
+        if (uri != null) importDirFile(uri);
+    }
+
+    @Override
     public void onDestroyView() {
         TrainingModeCoordinator.getInstance().unregisterController(
                 TrainingModeCoordinator.Mode.MI, this);
@@ -700,7 +745,18 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
     }
     @Override public void onSpectrumData(int cmd, float[] mags) {}
     @Override public void onFocusData(float attn0, float attn1, float ema0, float ema1, int trend, int instant) {}
-    @Override public void onEegFrame(EegFrame frame) {}
+    @Override public void onEegFrame(EegFrame frame) {
+        if (!isTraining || miMode != 0) return;
+        int rawLabel;
+        try { rawLabel = Integer.parseInt(frame.getLabel()); } catch (NumberFormatException e) { return; }
+        int label = DirLdaTrainer.normalizeLabel(rawLabel);
+        if (label < 0) return;
+        float[] features = new float[DirLdaTrainer.FEATURE_DIM];
+        for (int i = 0; i < DirLdaTrainer.FEATURE_DIM; i++) features[i] = frame.getFeature(i);
+        synchronized (dirCollectBuffer) {
+            dirCollectBuffer.add(new DirTrainStore.StoredSample(features, label, System.currentTimeMillis()));
+        }
+    }
     @Override public void onIpcDiag(IpcDiagInfo diag) {}
     @Override public void onDirConfig(String configJson) {}
     @Override public void onModeSetOk(int mode) {}
@@ -768,5 +824,233 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
                 })
                 .setNegativeButton("取消", null)
                 .show();
+    }
+
+    private void initDirTrainViews(View root) {
+        rvDirFiles = root.findViewById(R.id.rv_dir_files);
+        btnTrainSelected = root.findViewById(R.id.btn_train_selected);
+        btnSendWeight = root.findViewById(R.id.btn_send_weight);
+        btnMergeSelected = root.findViewById(R.id.btn_merge_selected);
+        btnDeleteSelected = root.findViewById(R.id.btn_delete_selected);
+        btnDirBack = root.findViewById(R.id.btn_dir_back);
+        btnImportFile = root.findViewById(R.id.btn_import_file);
+        btnExportModel = root.findViewById(R.id.btn_export_model);
+        tvTrainResult = root.findViewById(R.id.tv_train_result);
+        tvDirLog = root.findViewById(R.id.tv_log);
+        tvDirLog.setMovementMethod(new android.text.method.ScrollingMovementMethod());
+        dirFileAdapter = new DirFileAdapter();
+        rvDirFiles.setLayoutManager(new LinearLayoutManager(requireContext()));
+        rvDirFiles.setAdapter(dirFileAdapter);
+        btnTrainSelected.setOnClickListener(v -> trainSelected());
+        btnSendWeight.setOnClickListener(v -> sendDirWeight());
+        btnMergeSelected.setOnClickListener(v -> mergeSelected());
+        btnDeleteSelected.setOnClickListener(v -> deleteSelected());
+        btnDirBack.setOnClickListener(v -> toggleMode());
+        btnImportFile.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+            intent.setType("*/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            startActivityForResult(intent, REQ_IMPORT_DIR_FILE);
+        });
+        btnExportModel.setOnClickListener(v -> exportDirModel());
+        refreshDirFileList();
+    }
+
+    private void refreshDirFileList() {
+        Context ctx = getContext();
+        if (ctx == null) return;
+        dirBgExecutor.execute(() -> {
+            List<DirTrainFileManager.SessionInfo> sessions = DirTrainFileManager.listSessions(ctx);
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> dirFileAdapter.setData(sessions));
+            }
+        });
+    }
+
+    private void importDirFile(Uri uri) {
+        Context ctx = getContext();
+        if (ctx == null) return;
+        dirBgExecutor.execute(() -> {
+            try {
+                java.io.File dir = DirTrainFileManager.getDir(ctx);
+                String ts = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new java.util.Date());
+                String outName = "imported_" + ts + ".csv";
+                java.io.File outFile = new java.io.File(dir, outName);
+                try (java.io.InputStream is = ctx.getContentResolver().openInputStream(uri);
+                     java.io.FileOutputStream fos = new java.io.FileOutputStream(outFile)) {
+                    byte[] buf = new byte[4096];
+                    int n;
+                    while ((n = is.read(buf)) > 0) fos.write(buf, 0, n);
+                }
+                List<DirTrainStore.StoredSample> test = DirTrainFileManager.loadFile(outFile);
+                if (test.isEmpty()) {
+                    outFile.delete();
+                    if (getActivity() != null) getActivity().runOnUiThread(() -> appendDirLog("导入失败: 文件为空或格式不对"));
+                    return;
+                }
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        appendDirLog("导入成功: " + outName + " (" + test.size() + "样本)");
+                        refreshDirFileList();
+                    });
+                }
+            } catch (Exception e) {
+                Log.e("MiTraining", "import error", e);
+                if (getActivity() != null) getActivity().runOnUiThread(() -> appendDirLog("导入失败: " + e.getMessage()));
+            }
+        });
+    }
+
+    private void saveDirCollectBuffer() {
+        Context ctx = getContext();
+        if (ctx == null) return;
+        List<DirTrainStore.StoredSample> snapshot;
+        synchronized (dirCollectBuffer) {
+            if (dirCollectBuffer.isEmpty()) return;
+            snapshot = new ArrayList<>(dirCollectBuffer);
+            dirCollectBuffer.clear();
+        }
+        dirBgExecutor.execute(() -> {
+            String filename = DirTrainFileManager.saveSession(ctx, snapshot);
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    if (filename != null) {
+                        appendDirLog("已保存采集数据: " + filename + " (" + snapshot.size() + "样本)");
+                        refreshDirFileList();
+                    } else {
+                        appendDirLog("保存采集数据失败");
+                    }
+                });
+            }
+        });
+    }
+
+    private void trainSelected() {
+        Context ctx = getContext();
+        if (ctx == null) return;
+        List<DirTrainFileManager.SessionInfo> selected = dirFileAdapter.getSelected();
+        if (selected.isEmpty()) { appendDirLog("请先选择文件"); return; }
+        appendDirLog("训练 " + selected.size() + " 个文件...");
+        tvTrainResult.setText("训练中...");
+        dirBgExecutor.execute(() -> {
+            List<DirLdaTrainer.Sample> samples = new ArrayList<>();
+            for (DirTrainFileManager.SessionInfo info : selected) {
+                List<DirTrainStore.StoredSample> stored = DirTrainFileManager.loadFile(info.file);
+                for (DirTrainStore.StoredSample s : stored) samples.add(new DirLdaTrainer.Sample(s.features, s.label));
+            }
+            DirLdaTrainer.TrainResult result = DirLdaTrainer.train(samples);
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    if (!result.valid) {
+                        tvTrainResult.setText("训练失败: " + result.errorMessage);
+                        appendDirLog("训练失败: " + result.errorMessage);
+                        return;
+                    }
+                    lastDirResult = result;
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(String.format(Locale.getDefault(), "平衡准确率: %.1f%%\n", result.balancedAccuracy * 100));
+                    sb.append(String.format(Locale.getDefault(), "正确/总数: %d/%d\n", result.correctCount, result.totalCount));
+                    sb.append(String.format(Locale.getDefault(), "LEFT: %d  RIGHT: %d\n", result.leftCount, result.rightCount));
+                    sb.append(String.format(Locale.getDefault(), "bias: %.6e\n", result.bias));
+                    sb.append("weight[0..5]:\n");
+                    for (int i = 0; i < 6; i++) sb.append(String.format(Locale.getDefault(), "  w[%d]=%.6e\n", i, result.weight[i]));
+                    tvTrainResult.setText(sb.toString());
+                    appendDirLog(String.format(Locale.getDefault(), "训练完成, bAcc=%.1f%%", result.balancedAccuracy * 100));
+                });
+            }
+        });
+    }
+
+    private void sendDirWeight() {
+        if (lastDirResult == null || !lastDirResult.valid) { appendDirLog("请先训练模型"); return; }
+        byte[] payload = DirLdaTrainer.packWeightPayload(lastDirResult);
+        appendDirLog("下发权重 " + payload.length + " 字节");
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_DIR_WEIGHT, payload);
+    }
+
+    private void exportDirModel() {
+        if (lastDirResult == null || !lastDirResult.valid) { appendDirLog("请先训练模型"); return; }
+        Context ctx = getContext();
+        if (ctx == null) return;
+        DirLdaTrainer.TrainResult r = lastDirResult;
+        dirBgExecutor.execute(() -> {
+            try {
+                java.io.File dir = new java.io.File(ctx.getExternalFilesDir(null), "dir_model");
+                if (!dir.exists()) dir.mkdirs();
+                String ts = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new java.util.Date());
+                java.io.File file = new java.io.File(dir, "model_" + ts + ".csv");
+                try (java.io.FileWriter fw = new java.io.FileWriter(file)) {
+                    fw.append("param,value\n");
+                    fw.append("bias,").append(String.format(Locale.US, "%.10e", r.bias)).append("\n");
+                    for (int i = 0; i < r.weight.length; i++)
+                        fw.append("w").append(String.valueOf(i)).append(",")
+                          .append(String.format(Locale.US, "%.10e", r.weight[i])).append("\n");
+                    for (int i = 0; i < r.mean.length; i++)
+                        fw.append("mean").append(String.valueOf(i)).append(",")
+                          .append(String.format(Locale.US, "%.10e", r.mean[i])).append("\n");
+                    for (int i = 0; i < r.scale.length; i++)
+                        fw.append("scale").append(String.valueOf(i)).append(",")
+                          .append(String.format(Locale.US, "%.10e", r.scale[i])).append("\n");
+                    fw.append("balanced_accuracy,").append(String.format(Locale.US, "%.6f", r.balancedAccuracy)).append("\n");
+                    fw.append("shrinkage,").append(String.format(Locale.US, "%.10e", r.shrinkage)).append("\n");
+                    fw.append("correct,").append(String.valueOf(r.correctCount)).append("\n");
+                    fw.append("total,").append(String.valueOf(r.totalCount)).append("\n");
+                    fw.append("left,").append(String.valueOf(r.leftCount)).append("\n");
+                    fw.append("right,").append(String.valueOf(r.rightCount)).append("\n");
+                }
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> appendDirLog("模型已导出: " + file.getAbsolutePath()));
+                }
+            } catch (java.io.IOException e) {
+                Log.e("MiTraining", "export model error", e);
+                if (getActivity() != null) getActivity().runOnUiThread(() -> appendDirLog("导出失败: " + e.getMessage()));
+            }
+        });
+    }
+
+    private void mergeSelected() {
+        Context ctx = getContext();
+        if (ctx == null) return;
+        List<DirTrainFileManager.SessionInfo> selected = dirFileAdapter.getSelected();
+        if (selected.size() < 2) { appendDirLog("至少选择2个文件才能合并"); return; }
+        dirBgExecutor.execute(() -> {
+            List<File> files = new ArrayList<>();
+            for (DirTrainFileManager.SessionInfo info : selected) files.add(info.file);
+            String ts = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new java.util.Date());
+            String outName = "merged_" + ts + ".csv";
+            String result = DirTrainFileManager.mergeFiles(ctx, files, outName);
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    if (result != null) {
+                        appendDirLog("合并完成: " + result);
+                        refreshDirFileList();
+                    } else {
+                        appendDirLog("合并失败");
+                    }
+                });
+            }
+        });
+    }
+
+    private void deleteSelected() {
+        List<DirTrainFileManager.SessionInfo> selected = dirFileAdapter.getSelected();
+        if (selected.isEmpty()) { appendDirLog("请先选择文件"); return; }
+        new AlertDialog.Builder(requireContext())
+                .setTitle("删除文件")
+                .setMessage("确定删除 " + selected.size() + " 个文件？")
+                .setPositiveButton("确定", (d, w) -> {
+                    for (DirTrainFileManager.SessionInfo info : selected) DirTrainFileManager.deleteFile(info.file);
+                    appendDirLog("已删除 " + selected.size() + " 个文件");
+                    refreshDirFileList();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void appendDirLog(String msg) {
+        String line = dirTimeFmt.format(new java.util.Date()) + " " + msg + "\n";
+        dirLogBuilder.append(line);
+        if (dirLogBuilder.length() > 4000) dirLogBuilder.delete(0, dirLogBuilder.length() - 4000);
+        tvDirLog.setText(dirLogBuilder.toString());
     }
 }

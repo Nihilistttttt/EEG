@@ -70,6 +70,7 @@ static const uint8_t g_v5f_ch_map[DUALCORE_ADS1299_ACTIVE_CH_NUM] = {
 #define DUALCORE_IPC_CTRL_SSVEP_ENABLE  0x02u
 #define DUALCORE_IPC_CTRL_RESET_SSVEP   0x04u
 #define DUALCORE_IPC_CTRL_SSVEP_SELFTEST 0x08u
+#define DUALCORE_IPC_CTRL_DIR_WEIGHT    0x10u
 
 typedef struct
 {
@@ -138,6 +139,15 @@ typedef struct
     volatile int32_t  ssvep_o1_uv_x1000;
     volatile int32_t  ssvep_oz_uv_x1000;
 } DualCore_IPC_FrameSlot_t;
+
+#define DUALCORE_DIR_WEIGHT_DIM  24u
+typedef struct {
+    volatile uint8_t update_flag;
+    volatile float   mean[DUALCORE_DIR_WEIGHT_DIM];
+    volatile float   scale[DUALCORE_DIR_WEIGHT_DIM];
+    volatile float   weight[DUALCORE_DIR_WEIGHT_DIM];
+    volatile float   bias;
+} DualCore_IPC_DirWeight_t;
 
 uint16_t DualCore_IPC_Checksum16(const volatile uint8_t *buf, uint16_t len);
 int32_t DualCore_ADS1299_SignExtend24(uint32_t raw24);

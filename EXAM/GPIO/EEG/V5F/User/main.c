@@ -17,6 +17,7 @@
 #include "dualcore_ipc.h"
 #include "dualcore_v5f_ssvep.h"
 #endif
+#include "game_sprites.h"
 #endif
 
 #if defined(V5F_MODE_GLXSS) || defined(GLXSS_ENABLED)
@@ -663,6 +664,8 @@ static uint8_t  g_coin_active[GAME_MAX_COINS];
 static float    g_next_coin_y = 5;
 static uint8_t  g_game_dirty = 1;
 static uint32_t g_game_over_seq = 0;
+static uint8_t  g_walk_frame = 0;
+static uint32_t g_walk_timer_us = 0;
 
 static int int_to_str(int val, char *buf);
 
@@ -682,7 +685,7 @@ static char     s_prep_buf_coins[12]; static int s_prep_clen = 0;
 
 static void game_frame_prepare(void)
 {
-    const int32_t player_sy = 288;
+    const int32_t player_sy = 360;
     const float mpp = 10.0f;
 
     s_prep_coin_n = 0;
@@ -691,7 +694,7 @@ static void game_frame_prepare(void)
     for (int c = 0; c < GAME_MAX_COINS; c++) {
         if (!g_coin_active[c]) continue;
         int32_t sy = player_sy - (int32_t)((g_coin_y[c] - g_game_world_y) * mpp);
-        if (sy < -20 || sy > 420) continue;
+        if (sy < -40 || sy > 400) continue;
         s_prep_coin_sx[s_prep_coin_n] = (int32_t)g_coin_lane[c] * 213 + 106;
         s_prep_coin_sy[s_prep_coin_n] = sy;
         if (sy < s_prep_coin_min_sy) s_prep_coin_min_sy = sy;
@@ -737,7 +740,7 @@ static int int_to_str(int val, char *buf)
 static void fill_game_pkt(uint32_t offset, uint16_t len)
 {
     uint8_t hdr[16] = {0x80,0x02,0x00,0x00, 0x90,0x01,0x00,0x00, 0x01,0,0,0,0,0,0,0};
-    const int32_t player_sy = 288;
+    const int32_t player_sy = 360;
 
     for (uint16_t i = 0; i < len; i++) {
         uint32_t pos = offset + i;
@@ -762,22 +765,34 @@ static void fill_game_pkt(uint32_t offset, uint16_t len)
 
         if (s_prep_coin_n > 0) {
             int32_t yi = (int32_t)y;
-            if (yi >= s_prep_coin_min_sy - 18 && yi <= s_prep_coin_max_sy + 18) {
+            if (yi >= s_prep_coin_min_sy - SPRITE_COIN_H/2 && yi <= s_prep_coin_max_sy + SPRITE_COIN_H/2) {
                 int32_t xi = (int32_t)x;
                 for (int c = 0; c < s_prep_coin_n; c++) {
                     int32_t dx = xi - s_prep_coin_sx[c];
                     int32_t dy = yi - s_prep_coin_sy[c];
-                    if (dx*dx + dy*dy < 324) { r = 255; g = 180; b = 0; break; }
+                    if (dx >= -SPRITE_COIN_W/2 && dx < SPRITE_COIN_W/2 && dy >= -SPRITE_COIN_H/2 && dy < SPRITE_COIN_H/2) {
+                        int32_t csx = dx + SPRITE_COIN_W/2;
+                        int32_t csy = dy + SPRITE_COIN_H/2;
+                        uint8_t palIdx = sprite_coin_data[csy * SPRITE_COIN_W + csx];
+                        if (palIdx != 0) {
+                            uint16_t c565 = sprite_coin_palette[palIdx];
+                            r = (c565 >> 11) << 3; g = ((c565 >> 5) & 0x3F) << 2; b = (c565 & 0x1F) << 3;
+                            break;
+                        }
+                    }
                 }
             }
         }
 
         {
-            int32_t px = (int32_t)x - s_prep_player_sx;
-            int32_t py = (int32_t)y - player_sy;
-            if (px >= -14 && px <= 14 && py >= -8 && py <= 23) {
-                if (px*px + (py+22)*(py+22) < 196) { r = 26; g = 115; b = 232; }
-                else if (px >= -13 && px <= 13 && py >= -7 && py <= 22) { r = 26; g = 115; b = 232; }
+            int32_t spx = (int32_t)x - (s_prep_player_sx - SPRITE_CHAR_W/2);
+            int32_t spy = (int32_t)y - (player_sy - SPRITE_CHAR_H);
+            if (spx >= 0 && spx < SPRITE_CHAR_W && spy >= 0 && spy < SPRITE_CHAR_H) {
+                uint8_t palIdx = sprite_char_frames[g_walk_frame][spy * SPRITE_CHAR_W + spx];
+                if (palIdx != 0) {
+                    uint16_t c565 = sprite_char_palette[palIdx];
+                    r = (c565 >> 11) << 3; g = ((c565 >> 5) & 0x3F) << 2; b = (c565 & 0x1F) << 3;
+                }
             }
         }
 
@@ -855,6 +870,8 @@ static void game_mode_init(void)
     g_next_coin_y = 5;
     for (int c = 0; c < GAME_MAX_COINS; c++) g_coin_active[c] = 0;
     g_game_dirty = 1;
+    g_walk_frame = 0;
+    g_walk_timer_us = 0;
     IPC_Log_Printf_V5F("[V5F] GAME init\r\n");
 }
 
@@ -889,6 +906,12 @@ static glxss_err_t game_mode_step(void)
                 if (diff > 0 && diff < 200000) dt = (float)diff / 1000000.0f;
             }
             g_game_world_y += speed * dt;
+
+            g_walk_timer_us += (uint32_t)(dt * 1000000.0f);
+            if (g_walk_timer_us >= 150000) {
+                g_walk_timer_us = 0;
+                g_walk_frame = (g_walk_frame + 1) & 3;
+            }
 
             if (now - g_game_last_lane_us > GAME_LANE_COOLDOWN_US) {
                 uint8_t pred = IPC_LOG_SHARED->v5f_pred;

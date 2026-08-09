@@ -29,7 +29,7 @@ public class MainActivity extends AppCompatActivity implements DoctorConnector.D
         viewPager = findViewById(R.id.view_pager);
 
         viewPager.setUserInputEnabled(false);
-        viewPager.setOffscreenPageLimit(4);
+        viewPager.setOffscreenPageLimit(5);
 
         viewPager.setAdapter(new FragmentStateAdapter(this) {
             @NonNull
@@ -40,12 +40,13 @@ public class MainActivity extends AppCompatActivity implements DoctorConnector.D
                     case 1: return new SsvepTrainingFragment();
                     case 2: return new MiTrainingFragment();
                     case 3: return new InferenceFragment();
+                    case 4: return new GameFragment();
                     default: return new ConnectFragment();
                 }
             }
 
             @Override
-            public int getItemCount() { return 4; }
+            public int getItemCount() { return 5; }
         });
 
         DoctorConnector.getInstance().addListener(this);
@@ -86,7 +87,7 @@ public class MainActivity extends AppCompatActivity implements DoctorConnector.D
     }
 
     public void switchToPage(int position) {
-        if (viewPager != null && position >= 0 && position < 4) {
+        if (viewPager != null && position >= 0 && position < 5) {
             applyTrainingModeForPage(position);
             Log.i(TAG, "switchToPage: " + position + ", current=" + viewPager.getCurrentItem());
             viewPager.setCurrentItem(position, false);

@@ -553,6 +553,7 @@ public class DoctorConnector {
             case 4: return 1;
             case 5: return 2;
             case 6: return 3;
+            case 9: return 4;
             default: return 0;
         }
     }

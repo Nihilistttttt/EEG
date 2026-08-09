@@ -30,9 +30,6 @@
             android:name=".MainActivity"
             android:screenOrientation="sensorLandscape" />
 
-        <activity
-            android:name=".DisplaySettingActivity"
-            android:screenOrientation="sensorLandscape" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

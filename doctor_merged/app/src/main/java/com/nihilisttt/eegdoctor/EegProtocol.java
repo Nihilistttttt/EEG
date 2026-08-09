@@ -83,6 +83,9 @@ public final class EegProtocol {
     public static final int CMD_DIR_MODEL_PUSH = 0x4B;
     public static final int CMD_DIR_MODEL_SCAN = 0x4C;
     public static final int CMD_DIR_MODEL_LIST = 0x4D;
+    public static final int CMD_GAME_START = 0x4E;
+    public static final int CMD_GAME_STOP = 0x4F;
+    public static final int CMD_GAME_RESULT = 0x50;
 
 
     public static final int WAVE_NUM_CH = 8;

@@ -276,6 +276,22 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         Send_RespOk(CMD_TASK_STOPPED);
         break;
 
+    case CMD_GAME_START:
+#ifdef GLXSS_ENABLED
+        Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_GAME_START -> IPC GAME(1)\r\n");
+        IPC_Cmd_Send_V3F(IPC_CMD_GAME, 1);
+#endif
+        Send_RespOk(CMD_GAME_START);
+        break;
+
+    case CMD_GAME_STOP:
+#ifdef GLXSS_ENABLED
+        Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_GAME_STOP -> IPC GAME(0)\r\n");
+        IPC_Cmd_Send_V3F(IPC_CMD_GAME, 0);
+#endif
+        Send_RespOk(CMD_GAME_STOP);
+        break;
+
     case CMD_STATUS:
         {
             uint8_t resp[6];

@@ -21,6 +21,7 @@ public interface DataListener {
     default void onSsvepProgress(SsvepProgress progress) {}
     default void onImpedanceResult(float[] kohm, boolean biasConnected) {}
     default void onDirModelList(String listText) {}
+    default void onGameResult(int distance, int coins, int score) {}
 
 
 }

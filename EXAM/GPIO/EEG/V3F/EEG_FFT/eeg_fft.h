@@ -100,6 +100,7 @@ void EEG_FFT_ResetInferState(void);
 void EEG_FFT_ResetSendState(void);
 void EEG_MI_ResultPoll(void);
 void EEG_SSVEP_ResultPoll(void);
+void EEG_Game_ResultPoll(void);
 
 float *RingBuffer_GetChannel(RingBuffer_t *rb, uint8_t ch);
 float *FFT_Data_GetMags(FFT_Data_t *data, uint8_t ch);

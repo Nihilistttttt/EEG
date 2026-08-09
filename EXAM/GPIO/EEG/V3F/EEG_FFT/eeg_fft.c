@@ -11,6 +11,7 @@
 #include "Serial.h"
 #include "dualcore_ipc.h"
 #include "eeg_infer_glxss.h"
+#include "ipc_log.h"
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -801,6 +802,14 @@ uint8_t Process_FFT_Step (void) {
         Send_Focus (g_attn_output.attention_score, g_attn_output.relaxation_score,
                     g_attn_output.attention_confidence, g_attn_output.relaxation_confidence,
                     trend_state, instant_state);
+#ifdef GLXSS_ENABLED
+        {
+            float attn = g_attn_output.attention_score;
+            if (attn < 0.0f) attn = 0.0f;
+            if (attn > 100.0f) attn = 100.0f;
+            IPC_LOG_SHARED->v3f_attn_q100 = (int32_t)(attn * 100.0f);
+        }
+#endif
         Update_OLED_Scores (g_attn_output.attention_score, g_attn_output.relaxation_score, g_attn_output.blink_score,
                             g_attn_output.attention_confidence, g_attn_output.relaxation_confidence, g_attn_output.blink_score);
         fft_step = FFT_STEP_SEND_FILT_SPECTRUM;
@@ -1032,4 +1041,23 @@ void EEG_SSVEP_ResultPoll (void) {
             Retry_Store(ssvep_buf, sizeof(ssvep_buf), CMD_RESULT_SSVEP);
         }
     }
+}
+
+void EEG_Game_ResultPoll(void) {
+#ifdef GLXSS_ENABLED
+    static uint32_t s_last_game_over_seq = 0;
+    uint32_t seq = IPC_LOG_SHARED->game_over_seq;
+    if (seq != s_last_game_over_seq) {
+        s_last_game_over_seq = seq;
+        int32_t dist = IPC_LOG_SHARED->game_distance;
+        int32_t coins = IPC_LOG_SHARED->game_coins;
+        int32_t score = IPC_LOG_SHARED->game_score;
+        uint8_t buf[12];
+        memcpy(buf + 0, &dist, 4);
+        memcpy(buf + 4, &coins, 4);
+        memcpy(buf + 8, &score, 4);
+        Pack_Frame(SERIAL_PORT_DEBUG, CMD_GAME_RESULT, buf, sizeof(buf));
+        Pack_Frame(SERIAL_PORT_WIFI, CMD_GAME_RESULT, buf, sizeof(buf));
+    }
+#endif
 }

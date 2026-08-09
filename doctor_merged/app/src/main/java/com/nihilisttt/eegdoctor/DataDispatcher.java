@@ -254,5 +254,15 @@ public class DataDispatcher {
         });
     }
 
+    public void postGameResult(int distance, int coins, int score) {
+        mainHandler.post(() -> {
+            Log.d(TAG, "postGameResult: dist=" + distance + " coins=" + coins + " score=" + score);
+            for (DataListener l : listeners) {
+                try { l.onGameResult(distance, coins, score); }
+                catch (Exception e) { Log.e(TAG, "onGameResult error", e); }
+            }
+        });
+    }
+
 }
 

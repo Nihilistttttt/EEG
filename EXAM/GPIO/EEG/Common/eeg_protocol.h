@@ -90,7 +90,10 @@ typedef enum {
     CMD_DIR_WEIGHT         = 0x4A,
     CMD_DIR_MODEL_PUSH     = 0x4B,
     CMD_DIR_MODEL_SCAN     = 0x4C,
-    CMD_DIR_MODEL_LIST     = 0x4D
+    CMD_DIR_MODEL_LIST     = 0x4D,
+    CMD_GAME_START         = 0x4E,
+    CMD_GAME_STOP          = 0x4F,
+    CMD_GAME_RESULT        = 0x50
 } ProtoCmd_t;
 
 typedef enum {

@@ -17,6 +17,7 @@
 #define IPC_CMD_RESET        7
 #define IPC_CMD_SSVEP_CTRL   8
 #define IPC_CMD_COLLECT      9
+#define IPC_CMD_GAME         10
 
 #define IPC_CTRL_RESET_DSP      0x01u
 #define IPC_CTRL_SSVEP_ENABLE   0x02u
@@ -48,8 +49,15 @@ typedef struct {
     volatile int32_t  v5f_score_right;
     volatile int32_t  v5f_confidence;
     volatile uint32_t v5f_infer_count;
-    volatile int32_t  ssvep_scores_q10000[4];
+
+    volatile int32_t v3f_attn_q100;
+    volatile int32_t ssvep_scores_q10000[4];
     volatile int8_t   ssvep_raw_index;
+
+    volatile int32_t  game_distance;
+    volatile int32_t  game_coins;
+    volatile int32_t  game_score;
+    volatile uint32_t game_over_seq;
 
     volatile uint8_t  feature_valid;
     volatile int32_t  feature_q[IPC_FEATURE_DIM];

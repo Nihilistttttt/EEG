@@ -314,6 +314,7 @@ void Signal_Analysis_Start (void) {
 
             EEG_MI_ResultPoll();
             EEG_SSVEP_ResultPoll();
+            EEG_Game_ResultPoll();
             GLXSS_Infer_Poll();
 
         } else if (g_ssvep_active && DualCore_IPC_GetSsvepSelftest()) {

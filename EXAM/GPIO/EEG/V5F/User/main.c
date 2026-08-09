@@ -25,6 +25,7 @@
 #define MODE_SSVEP       1
 #define MODE_ARROW       2
 #define MODE_ARROW_TRAIN 3
+#define MODE_GAME        4
 
 #define LCD_W  640
 #define LCD_H  400
@@ -221,31 +222,44 @@ static glxss_err_t ssvep_mode_step(void)
 
 static const uint8_t s_font5x7[26*7] = {
     0x0E,0x11,0x11,0x1F,0x11,0x11,0x11,
-    0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,
+    0x1F,0x11,0x11,0x1E,0x11,0x11,0x1F,
+    0x0E,0x11,0x10,0x10,0x10,0x11,0x0E,
+    0x1E,0x11,0x11,0x11,0x11,0x11,0x1E,
     0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F,
-    0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,
+    0x1F,0x10,0x10,0x1E,0x10,0x10,0x10,
+    0x0E,0x11,0x10,0x17,0x11,0x11,0x0E,
+    0x11,0x11,0x11,0x1F,0x11,0x11,0x11,
     0x0E,0x04,0x04,0x04,0x04,0x04,0x0E,
-    0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,
+    0x07,0x02,0x02,0x02,0x02,0x12,0x0C,
+    0x11,0x12,0x14,0x18,0x14,0x12,0x11,
     0x10,0x10,0x10,0x10,0x10,0x10,0x1F,
-    0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,
+    0x11,0x1B,0x15,0x15,0x11,0x11,0x11,
+    0x11,0x11,0x19,0x15,0x13,0x11,0x11,
+    0x0E,0x11,0x11,0x11,0x11,0x11,0x0E,
+    0x1F,0x11,0x11,0x1E,0x10,0x10,0x10,
+    0x0E,0x11,0x11,0x11,0x15,0x12,0x0D,
     0x1E,0x11,0x11,0x1E,0x14,0x12,0x11,
-    0,0,0,0,0,0,0,
+    0x0F,0x10,0x10,0x0E,0x01,0x01,0x1E,
     0x1F,0x04,0x04,0x04,0x04,0x04,0x04,
-    0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,
+    0x11,0x11,0x11,0x11,0x11,0x11,0x0E,
+    0x11,0x11,0x11,0x11,0x11,0x0A,0x04,
     0x11,0x11,0x11,0x15,0x15,0x1B,0x11,
     0x11,0x11,0x0A,0x04,0x0A,0x11,0x11,
-    0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,
+    0x11,0x11,0x0A,0x04,0x04,0x04,0x04,
+    0x1F,0x01,0x02,0x04,0x08,0x10,0x1F,
+};
+
+static const uint8_t s_font5x7_digit[10*7] = {
+    0x0E,0x11,0x11,0x11,0x11,0x11,0x0E,
+    0x04,0x0C,0x04,0x04,0x04,0x04,0x1F,
+    0x0E,0x11,0x01,0x02,0x04,0x08,0x1F,
+    0x1F,0x02,0x04,0x02,0x01,0x11,0x0E,
+    0x02,0x06,0x0A,0x12,0x1F,0x02,0x02,
+    0x1F,0x10,0x1E,0x01,0x01,0x11,0x0E,
+    0x06,0x08,0x10,0x1E,0x11,0x11,0x0E,
+    0x1F,0x01,0x02,0x04,0x08,0x08,0x08,
+    0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E,
+    0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C,
 };
 
 static int text_pixel(int32_t x, int32_t y,
@@ -268,8 +282,11 @@ static int text_pixel(int32_t x, int32_t y,
     int col = lx / scale;
     if (row >= ch || col >= cw) return 0;
     int idx = str[ci] - 'A';
-    if (idx < 0 || idx >= 26) return 0;
-    return (s_font5x7[idx * 7 + row] & (0x10 >> col)) ? 1 : 0;
+    if (idx >= 0 && idx < 26)
+        return (s_font5x7[idx * 7 + row] & (0x10 >> col)) ? 1 : 0;
+    int didx = str[ci] - '0';
+    if (didx < 0 || didx >= 10) return 0;
+    return (s_font5x7_digit[didx * 7 + row] & (0x10 >> col)) ? 1 : 0;
 }
 
 /* ==================== ARROW ==================== */
@@ -617,6 +634,308 @@ static glxss_err_t train_mode_step(void)
     return send_train_frame();
 }
 
+/* ==================== GAME ==================== */
+
+#define GAME_DURATION_MS       60000
+#define GAME_BASE_SPEED_MPS    4.0f
+#define GAME_MAX_BOOST_MPS     8.0f
+#define GAME_COIN_VALUE        10
+#define GAME_LANE_COOLDOWN_US  400000
+#define GAME_FRAME_INTERVAL_US 50000
+#define GAME_MAX_COINS         16
+#define GAME_COIN_HIT_RADIUS_M 2.0f
+#define GAME_VIEW_RANGE_M      40.0f
+#define GAME_COIN_SPACING_MIN  4.0f
+#define GAME_COIN_SPACING_MAX  10.0f
+
+static uint8_t  g_game_lane = 1;
+static float    g_game_world_y = 0;
+static uint32_t g_game_coins = 0;
+static uint32_t g_game_start_us = 0;
+static uint8_t  g_game_active = 0;
+static uint8_t  g_game_over = 0;
+static uint32_t g_game_last_frame_us = 0;
+static uint32_t g_game_last_lane_us = 0;
+static uint8_t  g_game_last_pred = 2;
+static float    g_coin_y[GAME_MAX_COINS];
+static uint8_t  g_coin_lane[GAME_MAX_COINS];
+static uint8_t  g_coin_active[GAME_MAX_COINS];
+static float    g_next_coin_y = 5;
+static uint8_t  g_game_dirty = 1;
+static uint32_t g_game_over_seq = 0;
+
+static int int_to_str(int val, char *buf);
+
+static int32_t  s_prep_coin_sx[GAME_MAX_COINS];
+static int32_t  s_prep_coin_sy[GAME_MAX_COINS];
+static int      s_prep_coin_n = 0;
+static int      s_prep_coin_min_sy = 999;
+static int      s_prep_coin_max_sy = -999;
+static int32_t  s_prep_player_sx = 0;
+static int      s_prep_bar_w = 0;
+static int      s_prep_mile_sy[8];
+static int      s_prep_mile_n = 0;
+static char     s_prep_buf_score[12]; static int s_prep_slen = 0;
+static char     s_prep_buf_time[12];  static int s_prep_tlen = 0;
+static char     s_prep_buf_dist[12];  static int s_prep_dlen = 0;
+static char     s_prep_buf_coins[12]; static int s_prep_clen = 0;
+
+static void game_frame_prepare(void)
+{
+    const int32_t player_sy = 288;
+    const float mpp = 10.0f;
+
+    s_prep_coin_n = 0;
+    s_prep_coin_min_sy = 999;
+    s_prep_coin_max_sy = -999;
+    for (int c = 0; c < GAME_MAX_COINS; c++) {
+        if (!g_coin_active[c]) continue;
+        int32_t sy = player_sy - (int32_t)((g_coin_y[c] - g_game_world_y) * mpp);
+        if (sy < -20 || sy > 420) continue;
+        s_prep_coin_sx[s_prep_coin_n] = (int32_t)g_coin_lane[c] * 213 + 106;
+        s_prep_coin_sy[s_prep_coin_n] = sy;
+        if (sy < s_prep_coin_min_sy) s_prep_coin_min_sy = sy;
+        if (sy > s_prep_coin_max_sy) s_prep_coin_max_sy = sy;
+        s_prep_coin_n++;
+    }
+
+    s_prep_player_sx = (int32_t)g_game_lane * 213 + 106;
+
+    uint32_t elapsed_us = tick_get_us() - g_game_start_us;
+    int timeLeft_s = (int)(GAME_DURATION_MS / 1000) - (int)(elapsed_us / 1000000);
+    if (timeLeft_s < 0) timeLeft_s = 0;
+    int score = (int)g_game_world_y + (int)g_game_coins * GAME_COIN_VALUE;
+    int dist = (int)g_game_world_y;
+    s_prep_slen = int_to_str(score, s_prep_buf_score);
+    s_prep_tlen = int_to_str(timeLeft_s, s_prep_buf_time);
+    s_prep_dlen = int_to_str(dist, s_prep_buf_dist);
+    s_prep_clen = int_to_str((int)g_game_coins, s_prep_buf_coins);
+    s_prep_bar_w = timeLeft_s * 640 / (GAME_DURATION_MS / 1000);
+
+    s_prep_mile_n = 0;
+    {
+        int startM = ((int)g_game_world_y / 10) * 10 - 10;
+        int endM = (int)g_game_world_y + 45;
+        for (int m = startM; m <= endM && s_prep_mile_n < 8; m += 10) {
+            if (m < 0) continue;
+            s_prep_mile_sy[s_prep_mile_n++] = player_sy - (int32_t)((m - g_game_world_y) * mpp);
+        }
+    }
+}
+
+static int int_to_str(int val, char *buf)
+{
+    if (val < 0) val = 0;
+    if (val == 0) { buf[0] = '0'; return 1; }
+    char tmp[12];
+    int n = 0;
+    while (val > 0 && n < 11) { tmp[n++] = (char)('0' + (val % 10)); val /= 10; }
+    for (int i = 0; i < n; i++) buf[i] = tmp[n - 1 - i];
+    return n;
+}
+
+static void fill_game_pkt(uint32_t offset, uint16_t len)
+{
+    uint8_t hdr[16] = {0x80,0x02,0x00,0x00, 0x90,0x01,0x00,0x00, 0x01,0,0,0,0,0,0,0};
+    const int32_t player_sy = 288;
+
+    for (uint16_t i = 0; i < len; i++) {
+        uint32_t pos = offset + i;
+        if (pos < 16) { s_pkt[i] = hdr[pos]; continue; }
+        uint32_t pb = pos - 16;
+        uint32_t pi = pb / 4;
+        uint8_t ch = pb % 4;
+        uint32_t x = pi % 640;
+        uint32_t y = pi / 640;
+        uint8_t r = 12, g = 14, b = 20;
+
+        uint32_t lane = (x >= 426) ? 2 : (x >= 213 ? 1 : 0);
+        if (lane == g_game_lane) { r += 8; g += 12; b += 20; }
+
+        if (x == 213 || x == 426) { r = 50; g = 50; b = 60; }
+
+        if (x < 40) {
+            for (int m = 0; m < s_prep_mile_n; m++) {
+                if ((int)y == s_prep_mile_sy[m]) { r = 70; g = 70; b = 80; break; }
+            }
+        }
+
+        if (s_prep_coin_n > 0) {
+            int32_t yi = (int32_t)y;
+            if (yi >= s_prep_coin_min_sy - 18 && yi <= s_prep_coin_max_sy + 18) {
+                int32_t xi = (int32_t)x;
+                for (int c = 0; c < s_prep_coin_n; c++) {
+                    int32_t dx = xi - s_prep_coin_sx[c];
+                    int32_t dy = yi - s_prep_coin_sy[c];
+                    if (dx*dx + dy*dy < 324) { r = 255; g = 180; b = 0; break; }
+                }
+            }
+        }
+
+        {
+            int32_t px = (int32_t)x - s_prep_player_sx;
+            int32_t py = (int32_t)y - player_sy;
+            if (px >= -14 && px <= 14 && py >= -8 && py <= 23) {
+                if (px*px + (py+22)*(py+22) < 196) { r = 26; g = 115; b = 232; }
+                else if (px >= -13 && px <= 13 && py >= -7 && py <= 22) { r = 26; g = 115; b = 232; }
+            }
+        }
+
+        if (y < 6) {
+            if ((int)x < s_prep_bar_w) { r = 255; g = 80; b = 80; }
+            else { r = 40; g = 20; b = 20; }
+        }
+
+        if (x >= 540 && y >= 15 && y <= 130) {
+            if (text_pixel((int32_t)x, (int32_t)y, s_prep_buf_time,  s_prep_tlen, 2, 580, 24))  { r=255; g=255; b=255; }
+            else if (text_pixel((int32_t)x, (int32_t)y, s_prep_buf_score, s_prep_slen, 2, 580, 56))  { r=255; g=200; b=0; }
+            else if (text_pixel((int32_t)x, (int32_t)y, s_prep_buf_dist,  s_prep_dlen, 2, 580, 88))  { r=100; g=255; b=100; }
+            else if (text_pixel((int32_t)x, (int32_t)y, s_prep_buf_coins, s_prep_clen, 2, 580, 120)) { r=255; g=180; b=0; }
+        }
+
+        if (g_game_over && x >= 260 && x <= 390 && y >= 160 && y <= 250) {
+            if (text_pixel((int32_t)x, (int32_t)y, "GAME", 4, 5, 320, 180)) { r=255; g=100; b=100; }
+            else if (text_pixel((int32_t)x, (int32_t)y, "OVER", 4, 5, 320, 230)) { r=255; g=100; b=100; }
+        }
+
+        if (ch == 0) s_pkt[i] = r;
+        else if (ch == 1) s_pkt[i] = g;
+        else if (ch == 2) s_pkt[i] = b;
+        else s_pkt[i] = 0xFF;
+    }
+}
+
+static glxss_err_t send_game_frame(void)
+{
+    uint8_t out_ep = find_bulk_out_ep();
+    if (out_ep == 0) return GLXSS_ERR_BULK_WRITE;
+    game_frame_prepare();
+    uint32_t saved_tx_dma = USBHSH->TX_DMA;
+    uint16_t tog = g_endp_tog;
+    uint16_t tog0 = 0;
+    uint16_t tog1 = USBHS_UH_T_TOG_DATA1;
+    uint32_t frame_total = 1024016;
+    uint32_t pos = 0;
+    while (pos < frame_total) {
+        uint16_t fill_chunk = 2048;
+        if (pos + fill_chunk > frame_total) fill_chunk = (uint16_t)(frame_total - pos);
+        fill_game_pkt(pos, fill_chunk);
+        uint32_t send_off = 0;
+        while (send_off < fill_chunk) {
+            uint16_t chunk = 512;
+            if (send_off + chunk > fill_chunk) chunk = (uint16_t)(fill_chunk - send_off);
+            USBHSH->TX_DMA = (uint32_t)s_pkt + send_off;
+            USBHSH->TX_LEN = chunk;
+            USBHSH->CONTROL = USBHS_UH_HOST_ACTION | USB_PID_OUT | (out_ep << 4) | (tog ? tog1 : tog0);
+            USBHSH->INT_FLAG = USBHS_UHIF_TRANSFER;
+            for (uint16_t i = 20000; (i != 0) && ((USBHSH->INT_FLAG & USBHS_UHIF_TRANSFER) == 0); i--);
+            USBHSH->CONTROL &= ~USBHS_UH_T_TOKEN_MASK;
+            if (!(USBHSH->INT_FLAG & USBHS_UHIF_TRANSFER)) { USBHSH->TX_DMA = saved_tx_dma; return GLXSS_ERR_BULK_WRITE; }
+            tog ^= USBHS_UH_T_TOG_DATA1;
+            send_off += chunk;
+        }
+        pos += fill_chunk;
+    }
+    g_endp_tog = tog;
+    USBHSH->TX_DMA = saved_tx_dma;
+    return GLXSS_OK;
+}
+
+static void game_mode_init(void)
+{
+    g_game_lane = 1;
+    g_game_world_y = 0;
+    g_game_coins = 0;
+    g_game_start_us = tick_get_us();
+    g_game_active = 1;
+    g_game_over = 0;
+    g_game_last_frame_us = 0;
+    g_game_last_lane_us = 0;
+    g_game_last_pred = 2;
+    g_next_coin_y = 5;
+    for (int c = 0; c < GAME_MAX_COINS; c++) g_coin_active[c] = 0;
+    g_game_dirty = 1;
+    IPC_Log_Printf_V5F("[V5F] GAME init\r\n");
+}
+
+static glxss_err_t game_mode_step(void)
+{
+    uint32_t now = tick_get_us();
+
+    if (g_game_active) {
+        uint32_t elapsed = now - g_game_start_us;
+        if (elapsed >= (uint32_t)GAME_DURATION_MS * 1000) {
+            g_game_active = 0;
+            g_game_over = 1;
+            g_game_dirty = 1;
+            g_game_over_seq++;
+            IPC_LOG_SHARED->game_distance = (int32_t)g_game_world_y;
+            IPC_LOG_SHARED->game_coins = (int32_t)g_game_coins;
+            IPC_LOG_SHARED->game_score = (int32_t)g_game_world_y + (int32_t)g_game_coins * GAME_COIN_VALUE;
+            IPC_LOG_SHARED->game_over_seq = g_game_over_seq;
+            IPC_Log_Printf_V5F("[V5F] GAME OVER dist=%d coins=%lu score=%d\r\n",
+                (int)g_game_world_y, (unsigned long)g_game_coins,
+                (int)g_game_world_y + (int)g_game_coins * GAME_COIN_VALUE);
+        } else {
+            int32_t attn_q100 = IPC_LOG_SHARED->v3f_attn_q100;
+            float attn = (float)attn_q100 / 10000.0f;
+            if (attn < 0) attn = 0;
+            if (attn > 1) attn = 1;
+            float speed = GAME_BASE_SPEED_MPS + attn * GAME_MAX_BOOST_MPS;
+
+            float dt = 0.05f;
+            if (g_game_last_frame_us > 0) {
+                uint32_t diff = now - g_game_last_frame_us;
+                if (diff > 0 && diff < 200000) dt = (float)diff / 1000000.0f;
+            }
+            g_game_world_y += speed * dt;
+
+            if (now - g_game_last_lane_us > GAME_LANE_COOLDOWN_US) {
+                uint8_t pred = IPC_LOG_SHARED->v5f_pred;
+                if (pred != g_game_last_pred && pred != IPC_PRED_UNKNOWN) {
+                    g_game_last_pred = pred;
+                    g_game_last_lane_us = now;
+                    if (pred == IPC_PRED_LEFT && g_game_lane > 0) g_game_lane--;
+                    else if (pred == IPC_PRED_RIGHT && g_game_lane < 2) g_game_lane++;
+                }
+            }
+
+            while (g_next_coin_y < g_game_world_y + GAME_VIEW_RANGE_M) {
+                for (int c = 0; c < GAME_MAX_COINS; c++) {
+                    if (!g_coin_active[c]) {
+                        g_coin_y[c] = g_next_coin_y;
+                        g_coin_lane[c] = (uint8_t)((uint32_t)(g_next_coin_y * 37.0f) % 3);
+                        g_coin_active[c] = 1;
+                        break;
+                    }
+                }
+                g_next_coin_y += GAME_COIN_SPACING_MIN +
+                    ((float)((uint32_t)(g_next_coin_y * 91.0f) % 601) / 100.0f);
+            }
+
+            for (int c = 0; c < GAME_MAX_COINS; c++) {
+                if (!g_coin_active[c]) continue;
+                float dy = g_coin_y[c] - g_game_world_y;
+                if (dy < 0) dy = -dy;
+                if (dy < GAME_COIN_HIT_RADIUS_M && g_coin_lane[c] == g_game_lane) {
+                    g_coin_active[c] = 0;
+                    g_game_coins++;
+                } else if (g_coin_y[c] < g_game_world_y - 5) {
+                    g_coin_active[c] = 0;
+                }
+            }
+
+            if (now - g_game_last_frame_us < GAME_FRAME_INTERVAL_US) return GLXSS_OK;
+            g_game_last_frame_us = now;
+            return send_game_frame();
+        }
+    }
+
+    if (!g_game_dirty) return GLXSS_OK;
+    g_game_dirty = 0;
+    return send_game_frame();
+}
+
 /* ==================== MI SIM ==================== */
 
 static void __attribute__((unused)) mi_sim_step(void)
@@ -719,6 +1038,7 @@ static void switch_mode(uint8_t new_mode)
     case MODE_SSVEP:       ssvep_mode_init(); break;
     case MODE_ARROW:       arrow_mode_init(); break;
     case MODE_ARROW_TRAIN: train_mode_init(); break;
+    case MODE_GAME:        game_mode_init(); break;
     }
 }
 
@@ -804,6 +1124,15 @@ static void handle_ipc_cmd(void)
         IPC_Log_Printf_V5F("[V5F] SSVEP_CTRL flags=0x%02X\r\n", (unsigned)ctrl);
         switch_mode(MODE_SSVEP);
         break;
+    case IPC_CMD_GAME:
+        IPC_Log_Printf_V5F("[V5F] GAME param=%lu\r\n", (unsigned long)param);
+        if (param) {
+            switch_mode(MODE_GAME);
+        } else {
+            g_game_active = 0;
+        }
+        break;
+
     case IPC_CMD_RESET:
         IPC_Log_Printf_V5F("[V5F] RESET -> IDLE\r\n");
         g_mi_infer_active = 0;
@@ -863,6 +1192,7 @@ int main(void)
         case MODE_SSVEP:       err = ssvep_mode_step(); break;
         case MODE_ARROW:       err = arrow_mode_step(); break;
         case MODE_ARROW_TRAIN: err = train_mode_step(); break;
+        case MODE_GAME:        err = game_mode_step(); break;
         }
         if (err != GLXSS_OK) {
             IPC_Log_SetStatus_V5F(IPC_LOG_STATUS_ERROR);
@@ -913,6 +1243,8 @@ int main(void)
                 /* 等头模式: 每次循环都检查相位转换(RESULT/GAP 400ms需及时切换),
                    脏标志保证无变化时不发送1MB帧 */
                 err = arrow_mode_step();
+            } else if (g_mode == MODE_GAME) {
+                err = game_mode_step();
             } else if (now - g_last_disp_us >= 1000000) {
                 g_last_disp_us = now;
                 switch (g_mode) {

@@ -1480,6 +1480,25 @@ public class TcpServerManager {
                     break;
                 }
 
+                case EegProtocol.CMD_GAME_RESULT: {
+                    if (payloadLen >= 12) {
+                        int off = fixed;
+                        int distance = (body[off] & 0xFF) | ((body[off+1] & 0xFF) << 8) |
+                                       ((body[off+2] & 0xFF) << 16) | ((body[off+3] & 0xFF) << 24);
+                        off += 4;
+                        int coins = (body[off] & 0xFF) | ((body[off+1] & 0xFF) << 8) |
+                                    ((body[off+2] & 0xFF) << 16) | ((body[off+3] & 0xFF) << 24);
+                        off += 4;
+                        int score = (body[off] & 0xFF) | ((body[off+1] & 0xFF) << 8) |
+                                    ((body[off+2] & 0xFF) << 16) | ((body[off+3] & 0xFF) << 24);
+                        Log.i("FrameRx", "GameResult dist=" + distance + " coins=" + coins + " score=" + score);
+                        dispatcher.postGameResult(distance, coins, score);
+                    } else {
+                        valid = false;
+                    }
+                    break;
+                }
+
                 case EegProtocol.CMD_ACK: valid = payloadLen >= 1; break;
                 case EegProtocol.CMD_READY_TRAIN:
                     dispatcher.postReadyTrain();

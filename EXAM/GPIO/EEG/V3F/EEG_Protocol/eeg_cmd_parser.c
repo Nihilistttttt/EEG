@@ -12,6 +12,7 @@
 #include "eeg_infer_glxss.h"
 #include "wav_player.h"
 #include "eeg_record.h"
+#include "dir_model_sd.h"
 #ifdef HAS_ICM42605
 #include "patient_monitor.h"
 #endif
@@ -481,6 +482,39 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
             DualCore_IPC_UpdateDirWeight(data, dlen);
             Serial_Printf(SERIAL_PORT_DEBUG, "[DIR] weight updated, len=%u\r\n", (unsigned)dlen);
             Send_RespOk(CMD_DIR_WEIGHT);
+        }
+        break;
+
+    case CMD_DIR_MODEL_PUSH:
+        {
+            if (dlen >= (uint16_t)(DIR_MODEL_ID_LEN + DIR_MODEL_NAME_LEN + 4u + DIR_MODEL_PAYLOAD_LEN)) {
+                DirModelFile_t model;
+                memset(&model, 0, sizeof(model));
+                const uint8_t *p = data;
+                memcpy(model.patient_id, p, DIR_MODEL_ID_LEN); p += DIR_MODEL_ID_LEN;
+                memcpy(model.patient_name, p, DIR_MODEL_NAME_LEN); p += DIR_MODEL_NAME_LEN;
+                memcpy(&model.balanced_accuracy, p, 4); p += 4;
+                memcpy(model.model_data, p, DIR_MODEL_PAYLOAD_LEN);
+                model.patient_id[DIR_MODEL_ID_LEN - 1] = '\0';
+                model.patient_name[DIR_MODEL_NAME_LEN - 1] = '\0';
+
+                DualCore_IPC_UpdateDirWeight(model.model_data, DIR_MODEL_PAYLOAD_LEN);
+                int sv = DirModelSD_Save(&model);
+                Serial_Printf(SERIAL_PORT_DEBUG, "[DIR] model push %s %s sd=%d\r\n",
+                              model.patient_id, model.patient_name, sv);
+                Send_RespOk(CMD_DIR_MODEL_PUSH);
+            } else {
+                Serial_Printf(SERIAL_PORT_DEBUG, "[DIR] model push len err %u\r\n", (unsigned)dlen);
+                Send_RespErr(0xFE);
+            }
+        }
+        break;
+
+    case CMD_DIR_MODEL_SCAN:
+        {
+            Serial_Printf(SERIAL_PORT_DEBUG, "[DIR] model scan request\r\n");
+            DirModelSD_SendList();
+            Send_RespOk(CMD_DIR_MODEL_SCAN);
         }
         break;
 

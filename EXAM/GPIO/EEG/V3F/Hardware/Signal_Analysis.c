@@ -13,6 +13,7 @@
 #include "ADS1299.h"
 
 #include "hardware.h"
+#include "dir_model_sd.h"
 #include "wav_player.h"
 #include "eeg_record.h"
 #include "ipc_log.h"
@@ -88,6 +89,15 @@ void Signal_Analysis_Start (void) {
         ann[0] = (uint8_t)g_eeg_app_mode;
         Pack_Frame(SERIAL_PORT_DEBUG, CMD_ANNOUNCE, ann, 1);
         Pack_Frame(SERIAL_PORT_WIFI, CMD_ANNOUNCE, ann, 1);
+    }
+
+    {
+        int sd_ret = DirModelSD_Init();
+        Serial_Printf(SERIAL_PORT_DEBUG, "[DIRMOD] init=%d\r\n", sd_ret);
+        if (sd_ret == 0) {
+            Delay_Ms(200);
+            DirModelSD_SendList();
+        }
     }
 
     uint8_t frame_buf[ADS1299_FRAME_BYTE_NUM];

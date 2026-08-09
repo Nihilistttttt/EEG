@@ -87,7 +87,10 @@ typedef enum {
     CMD_ALARM_ACK          = 0x47,
     CMD_RECORD_START       = 0x48,
     CMD_RECORD_STOP        = 0x49,
-    CMD_DIR_WEIGHT         = 0x4A
+    CMD_DIR_WEIGHT         = 0x4A,
+    CMD_DIR_MODEL_PUSH     = 0x4B,
+    CMD_DIR_MODEL_SCAN     = 0x4C,
+    CMD_DIR_MODEL_LIST     = 0x4D
 } ProtoCmd_t;
 
 typedef enum {

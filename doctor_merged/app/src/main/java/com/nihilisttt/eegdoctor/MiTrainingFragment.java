@@ -766,6 +766,9 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
     @Override public void onIpcDiag(IpcDiagInfo diag) {}
     @Override public void onDirConfig(String configJson) {}
     @Override public void onModeSetOk(int mode) {}
+    @Override public void onDirModelList(String listText) {
+        if (tvDirLog != null) appendDirLog(listText.replace("\n", " "));
+    }
 
     private void startInference() {
         if (isInferencing) return;
@@ -1072,18 +1075,37 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
             DirModelAdapter.ModelInfo info = selected.get(0);
             DirLdaTrainer.TrainResult r = loadModelFromFile(info.file);
             if (r == null || !r.valid) { appendDirLog("模型加载失败: " + info.name); return; }
-            byte[] payload = DirLdaTrainer.packWeightPayload(r);
+            byte[] payload = packModelPushPayload(r, info.patientId, info.patientName);
             appendDirLog("下发模型 " + info.name + " (" + payload.length + "字节)");
             TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_DIR_MODEL_PUSH, payload);
             return;
         }
         if (lastDirResult != null && lastDirResult.valid) {
-            byte[] payload = DirLdaTrainer.packWeightPayload(lastDirResult);
+            byte[] payload = packModelPushPayload(lastDirResult, getCurrentPatientIdStr(), getCurrentPatientName());
             appendDirLog("下发当前训练模型 (" + payload.length + "字节)");
             TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_DIR_MODEL_PUSH, payload);
             return;
         }
         appendDirLog("请先选择模型文件或训练模型");
+    }
+
+    private byte[] packModelPushPayload(DirLdaTrainer.TrainResult r, String patientId, String patientName) {
+        byte[] modelData = DirLdaTrainer.packWeightPayload(r);
+        byte[] payload = new byte[8 + 32 + 4 + modelData.length];
+        int offset = 0;
+        byte[] idBytes = patientId.getBytes();
+        System.arraycopy(idBytes, 0, payload, offset, Math.min(idBytes.length, 8));
+        offset += 8;
+        byte[] nameBytes = patientName.getBytes();
+        System.arraycopy(nameBytes, 0, payload, offset, Math.min(nameBytes.length, 32));
+        offset += 32;
+        int accBits = Float.floatToIntBits(r.balancedAccuracy);
+        payload[offset++] = (byte) (accBits & 0xFF);
+        payload[offset++] = (byte) ((accBits >> 8) & 0xFF);
+        payload[offset++] = (byte) ((accBits >> 16) & 0xFF);
+        payload[offset++] = (byte) ((accBits >> 24) & 0xFF);
+        System.arraycopy(modelData, 0, payload, offset, modelData.length);
+        return payload;
     }
 
     private DirLdaTrainer.TrainResult loadModelFromFile(java.io.File file) {

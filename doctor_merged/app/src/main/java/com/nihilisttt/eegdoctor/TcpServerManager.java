@@ -1457,6 +1457,29 @@ public class TcpServerManager {
                 case EegProtocol.CMD_EVENT: valid = handleEventFrame(payloadLen); break;
                 case EegProtocol.CMD_IMPEDANCE_RESULT: valid = handleImpedanceFrame(payloadLen); break;
 
+                case EegProtocol.CMD_DIR_MODEL_LIST: {
+                    if (payloadLen >= 1) {
+                        int count = body[fixed] & 0xFF;
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("SD卡模型列表(").append(count).append("):\n");
+                        int off = fixed + 1;
+                        for (int i = 0; i < count && off + 44 <= fixed + payloadLen; i++) {
+                            String pid = new String(body, off, 8).trim();
+                            off += 8;
+                            String pname = new String(body, off, 32).trim();
+                            off += 32;
+                            int accBits = (body[off] & 0xFF) | ((body[off+1] & 0xFF) << 8) |
+                                          ((body[off+2] & 0xFF) << 16) | ((body[off+3] & 0xFF) << 24);
+                            off += 4;
+                            float acc = Float.intBitsToFloat(accBits);
+                            sb.append(String.format(java.util.Locale.US, "  %s %s %.1f%%\n", pid, pname, acc * 100));
+                        }
+                        Log.i("FrameRx", sb.toString());
+                        dispatcher.postDirModelList(sb.toString());
+                    }
+                    break;
+                }
+
                 case EegProtocol.CMD_ACK: valid = payloadLen >= 1; break;
                 case EegProtocol.CMD_READY_TRAIN:
                     dispatcher.postReadyTrain();

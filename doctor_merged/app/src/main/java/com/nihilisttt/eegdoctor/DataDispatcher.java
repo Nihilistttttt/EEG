@@ -245,5 +245,14 @@ public class DataDispatcher {
         });
     }
 
+    public void postDirModelList(String listText) {
+        mainHandler.post(() -> {
+            for (DataListener l : listeners) {
+                try { l.onDirModelList(listText); }
+                catch (Exception e) { Log.e(TAG, "onDirModelList error", e); }
+            }
+        });
+    }
+
 }
 

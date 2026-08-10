@@ -1,6 +1,109 @@
 EEG项目更新记录
 ================
-最后更新: 2026-08-08
+最后更新: 2026-08-11
+
+================================================================================
+2026-08-11  标题栏患者选择+BDF记录按钮+BDF解析修复
+================================================================================
+
+功能1: MCU端BDF记录患者信息 (eeg_record.h/c)
+  - 新增eeg_record_set_patient(id,name): 动态设置患者信息
+  - BDF头patient字段写入"P001 张三"格式(原写死"EEG Patient")
+  - 文件名改为{患者ID}_{序号}.BDF(如P001_0001.BDF)
+  - CMD_RECORD_START解析40字节payload(patient_id[8]+patient_name[32])
+
+功能2: 安卓端PatientManager单例 (新文件)
+  - SharedPreferences持久化患者列表(dir_train_prefs/dir_patients_data)
+  - 选择/新增Dialog, PatientChangeListener监听
+  - MiTrainingFragment患者逻辑委托给PatientManager, 与标题栏同步
+
+功能3: 安卓端标题栏患者选择+BDF记录 (activity_main.xml/MainActivity.java)
+  - 新增患者TextView(点击弹Dialog切换/新增), 显示"患者:P001 张三"
+  - 新增BDF记录按钮: 发CMD_RECORD_START(含患者payload)/CMD_RECORD_STOP
+  - BDF记录在MCU端SD卡独立保存原始八通道数据, 与波形显示无关
+  - 记录期间用户可自由切换原始/滤波/基线波形查看
+
+功能4: BdfReader异常停止修复
+  - nRecords=-1(录制未正常停止)时从文件大小自动计算可用记录数
+  - 原直接返回false导致无法解析异常停止的BDF文件
+
+================================================================================
+2026-08-10  Stroop颜色辨字专注训练+CH32V003电源管理固件升级+喇叭增益修复
+================================================================================
+
+功能1: Stroop颜色辨字专注训练 (V5F显示+V3F命令转发+安卓医生端)
+  - V5F MODE_FOCUS(5): 12个16x16中文字模(红黄绿蓝白黑+等待指令放松)
+  - stroop_pick用XorShift32+tick时序熵混合, 6种字义/6种颜色均匀随机, 强制color!=word
+  - 1秒切换1个字, 大字居中(scale=8), 深色背景, 黑色用深灰替代
+  - IPC_CMD_FOCUS=11, CMD_FOCUS_START(0x51)/STOP(0x52)
+  - colors.wav"请读出屏幕中文字的颜色"仅开始时播放一次
+  - 安卓FocusHistoryFragment: 专注度图表右侧加专注训练面板(开始/停止按钮+状态)
+
+功能2: CH32V003电源管理固件升级 (main.c)
+  - 上电/关机时序参数存入Flash最后页(0x08003FC0, 31B pmic_cfg_t格式)
+  - 新增PC6/ISO_EN引脚(推挽输出)
+  - 新上电时序: 等500ms拉高V_EN自锁→5V→300ms→ISO_EN+P2→500ms→P1
+  - 新关机时序: 所有EN全拉低→V_EN保持3000ms→释放自锁
+  - 修复en_apply_mask累积bug(原每次把非mask引脚全部拉低导致后续步骤关闭前面轨道)
+  - I2C扩展: 0x30-0x4E时序配置读写, 0x50/0x51保存/重载配置, CMD_VOUT_ON/OFF
+  - RAIL_STATUS/CTRL新增bit4=ISO, FW_VER升至0x02
+
+功能3: CH32H417 I2C调试命令控制 (hardware.c)
+  - MODE_I2C_DEBUG扩展: i2c_write_reg/i2c_toggle_vout
+  - 解析显示CH32V003 Flash时序配置(CFG区)
+  - 串口命令控制: '1'翻转VOUT, '2'关机, '3'上电, '4'全关EN
+
+功能4: 喇叭增益修复 (max98357a.c)
+  - 修复init时GAIN脚配置为输入浮空导致实际12dB的问题
+  - 改为按参数推挽输出15dB
+
+================================================================================
+2026-08-09  I2C调试模式+吃金币游戏+SD卡模型存储+方向训练重构+embeddedskills
+================================================================================
+
+功能1: I2C调试模式 (hardware.h/c)
+  - 新增MODE_I2C_DEBUG(9), 软件I2C bit-bang实现(PD12=SDA, PD13=SCL, 开漏+上拉输入)
+  - 7-bit地址0x03~0x77全扫描(检测ACK设备), i2c_read_reg标准重复START读寄存器
+  - 循环读取CH32V003 PMIC所有寄存器, 实测地址0x10, CHIP_ID=0x11, FW_VER=0x01
+  - 需外部5.1K上拉电阻(SDA/SCL各一个到3.3V)
+
+功能2: 患者端吃金币游戏页面 (patient_merged)
+  - GameView.java: SurfaceView+Canvas俯视2D渲染, 3车道+里程标记+时间条+HUD, 60秒计时
+  - GameFragment.java: 自动开始游戏, onFocusData控速+onInferenceResult变道
+  - 精灵素材: player_walk_0~3.png(48x96行走动画4帧)+coin.png(72x72金币)
+  - MCU端精灵渲染(V5F): game_sprites.h 8bpp调色板, 人物4帧+金币, ~78KB
+  - 行走动画每150ms切换4帧循环, RGB565调色板解码转RGB888
+
+功能3: 脑电吃金币游戏MCU端 (V5F main.c)
+  - MODE_GAME: 专注度控速+MI推理变道+60秒计时+金币计分
+  - 逐块渲染优化(game_frame_prepare预计算+early-out+2048B fill块)
+  - IPC: V3F专注度写入IPC共享内存供V5F读取+游戏结果回传
+  - CMD_GAME_START/STOP/RESULT命令处理
+  - 安卓端清理: 删除旧Fragment精简为游戏页面
+
+功能4: MCU端SD卡模型存储+在线下发 (dir_model_sd.c/h)
+  - /DIRMODEL/目录存储{患者ID}.BIN二进制模型文件(336B/文件)
+  - DirModelSD_Init/Save/Scan/Load/SendList API
+  - CMD_DIR_MODEL_PUSH(0x4B)/SCAN(0x4C)/LIST(0x4D)命令
+  - FLASH分区扩容: V3F 88K→92K, V5F ORIGIN 0x16000→0x17000 LENGTH 144K→140K
+  - 安卓端: sendSelectedModel下发336B, CMD_DIR_MODEL_LIST接收模型列表
+
+功能5: 方向训练页面ScrollView重构 (MiTrainingFragment+fragment_mi_training.xml)
+  - 改为ScrollView可滑动, 分患者信息/训练数据/模型文件三个卡片
+  - 患者Spinner下拉选择, 末尾新增选项弹对话框输入, ID自增P001/P002...
+  - 训练完成自动导出模型到dir_models/目录, 文件名dir_model_{PXXX}_{name}_{timestamp}.csv
+  - 模型文件列表(RecyclerView+DirModelAdapter)展示, 可选择模型下发/删除
+
+功能6: 安卓方向训练LDA实现与sklearn对齐 (DirLdaTrainer.java)
+  - 修复6个Bug: bias多余log(0.5)/diff0方向/shrinkage计算/clamp/n²除法/预测方向
+  - 协方差改为per-class StandardScaler+ledoit_wolf shrinkage+rescale+0.5加权池化
+  - 验证: 14维权重和bias与Python sklearn LDA完全一致(8位小数)
+  - 新增DirFileAdapter/DirTrainFileManager/DirTrainStore, 多选模式训练/合并/删除
+
+功能7: embeddedskills安装+OpenOCD烧录配置
+  - 安装zhinkgit/embeddedskills 12个子skill到华为云码道
+  - OpenOCD: ch32h417_sdi.cfg(wlinke+sdi+riscv), WCH-LinkE已识别
+  - AGENTS.md: 记录工具链路径/skill配置/烧录命令/FLASH分区信息
 
 ================================================================================
 2026-08-08  安卓端UI重构+MI训练融合+SSVEP结果修复+白天模式适配+显示设置合并

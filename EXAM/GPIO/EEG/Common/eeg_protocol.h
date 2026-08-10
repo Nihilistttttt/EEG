@@ -93,7 +93,9 @@ typedef enum {
     CMD_DIR_MODEL_LIST     = 0x4D,
     CMD_GAME_START         = 0x4E,
     CMD_GAME_STOP          = 0x4F,
-    CMD_GAME_RESULT        = 0x50
+    CMD_GAME_RESULT        = 0x50,
+    CMD_FOCUS_START        = 0x51,
+    CMD_FOCUS_STOP         = 0x52
 } ProtoCmd_t;
 
 typedef enum {

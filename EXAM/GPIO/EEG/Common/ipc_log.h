@@ -18,6 +18,7 @@
 #define IPC_CMD_SSVEP_CTRL   8
 #define IPC_CMD_COLLECT      9
 #define IPC_CMD_GAME         10
+#define IPC_CMD_FOCUS        11
 
 #define IPC_CTRL_RESET_DSP      0x01u
 #define IPC_CTRL_SSVEP_ENABLE   0x02u

@@ -27,6 +27,11 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
     private TextView btnToggleFocus;
     private TextView btnToggleRelax;
 
+    private TextView btnStroopStart;
+    private TextView btnStroopStop;
+    private TextView tvStroopStatus;
+    private boolean stroopRunning = false;
+
     private static final int DEFAULT_X_POINTS = 500;
 
     @Nullable
@@ -40,6 +45,10 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
 
         btnToggleFocus = root.findViewById(R.id.btn_toggle_focus);
         btnToggleRelax = root.findViewById(R.id.btn_toggle_relax);
+
+        btnStroopStart = root.findViewById(R.id.btn_stroop_start);
+        btnStroopStop = root.findViewById(R.id.btn_stroop_stop);
+        tvStroopStatus = root.findViewById(R.id.tv_stroop_status);
 
         View tvFocusLabelCount = root.findViewById(R.id.tv_focus_label_count);
         View tvFocusRange = root.findViewById(R.id.tv_focus_range);
@@ -57,6 +66,9 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
             updateToggleButton(btnToggleRelax, visible, R.color.accent_info);
         });
 
+        btnStroopStart.setOnClickListener(v -> startStroop());
+        btnStroopStop.setOnClickListener(v -> stopStroop());
+
         int xPoints = SettingsStore.getFocusXPoints(requireContext(), DEFAULT_X_POINTS);
         tvFocusXRange.setText(String.format("%d 点", xPoints));
         tvFocusXRange.setOnClickListener(v -> showXRangeDialog());
@@ -64,6 +76,24 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
         applyXRange(xPoints);
 
         return root;
+    }
+
+    private void startStroop() {
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_FOCUS_START, null);
+        stroopRunning = true;
+        if (tvStroopStatus != null) tvStroopStatus.setText("训练中");
+        if (btnStroopStart != null) btnStroopStart.setAlpha(0.5f);
+        if (btnStroopStop != null) btnStroopStop.setAlpha(1.0f);
+        Log.d("FocusHistory", "sent CMD_FOCUS_START");
+    }
+
+    private void stopStroop() {
+        TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_FOCUS_STOP, null);
+        stroopRunning = false;
+        if (tvStroopStatus != null) tvStroopStatus.setText("未开始");
+        if (btnStroopStart != null) btnStroopStart.setAlpha(1.0f);
+        if (btnStroopStop != null) btnStroopStop.setAlpha(0.5f);
+        Log.d("FocusHistory", "sent CMD_FOCUS_STOP");
     }
 
     private void updateToggleButton(TextView btn, boolean visible, int activeColorRes) {

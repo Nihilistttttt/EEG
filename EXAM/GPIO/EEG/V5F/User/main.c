@@ -27,6 +27,7 @@
 #define MODE_ARROW       2
 #define MODE_ARROW_TRAIN 3
 #define MODE_GAME        4
+#define MODE_FOCUS       5
 
 #define LCD_W  640
 #define LCD_H  400
@@ -290,6 +291,58 @@ static int text_pixel(int32_t x, int32_t y,
     return (s_font5x7_digit[didx * 7 + row] & (0x10 >> col)) ? 1 : 0;
 }
 
+/* 16x16 Chinese glyphs (from msyh.ttc):
+ * 0=红,1=黄,2=绿,3=蓝,4=白,5=黑, 6=等,7=待,8=指,9=令,10=放,11=松 */
+static const uint8_t s_font_cn[12][32] = {
+    { 0x00,0x00, 0x18,0x00, 0x18,0x00, 0x33,0xFE, 0x20,0x30, 0x6C,0x30, 0xC8,0x30, 0xF8,0x30, 0x30,0x30, 0x20,0x30, 0x7C,0x30, 0x78,0x30, 0x00,0x30, 0x3C,0x30, 0xF3,0xFF, 0x03,0xFF }, /* 红 */
+    { 0x00,0x00, 0x04,0x20, 0x7F,0xFE, 0x7F,0xFE, 0x04,0x30, 0xFF,0xFF, 0x01,0x80, 0x1F,0xF8, 0x3F,0xFC, 0x31,0x8C, 0x3F,0xFC, 0x31,0x8C, 0x3F,0xFC, 0x3F,0xFC, 0x0C,0x30, 0x7C,0x1E }, /* 黄 */
+    { 0x00,0x00, 0x10,0x00, 0x33,0xFC, 0x20,0x04, 0x69,0xFC, 0x49,0xFC, 0xF8,0x04, 0x77,0xFF, 0x32,0x20, 0x63,0x32, 0x79,0x36, 0x70,0xF8, 0x01,0xE8, 0x3F,0x26, 0xF2,0x23, 0x01,0xE0 }, /* 绿 */
+    { 0x00,0x00, 0x04,0x20, 0x7F,0xFE, 0xFF,0xFF, 0x04,0x20, 0x26,0x40, 0x26,0xFE, 0x26,0xC0, 0x24,0x98, 0x27,0x8C, 0x00,0x00, 0x3F,0xFC, 0x32,0x6C, 0x32,0x44, 0x32,0x6C, 0xFF,0xFF }, /* 蓝 */
+    { 0x00,0x00, 0x03,0x00, 0x03,0x00, 0x3F,0xFC, 0x7F,0xFC, 0x60,0x04, 0x60,0x04, 0x60,0x04, 0x60,0x04, 0x7F,0xFC, 0x60,0x04, 0x60,0x04, 0x60,0x04, 0x60,0x04, 0x7F,0xFC, 0x7F,0xFC }, /* 白 */
+    { 0x00,0x00, 0x00,0x00, 0x3F,0xFC, 0x29,0x94, 0x2D,0xB4, 0x25,0xA4, 0x21,0xA4, 0x3F,0xFC, 0x01,0x80, 0x3F,0xFC, 0x3F,0xFC, 0x01,0x80, 0xFF,0xFF, 0x24,0xCC, 0x64,0x44, 0x46,0x66 }, /* 黑 */
+    { 0x00,0x00, 0x10,0x20, 0x3F,0x7E, 0x7F,0xFE, 0xC8,0x90, 0x85,0x98, 0x7F,0xFE, 0x01,0x80, 0x01,0x80, 0xFF,0xFF, 0x00,0x10, 0x7F,0xFE, 0x08,0x30, 0x0C,0x10, 0x06,0x30, 0x01,0xF0 }, /* 等 */
+    { 0x00,0x00, 0x08,0x20, 0x18,0x20, 0x33,0xFE, 0x63,0xFE, 0xC0,0x20, 0x18,0x60, 0x17,0xFF, 0x30,0x08, 0x70,0x0C, 0xF7,0xFF, 0x30,0x08, 0x33,0x08, 0x31,0x88, 0x30,0x08, 0x30,0x78 }, /* 待 */
+    { 0x00,0x00, 0x32,0x00, 0x33,0x0E, 0x33,0xFC, 0xFF,0xC3, 0x7B,0x03, 0x33,0xFE, 0x30,0x00, 0x38,0x00, 0x7B,0xFE, 0xF3,0x06, 0x33,0x06, 0x33,0xFE, 0x33,0x06, 0x33,0xFE, 0xF3,0xFE }, /* 指 */
+    { 0x00,0x00, 0x00,0x80, 0x01,0x80, 0x03,0xC0, 0x06,0x60, 0x1C,0x38, 0x33,0x0C, 0xE1,0x87, 0x00,0x80, 0x3F,0xF8, 0x3F,0xF8, 0x00,0x10, 0x0C,0x70, 0x06,0xC0, 0x03,0xC0, 0x00,0xC0 }, /* 令 */
+    { 0x00,0x00, 0x18,0x20, 0x18,0x60, 0x08,0x60, 0xFF,0x7F, 0x30,0xFE, 0x30,0xC4, 0x31,0xC4, 0x3E,0x44, 0x32,0x6C, 0x22,0x68, 0x26,0x38, 0x26,0x30, 0x66,0x38, 0x46,0x6C, 0xDD,0xC7 }, /* 放 */
+    { 0x00,0x00, 0x10,0x00, 0x10,0xD8, 0x10,0xD8, 0x7C,0x88, 0xFD,0x8C, 0x31,0x06, 0x33,0x23, 0x3E,0x63, 0x74,0x40, 0xD0,0xC0, 0x90,0xC8, 0x10,0x8C, 0x11,0x84, 0x13,0xFE, 0x13,0xF6 }, /* 松 */
+};
+
+static int text_pixel_cn(int32_t x, int32_t y, int idx, int scale, int cx, int cy)
+{
+    int cw = 16, ch = 16;
+    int x0 = cx - (cw * scale) / 2;
+    int y0 = cy - (ch * scale) / 2;
+    int dx = (int)x - x0;
+    int dy = (int)y - y0;
+    if (dx < 0 || dy < 0 || dy >= ch * scale) return 0;
+    int row = dy / scale;
+    int col = dx / scale;
+    if (row >= ch || col >= cw) return 0;
+    uint8_t bits = s_font_cn[idx][row * 2 + (col >> 3)];
+    return (bits & (0x80 >> (col & 7))) ? 1 : 0;
+}
+
+/* Multi-glyph string: idxs[] holds N glyph indices, horizontally centered at (cx,cy). */
+static int text_pixel_cn_str(int32_t x, int32_t y, const uint8_t *idxs, int n, int scale, int cx, int cy)
+{
+    int cw = 16, ch = 16;
+    int total_w = cw * scale * n;
+    int x0 = cx - total_w / 2;
+    int y0 = cy - (ch * scale) / 2;
+    int dx = (int)x - x0;
+    int dy = (int)y - y0;
+    if (dx < 0 || dy < 0 || dy >= ch * scale) return 0;
+    int gi = dx / (cw * scale);
+    if (gi < 0 || gi >= n) return 0;
+    int local_x = dx - gi * cw * scale;
+    int row = dy / scale;
+    int col = local_x / scale;
+    if (row >= ch || col >= cw) return 0;
+    uint8_t bits = s_font_cn[idxs[gi]][row * 2 + (col >> 3)];
+    return (bits & (0x80 >> (col & 7))) ? 1 : 0;
+}
+
 /* ==================== ARROW ==================== */
 
 static __attribute__((aligned(4))) uint8_t s_pkt[2048];
@@ -511,9 +564,11 @@ static void fill_train_pkt(uint32_t offset, uint16_t len)
         uint8_t r = 0, g = 0, b = 0;
         if (g_train_arrow_vis && is_in_arrow((int32_t)x, (int32_t)y, cx, cy, sz, g_train_dir))
             { r = 0xFF; g = 0xFF; b = 0xFF; }
-        if (!g_train_arrow_vis && g_train_active)
-            if (text_pixel((int32_t)x, (int32_t)y, "RELAX", 5, 8, 320, 160))
+        if (!g_train_arrow_vis && g_train_active) {
+            static const uint8_t relax_str[2] = {10, 11}; /* 放松 */
+            if (text_pixel_cn_str((int32_t)x, (int32_t)y, relax_str, 2, 8, 320, 160))
                 { r = 0xFF; g = 0xFF; b = 0xFF; }
+        }
         if ((int32_t)y >= bar_y && (int32_t)y < bar_y + bar_h &&
             (int32_t)x >= bar_x0 && (int32_t)x < bar_x1) {
             int32_t fill_x = bar_x0 + (int32_t)g_train_progress * bar_w / 1000;
@@ -568,8 +623,11 @@ static void fill_idle_pkt(uint32_t offset, uint16_t len)
         uint32_t x = pi % 640;
         uint32_t y = pi / 640;
         uint8_t r = 0, g = 0, b = 0;
-        if (text_pixel((int32_t)x, (int32_t)y, "WAIT", 4, 8, 320, 200))
-            { r = 0xFF; g = 0xFF; b = 0xFF; }
+        {
+            static const uint8_t wait_str[4] = {6, 7, 8, 9}; /* 等待指令 */
+            if (text_pixel_cn_str((int32_t)x, (int32_t)y, wait_str, 4, 8, 320, 200))
+                { r = 0xFF; g = 0xFF; b = 0xFF; }
+        }
         if (ch == 0) s_pkt[i] = r;
         else if (ch == 1) s_pkt[i] = g;
         else if (ch == 2) s_pkt[i] = b;
@@ -959,6 +1017,133 @@ static glxss_err_t game_mode_step(void)
     return send_game_frame();
 }
 
+/* ==================== FOCUS ANALYSIS + STROOP TRAIN ==================== */
+
+#define STROOP_COLORS   6              /* 红黄绿蓝白黑 */
+#define STROOP_PERIOD_US  1000000U     /* 1s switch */
+
+/* One color-word shown at a time; word and color picked randomly,
+ * color always differs from the word meaning (Stroop conflict).
+ * Index into s_font_cn glyphs (0=红,1=黄,2=绿,3=蓝,4=白,5=黑). */
+static uint8_t  g_stroop_word = 0;
+static uint8_t  g_stroop_color = 1;
+static uint32_t g_stroop_last_us = 0;
+static uint32_t g_stroop_rng = 0xACE1u;
+
+static uint32_t stroop_xorshift32(void)
+{
+    uint32_t x = g_stroop_rng;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    g_stroop_rng = x;
+    return x;
+}
+
+static void stroop_pick(void)
+{
+    uint32_t tick = tick_get_us();
+    g_stroop_rng ^= (tick >> 8) ^ (tick << 16);
+    stroop_xorshift32();
+    g_stroop_word = (uint8_t)(stroop_xorshift32() % STROOP_COLORS);
+    uint8_t c;
+    do {
+        c = (uint8_t)(stroop_xorshift32() % STROOP_COLORS);
+    } while (c == g_stroop_word);
+    g_stroop_color = c;
+}
+
+static void fill_focus_pkt(uint32_t offset, uint16_t len)
+{
+    uint8_t hdr[16] = {0x80,0x02,0x00,0x00, 0x90,0x01,0x00,0x00, 0x01,0,0,0,0,0,0,0};
+
+    /* color table: 0=红,1=黄,2=绿,3=蓝,4=白,5=黑(深灰,黑背景上可辨) */
+    static const uint8_t cr[6] = {255,255,  0,  0,255, 90};
+    static const uint8_t cg[6] = {  0,255,255,  0,255, 90};
+    static const uint8_t cb[6] = {  0,  0,  0,255,255, 90};
+
+    for (uint16_t i = 0; i < len; i++) {
+        uint32_t pos = offset + i;
+        if (pos < 16) { s_pkt[i] = hdr[pos]; continue; }
+        uint32_t pb = pos - 16;
+        uint32_t pi = pb / 4;
+        uint8_t ch = pb % 4;
+        uint32_t x = pi % 640;
+        uint32_t y = pi / 640;
+        uint8_t r = 10, g = 12, b = 18;
+
+        /* Single large centered glyph */
+        if (text_pixel_cn((int32_t)x, (int32_t)y, g_stroop_word, 8, 320, 200)) {
+            r = cr[g_stroop_color];
+            g = cg[g_stroop_color];
+            b = cb[g_stroop_color];
+        }
+
+        if (ch == 0) s_pkt[i] = r;
+        else if (ch == 1) s_pkt[i] = g;
+        else if (ch == 2) s_pkt[i] = b;
+        else s_pkt[i] = 0xFF;
+    }
+}
+
+static glxss_err_t send_focus_frame(void)
+{
+    uint8_t out_ep = find_bulk_out_ep();
+    if (out_ep == 0) return GLXSS_ERR_BULK_WRITE;
+    uint32_t saved_tx_dma = USBHSH->TX_DMA;
+    uint16_t tog = g_endp_tog;
+    uint16_t tog0 = 0;
+    uint16_t tog1 = USBHS_UH_T_TOG_DATA1;
+    uint32_t frame_total = 1024016;
+    uint32_t pos = 0;
+    while (pos < frame_total) {
+        uint16_t fill_chunk = 2048;
+        if (pos + fill_chunk > frame_total) fill_chunk = (uint16_t)(frame_total - pos);
+        fill_focus_pkt(pos, fill_chunk);
+        uint32_t send_off = 0;
+        while (send_off < fill_chunk) {
+            uint16_t chunk = 512;
+            if (send_off + chunk > fill_chunk) chunk = (uint16_t)(fill_chunk - send_off);
+            USBHSH->TX_DMA = (uint32_t)s_pkt + send_off;
+            USBHSH->TX_LEN = chunk;
+            USBHSH->CONTROL = USBHS_UH_HOST_ACTION | USB_PID_OUT | (out_ep << 4) | (tog ? tog1 : tog0);
+            USBHSH->INT_FLAG = USBHS_UHIF_TRANSFER;
+            for (uint16_t i = 20000; (i != 0) && ((USBHSH->INT_FLAG & USBHS_UHIF_TRANSFER) == 0); i--);
+            USBHSH->CONTROL &= ~USBHS_UH_T_TOKEN_MASK;
+            if (!(USBHSH->INT_FLAG & USBHS_UHIF_TRANSFER)) { USBHSH->TX_DMA = saved_tx_dma; return GLXSS_ERR_BULK_WRITE; }
+            tog ^= USBHS_UH_T_TOG_DATA1;
+            send_off += chunk;
+        }
+        pos += fill_chunk;
+    }
+    g_endp_tog = tog;
+    USBHSH->TX_DMA = saved_tx_dma;
+    return GLXSS_OK;
+}
+
+static void focus_mode_init(void)
+{
+    g_stroop_word = 0;
+    g_stroop_color = 1;
+    g_stroop_last_us = tick_get_us();
+    stroop_pick();
+    IPC_LOG_SHARED->ssvep_mode_active = 0u;
+
+    IPC_Log_Printf_V5F("[V5F] FOCUS mode init\r\n");
+}
+
+static glxss_err_t focus_mode_step(void)
+{
+    uint32_t now = tick_get_us();
+    if (now - g_stroop_last_us >= STROOP_PERIOD_US) {
+        g_stroop_last_us = now;
+        stroop_pick();
+    }
+
+
+    return send_focus_frame();
+}
+
 /* ==================== MI SIM ==================== */
 
 static void __attribute__((unused)) mi_sim_step(void)
@@ -1062,6 +1247,7 @@ static void switch_mode(uint8_t new_mode)
     case MODE_ARROW:       arrow_mode_init(); break;
     case MODE_ARROW_TRAIN: train_mode_init(); break;
     case MODE_GAME:        game_mode_init(); break;
+    case MODE_FOCUS:       focus_mode_init(); break;
     }
 }
 
@@ -1155,6 +1341,14 @@ static void handle_ipc_cmd(void)
             g_game_active = 0;
         }
         break;
+    case IPC_CMD_FOCUS:
+        IPC_Log_Printf_V5F("[V5F] FOCUS param=%lu\r\n", (unsigned long)param);
+        if (param) {
+            switch_mode(MODE_FOCUS);
+        } else {
+            switch_mode(MODE_IDLE);
+        }
+        break;
 
     case IPC_CMD_RESET:
         IPC_Log_Printf_V5F("[V5F] RESET -> IDLE\r\n");
@@ -1216,6 +1410,7 @@ int main(void)
         case MODE_ARROW:       err = arrow_mode_step(); break;
         case MODE_ARROW_TRAIN: err = train_mode_step(); break;
         case MODE_GAME:        err = game_mode_step(); break;
+        case MODE_FOCUS:       err = focus_mode_step(); break;
         }
         if (err != GLXSS_OK) {
             IPC_Log_SetStatus_V5F(IPC_LOG_STATUS_ERROR);
@@ -1268,6 +1463,8 @@ int main(void)
                 err = arrow_mode_step();
             } else if (g_mode == MODE_GAME) {
                 err = game_mode_step();
+            } else if (g_mode == MODE_FOCUS) {
+                err = focus_mode_step();
             } else if (now - g_last_disp_us >= 1000000) {
                 g_last_disp_us = now;
                 switch (g_mode) {

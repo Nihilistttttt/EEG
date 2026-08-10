@@ -292,6 +292,24 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         Send_RespOk(CMD_GAME_STOP);
         break;
 
+    case CMD_FOCUS_START:
+#ifdef GLXSS_ENABLED
+        Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_FOCUS_START -> IPC FOCUS(1)\r\n");
+        IPC_Cmd_Send_V3F(IPC_CMD_FOCUS, 1);
+        wav_player_play("colors.wav");
+#endif
+        Send_RespOk(CMD_FOCUS_START);
+        break;
+
+    case CMD_FOCUS_STOP:
+#ifdef GLXSS_ENABLED
+        Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_FOCUS_STOP -> IPC FOCUS(0)\r\n");
+        IPC_Cmd_Send_V3F(IPC_CMD_FOCUS, 0);
+        wav_player_stop();
+#endif
+        Send_RespOk(CMD_FOCUS_STOP);
+        break;
+
     case CMD_STATUS:
         {
             uint8_t resp[6];

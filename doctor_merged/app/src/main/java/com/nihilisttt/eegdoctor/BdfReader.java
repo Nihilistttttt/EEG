@@ -52,7 +52,7 @@ public class BdfReader {
             nRecords = safeInt(field(header, 236, 8), -1);
             float duration = safeFloat(field(header, 244, 8), 1.0f);
             nChannels = safeInt(field(header, 252, 4), 8);
-            if (nChannels <= 0 || nChannels > 64 || nRecords <= 0) return false;
+            if (nChannels <= 0 || nChannels > 64) return false;
 
             int chHeaderSize = nChannels * 256;
             byte[] chHeader = new byte[chHeaderSize];
@@ -83,7 +83,7 @@ public class BdfReader {
             int recordBytes = nChannels * samplesPerRecord * 3;
             long dataLen = fileLen - headerSize;
             int availRecords = (int) (dataLen / recordBytes);
-            if (availRecords < nRecords) nRecords = availRecords;
+            if (nRecords <= 0 || nRecords > availRecords) nRecords = availRecords;
             if (nRecords <= 0) return false;
 
             totalSamples = nRecords * samplesPerRecord;

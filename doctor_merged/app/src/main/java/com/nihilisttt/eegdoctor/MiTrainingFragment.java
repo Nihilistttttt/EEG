@@ -883,24 +883,13 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
 
     private void loadPatientList() {
         patientList.clear();
-        android.content.SharedPreferences prefs = requireContext().getSharedPreferences("dir_train_prefs", 0);
-        String data = prefs.getString(PREF_PATIENTS, "");
-        if (!data.isEmpty()) {
-            for (String entry : data.split("\\|")) {
-                String[] kv = entry.split(":", 2);
-                if (kv.length == 2) patientList.add(new String[]{kv[0], kv[1]});
-            }
-        }
+        PatientManager pm = PatientManager.getInstance();
+        pm.init(requireContext());
+        for (String[] p : pm.getPatientList()) patientList.add(new String[]{p[0], p[1]});
+        selectedPatientIdx = pm.getSelectedIdx();
     }
 
     private void savePatientList() {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < patientList.size(); i++) {
-            if (i > 0) sb.append("|");
-            sb.append(patientList.get(i)[0]).append(":").append(patientList.get(i)[1]);
-        }
-        android.content.SharedPreferences prefs = requireContext().getSharedPreferences("dir_train_prefs", 0);
-        prefs.edit().putString(PREF_PATIENTS, sb.toString()).apply();
     }
 
     private void refreshPatientSpinner() {
@@ -919,6 +908,7 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
                     showNewPatientDialog();
                 } else {
                     selectedPatientIdx = position;
+                    PatientManager.getInstance().setSelectedIdx(position);
                 }
             }
             @Override
@@ -927,40 +917,19 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
     }
 
     private void showNewPatientDialog() {
-        android.widget.EditText input = new android.widget.EditText(requireContext());
-        input.setHint("患者姓名/编号");
-        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
-        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(20)});
-        new AlertDialog.Builder(requireContext())
-                .setTitle("新增患者")
-                .setView(input)
-                .setPositiveButton("确定", (d, w) -> {
-                    String name = input.getText().toString().trim();
-                    if (name.isEmpty()) name = "unnamed";
-                    name = name.replaceAll("[^a-zA-Z0-9_\\-\\u4e00-\\u9fa5]", "_");
-                    int nextId = patientList.size() + 1;
-                    String idStr = String.format(Locale.US, "P%03d", nextId);
-                    patientList.add(new String[]{idStr, name});
-                    savePatientList();
-                    selectedPatientIdx = patientList.size() - 1;
-                    refreshPatientSpinner();
-                    appendDirLog("新增患者: " + idStr + " " + name);
-                })
-                .setNegativeButton("取消", (d, w) -> refreshPatientSpinner())
-                .setCancelable(false)
-                .show();
+        PatientManager.getInstance().showNewPatientDialog(requireContext(), () -> {
+            loadPatientList();
+            refreshPatientSpinner();
+            appendDirLog("新增患者: " + getCurrentPatientIdStr() + " " + getCurrentPatientName());
+        });
     }
 
     private String getCurrentPatientIdStr() {
-        if (selectedPatientIdx >= 0 && selectedPatientIdx < patientList.size())
-            return patientList.get(selectedPatientIdx)[0];
-        return "P000";
+        return PatientManager.getInstance().getCurrentPatientId();
     }
 
     private String getCurrentPatientName() {
-        if (selectedPatientIdx >= 0 && selectedPatientIdx < patientList.size())
-            return patientList.get(selectedPatientIdx)[1];
-        return "unnamed";
+        return PatientManager.getInstance().getCurrentPatientName();
     }
 
     private void refreshDirFileList() {

@@ -19,6 +19,7 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.button.MaterialButton;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,6 +30,9 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
     private final String[] pageTitles = {"阻抗检测", "脑电监测", "专注度分析", "波形频谱对比", "SSVEP训练", "MI训练", "姿态监护", "系统配置", "离线BDF分析", "脑电游戏"};
 
     private TextView tvBarFocus, tvBarRelax, tvBarInstant, tvBarTrend, tvBarPosture;
+    private TextView tvBarPatient;
+    private MaterialButton btnBarRecord;
+    private boolean isRecording = false;
 
 
     @Override
@@ -111,6 +115,18 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         tvBarTrend = findViewById(R.id.tv_bar_trend);
         tvBarPosture = findViewById(R.id.tv_bar_posture);
 
+        PatientManager pm = PatientManager.getInstance();
+        pm.init(this);
+        tvBarPatient = findViewById(R.id.tv_bar_patient);
+        updatePatientLabel();
+        pm.addListener((id, name) -> runOnUiThread(this::updatePatientLabel));
+        tvBarPatient.setOnClickListener(v -> {
+            pm.showPatientSelectorDialog(this, this::updatePatientLabel);
+        });
+
+        btnBarRecord = findViewById(R.id.btn_bar_record);
+        btnBarRecord.setOnClickListener(v -> toggleBdfRecord());
+
 
         DataDispatcher.getInstance().addListener(this);
 
@@ -131,6 +147,38 @@ public class MainActivity extends AppCompatActivity implements TcpServerManager.
         TextView tvTitle = findViewById(R.id.tv_page_title);
         if (tvTitle != null && position >= 0 && position < pageTitles.length) {
             tvTitle.setText(pageTitles[position]);
+        }
+    }
+
+    private void updatePatientLabel() {
+        PatientManager pm = PatientManager.getInstance();
+        String id = pm.getCurrentPatientId();
+        String name = pm.getCurrentPatientName();
+        if (tvBarPatient != null) {
+            tvBarPatient.setText("患者:" + id + " " + name);
+        }
+    }
+
+    private void toggleBdfRecord() {
+        if (!isRecording) {
+            PatientManager pm = PatientManager.getInstance();
+            String pid = pm.getCurrentPatientId();
+            String pname = pm.getCurrentPatientName();
+            byte[] payload = new byte[40];
+            byte[] idBytes = pid.getBytes(StandardCharsets.UTF_8);
+            byte[] nameBytes = pname.getBytes(StandardCharsets.UTF_8);
+            System.arraycopy(idBytes, 0, payload, 0, Math.min(idBytes.length, 8));
+            System.arraycopy(nameBytes, 0, payload, 8, Math.min(nameBytes.length, 32));
+            TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_RECORD_START, payload);
+
+            isRecording = true;
+            btnBarRecord.setText("停止BDF");
+            btnBarRecord.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.accent_success));
+        } else {
+            TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_RECORD_STOP, null);
+            isRecording = false;
+            btnBarRecord.setText("BDF记录");
+            btnBarRecord.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.accent_error));
         }
     }
 

@@ -23,6 +23,8 @@ static uint16_t s_sample_idx = 0;
 static uint32_t s_record_count = 0;
 static uint32_t s_sync_counter = 0;
 static uint16_t s_file_seq = 0;
+static char s_patient_id[12]   = "P000";
+static char s_patient_name[40] = "EEG Patient";
 
 static void fill_str(char *dst, const char *src, int len) {
     memset(dst, ' ', len);
@@ -38,7 +40,11 @@ static int write_header(uint32_t start_tick) {
     char tmp[16];
 
     fill_str(p + 0, "255", 8);
-    fill_str(p + 8, "EEG Patient", 80);
+    {
+        char patient_field[88];
+        snprintf(patient_field, sizeof(patient_field), "%s %s", s_patient_id, s_patient_name);
+        fill_str(p + 8, patient_field, 80);
+    }
     fill_str(p + 88, "WCH CH32H417", 80);
 
     uint32_t total_sec = start_tick / 1000u;
@@ -89,8 +95,8 @@ int eeg_record_start(void) {
     }
 
     s_file_seq++;
-    char filename[16];
-    snprintf(filename, sizeof(filename), "EEG_%04d.BDF", s_file_seq);
+    char filename[24];
+    snprintf(filename, sizeof(filename), "%s_%04d.BDF", s_patient_id, s_file_seq);
 
     if (f_open(&s_file, filename, FA_CREATE_ALWAYS | FA_WRITE) != FR_OK) {
         Serial_Printf(SERIAL_PORT_DEBUG, "[REC] open %s FAIL\r\n", filename);
@@ -166,4 +172,15 @@ void eeg_record_poll(void) {
 
 int eeg_record_is_active(void) {
     return s_active;
+}
+
+void eeg_record_set_patient(const char *id, const char *name) {
+    if (id && id[0]) {
+        strncpy(s_patient_id, id, sizeof(s_patient_id) - 1);
+        s_patient_id[sizeof(s_patient_id) - 1] = '\0';
+    }
+    if (name && name[0]) {
+        strncpy(s_patient_name, name, sizeof(s_patient_name) - 1);
+        s_patient_name[sizeof(s_patient_name) - 1] = '\0';
+    }
 }

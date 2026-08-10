@@ -496,6 +496,14 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
 
     case CMD_RECORD_START:
         {
+            if (dlen >= 40) {
+                char pid[12] = {0};
+                char pname[40] = {0};
+                memcpy(pid, data, 8);
+                memcpy(pname, data + 8, 32);
+                eeg_record_set_patient(pid, pname);
+                Serial_Printf(SERIAL_PORT_DEBUG, "[REC] patient=%s %s\r\n", pid, pname);
+            }
             int ret = eeg_record_start();
             if (ret == 0) {
                 Send_RespOk(CMD_RECORD_START);

@@ -42,6 +42,48 @@
             android:fontFamily="sans-serif-medium" />
 
         <View
+            android:layout_width="1dp"
+            android:layout_height="14dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="6dp"
+            android:background="@color/surface_overlay" />
+
+        <TextView
+            android:id="@+id/tv_bar_patient"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="患者:未选"
+            android:textColor="@color/accent_info"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:clickable="true"
+            android:focusable="true"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="14dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="6dp"
+            android:background="@color/surface_overlay" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_bar_record"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="28dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minWidth="0dp"
+            android:padding="0dp"
+            android:text="BDF记录"
+            android:textColor="@color/accent_error"
+            android:textSize="11sp"
+            app:cornerRadius="6dp"
+            app:rippleColor="@color/surface_overlay" />
+
+        <View
 
 
             android:layout_width="0dp"

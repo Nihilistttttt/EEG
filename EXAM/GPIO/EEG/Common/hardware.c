@@ -26,6 +26,50 @@
 #endif
 #endif
 
+#if defined(Core_V5F)
+#include "ipc_log.h"
+#include "w9825g6kh.h"
+#include <string.h>
+#include <stdarg.h>
+#endif
+
+#if defined(Core_V5F) && (SYSTEM_MODE == MODE_SDRAM_DEBUG)
+static void sdram_uart1_init(void)
+{
+    GPIO_InitTypeDef gi = {0};
+    USART_InitTypeDef ui = {0};
+    RCC_HB2PeriphClockCmd(RCC_HB2Periph_AFIO | RCC_HB2Periph_USART1 | RCC_HB2Periph_GPIOA, ENABLE);
+    GPIO_PinAFConfig(GPIOA, GPIO_PinSource9, GPIO_AF7);
+    gi.GPIO_Pin   = GPIO_Pin_9;
+    gi.GPIO_Speed = GPIO_Speed_Very_High;
+    gi.GPIO_Mode  = GPIO_Mode_AF_PP;
+    GPIO_Init(GPIOA, &gi);
+    ui.USART_BaudRate            = 115200;
+    ui.USART_WordLength          = USART_WordLength_8b;
+    ui.USART_StopBits            = USART_StopBits_1;
+    ui.USART_Parity              = USART_Parity_No;
+    ui.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+    ui.USART_Mode                = USART_Mode_Tx;
+    USART_Init(USART1, &ui);
+    USART_Cmd(USART1, ENABLE);
+}
+
+static void sdram_printf(const char *fmt, ...)
+{
+    char buf[160];
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    if (n < 0) n = 0;
+    if (n > (int)sizeof(buf)) n = (int)sizeof(buf);
+    for (int i = 0; i < n; i++) {
+        while (USART_GetFlagStatus(USART1, USART_FLAG_TC) == RESET);
+        USART_SendData(USART1, (uint8_t)buf[i]);
+    }
+}
+#endif
+
 
 #if defined(Core_V3F) && defined(GLXSS_ENABLED)
 #define AA55_HDR0 0xAA
@@ -583,7 +627,93 @@ void Hardware (void) {
 #endif
 
 #elif defined(Core_V5F)
-#if defined(V5F_MODE_GLXSS)
+#if (SYSTEM_MODE == MODE_SDRAM_DEBUG)
+    sdram_uart1_init();
+    sdram_printf("[V5F] SDRAM debug mode, clk=%d\r\n", SystemCoreClock);
+    Delay_Ms(200);
+
+    if (W9825_Init() != 0) {
+        sdram_printf("[V5F] SDRAM init FAIL\r\n");
+        while (1) {}
+    }
+    sdram_printf("[V5F] SDRAM init OK, base=0x%08X size=%uKB\r\n",
+        (unsigned)W9825_SDRAM_BASE, (unsigned)(W9825_SDRAM_SIZE / 1024));
+
+    {
+        uint8_t wbuf[8] = {0x55,0xAA,0x12,0x34,0x56,0x78,0x9A,0xBC};
+        uint8_t rbuf[8] = {0};
+        W9825_WriteBuffer(wbuf, 0, 8);
+        W9825_ReadBuffer(rbuf, 0, 8);
+        int ok = (memcmp(wbuf, rbuf, 8) == 0);
+        sdram_printf("[V5F] T1 off=0 %s wr=%02X%02X rd=%02X%02X\r\n",
+            ok ? "OK" : "FAIL", wbuf[0], wbuf[1], rbuf[0], rbuf[1]);
+    }
+
+    {
+        #define TST_SZ 4096
+        static uint8_t wbuf[TST_SZ];
+        static uint8_t rbuf[TST_SZ];
+        for (uint32_t i = 0; i < TST_SZ; i++) wbuf[i] = (uint8_t)(i * 7 + 13);
+        W9825_WriteBuffer(wbuf, 0x1000, TST_SZ);
+        W9825_ReadBuffer(rbuf, 0x1000, TST_SZ);
+        uint32_t fail_cnt = 0;
+        for (uint32_t i = 0; i < TST_SZ; i++)
+            if (rbuf[i] != wbuf[i]) fail_cnt++;
+        sdram_printf("[V5F] T2 off=0x1000 sz=%d %s fails=%lu\r\n",
+            TST_SZ, fail_cnt == 0 ? "OK" : "FAIL", (unsigned long)fail_cnt);
+    }
+
+    {
+        volatile uint8_t *p = (volatile uint8_t *)W9825_SDRAM_BASE;
+        p[0] = 0xA5;
+        p[W9825_SDRAM_SIZE - 1] = 0x5A;
+        uint8_t v0 = p[0];
+        uint8_t v1 = p[W9825_SDRAM_SIZE - 1];
+        sdram_printf("[V5F] T3 boundary [0]=%02X(exp A5) [end]=%02X(exp 5A) %s\r\n",
+            v0, v1, (v0 == 0xA5 && v1 == 0x5A) ? "OK" : "FAIL");
+    }
+
+    {
+        volatile uint16_t *p16 = (volatile uint16_t *)W9825_SDRAM_BASE;
+        p16[0] = 0x1234;
+        p16[1] = 0x5678;
+        uint16_t r0 = p16[0];
+        uint16_t r1 = p16[1];
+        sdram_printf("[V5F] T4 16bit [0]=%04X(exp 1234) [1]=%04X(exp 5678) %s\r\n",
+            r0, r1, (r0 == 0x1234 && r1 == 0x5678) ? "OK" : "FAIL");
+    }
+
+    {
+        volatile uint32_t *p32 = (volatile uint32_t *)W9825_SDRAM_BASE;
+        p32[0] = 0xDEADBEEF;
+        p32[1] = 0xCAFEBABE;
+        uint32_t r0 = p32[0];
+        uint32_t r1 = p32[1];
+        sdram_printf("[V5F] T5 32bit [0]=%08lX(exp DEADBEEF) [1]=%08lX(exp CAFEBABE) %s\r\n",
+            (unsigned long)r0, (unsigned long)r1,
+            (r0 == 0xDEADBEEF && r1 == 0xCAFEBABE) ? "OK" : "FAIL");
+    }
+
+    {
+        volatile uint8_t *p = (volatile uint8_t *)W9825_SDRAM_BASE;
+        uint32_t step = W9825_SDRAM_SIZE / 256;
+        uint32_t fail_cnt = 0;
+        for (uint32_t i = 0; i < 256; i++) {
+            uint32_t off = i * step;
+            p[off] = (uint8_t)(i ^ 0xAA);
+        }
+        for (uint32_t i = 0; i < 256; i++) {
+            uint32_t off = i * step;
+            if (p[off] != (uint8_t)(i ^ 0xAA)) fail_cnt++;
+        }
+        sdram_printf("[V5F] T6 scatter 256pts step=%lu %s fails=%lu\r\n",
+            (unsigned long)step, fail_cnt == 0 ? "OK" : "FAIL", (unsigned long)fail_cnt);
+    }
+
+    sdram_printf("[V5F] SDRAM debug done\r\n");
+    while (1) {}
+
+#elif defined(V5F_MODE_GLXSS)
     /* GLXSS: V5F runs its own USB Host + display loop in main.c */
 #elif defined(GLXSS_ENABLED)
     /* EEG+GLXSS merged: V5F init done in main(), return immediately */

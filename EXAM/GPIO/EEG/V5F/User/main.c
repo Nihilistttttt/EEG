@@ -18,6 +18,7 @@
 #include "dualcore_v5f_ssvep.h"
 #endif
 #include "game_sprites.h"
+#include "w9825g6kh.h"
 #endif
 
 #if defined(V5F_MODE_GLXSS) || defined(GLXSS_ENABLED)
@@ -1371,7 +1372,11 @@ int main(void)
     HSEM_FastTake(HSEM_ID0);
     HSEM_ReleaseOneSem(HSEM_ID0, 0);
 
-#if defined(V5F_MODE_GLXSS)
+#if (SYSTEM_MODE == MODE_SDRAM_DEBUG)
+    Hardware();
+    while (1) {}
+
+#elif defined(V5F_MODE_GLXSS)
     IPC_Log_Init_V5F();
     IPC_Log_Printf_V5F("[V5F] boot GLXSS mode, SystemCoreClk:%d\r\n", SystemCoreClock);
     Delay_Ms(500);
@@ -1447,6 +1452,19 @@ int main(void)
     }
     IPC_Log_SetStatus_V5F(IPC_LOG_STATUS_IDLE);
     IPC_Log_Printf_V5F("[V5F] EEG+GLXSS main loop\r\n");
+
+    IPC_Log_Printf_V5F("[V5F] SDRAM init...\r\n");
+    if (W9825_Init() == 0) {
+        uint8_t wbuf[8] = {0x55,0xAA,0x12,0x34,0x56,0x78,0x9A,0xBC};
+        uint8_t rbuf[8] = {0};
+        W9825_WriteBuffer(wbuf, 0, 8);
+        W9825_ReadBuffer(rbuf, 0, 8);
+        int ok = (memcmp(wbuf, rbuf, 8) == 0);
+        IPC_Log_Printf_V5F("[V5F] SDRAM %s, wr=%02X%02X rd=%02X%02X\r\n",
+            ok ? "OK" : "FAIL", wbuf[0], wbuf[1], rbuf[0], rbuf[1]);
+    } else {
+        IPC_Log_Printf_V5F("[V5F] SDRAM init FAIL\r\n");
+    }
 
     for (;;) {
         DualCore_V5F_MainLoopProcess();

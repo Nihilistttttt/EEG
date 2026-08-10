@@ -13,7 +13,7 @@ public final class TrainingModeCoordinator {
     private static final String TAG = "TrainingMode";
     private static final TrainingModeCoordinator INSTANCE = new TrainingModeCoordinator();
 
-    public enum Mode { NONE, SSVEP, MI }
+    public enum Mode { NONE, SSVEP, MI, FOCUS }
 
     public interface ModeController {
         void stopForModeSwitch(Mode nextMode);

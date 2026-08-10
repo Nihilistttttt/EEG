@@ -29,7 +29,7 @@ public class MainActivity extends AppCompatActivity implements DoctorConnector.D
         viewPager = findViewById(R.id.view_pager);
 
         viewPager.setUserInputEnabled(false);
-        viewPager.setOffscreenPageLimit(5);
+        viewPager.setOffscreenPageLimit(6);
 
         viewPager.setAdapter(new FragmentStateAdapter(this) {
             @NonNull
@@ -41,12 +41,13 @@ public class MainActivity extends AppCompatActivity implements DoctorConnector.D
                     case 2: return new MiTrainingFragment();
                     case 3: return new InferenceFragment();
                     case 4: return new GameFragment();
+                    case 5: return new FocusTrainingFragment();
                     default: return new ConnectFragment();
                 }
             }
 
             @Override
-            public int getItemCount() { return 5; }
+            public int getItemCount() { return 6; }
         });
 
         DoctorConnector.getInstance().addListener(this);
@@ -87,7 +88,7 @@ public class MainActivity extends AppCompatActivity implements DoctorConnector.D
     }
 
     public void switchToPage(int position) {
-        if (viewPager != null && position >= 0 && position < 5) {
+        if (viewPager != null && position >= 0 && position < 6) {
             applyTrainingModeForPage(position);
             Log.i(TAG, "switchToPage: " + position + ", current=" + viewPager.getCurrentItem());
             viewPager.setCurrentItem(position, false);
@@ -98,6 +99,7 @@ public class MainActivity extends AppCompatActivity implements DoctorConnector.D
         TrainingModeCoordinator.Mode mode;
         if (position == 1) mode = TrainingModeCoordinator.Mode.SSVEP;
         else if (position == 2) mode = TrainingModeCoordinator.Mode.MI;
+        else if (position == 5) mode = TrainingModeCoordinator.Mode.FOCUS;
         else mode = TrainingModeCoordinator.Mode.NONE;
         TrainingModeCoordinator.getInstance().activate(mode);
     }
@@ -116,6 +118,7 @@ public class MainActivity extends AppCompatActivity implements DoctorConnector.D
     @Override
     public void onPageSwitch(int page) {
         Log.i(TAG, ">>> onPageSwitch: page=" + page);
-        runOnUiThread(() -> switchToPage(page));
+        final int patientPage = (page == 2) ? 5 : page;
+        runOnUiThread(() -> switchToPage(patientPage));
     }
 }

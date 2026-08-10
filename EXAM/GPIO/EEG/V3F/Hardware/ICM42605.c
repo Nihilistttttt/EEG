@@ -9,11 +9,20 @@
 #ifdef HAS_ICM42605
 
 
+#ifdef ICM42605_CS_PIN_ENC
 #define ICM42605_CS_LOW()            Hal_GPIO_Reset(ICM42605_CS_PIN_ENC)
 #define ICM42605_CS_HIGH()           Hal_GPIO_Set(ICM42605_CS_PIN_ENC)
+#endif
 
+#ifdef ICM42605_SPI_INSTANCE
 /* 防止硬件异常时永久卡死在SPI状态等待中 */
 #define ICM42605_SPI_INSTANCE_TIMEOUT         100000UL
+#endif
+
+#ifdef ICM42605_I2C_INSTANCE
+#define ICM42605_I2C_TIMEOUT                   100000UL
+#define ICM42605_I2C_ADDR_7BIT                 (ICM42605_I2C_ADDR << 1)
+#endif
 
 /*
  * 角度积分参数
@@ -57,14 +66,18 @@
 #define ICM42605_ACC_SCALE_G         0.000122f  /* ±4g: 0.122 mg/LSB */
 #define ICM42605_GYR_SCALE_DPS       0.01525f   /* ±500dps: 15.25 mdps/LSB */
 
+#ifdef ICM42605_SPI_INSTANCE
 static ICM42605_Status ICM42605_SPI_INSTANCE_TransferByte(uint8_t tx_data, uint8_t *rx_data);
 static ICM42605_Status ICM42605_SPI_INSTANCE_WaitNotBusy(void);
 static void ICM42605_SPI_INSTANCE_ClearRxNE(void);
+#endif
 
+#ifdef ICM42605_RX_DMA_CHANNEL
 static void ICM42605_DMA_Init(void);
 static ICM42605_Status ICM42605_DMA_StartReadRaw(void);
 static void ICM42605_DMA_StopAndReleaseCS(void);
 static void ICM42605_DMA_ParseRaw(ICM42605_RawData *raw);
+#endif
 
 static ICM42605_Status ICM42605_CalibrateGyroZero(void);
 static void ICM42605_UpdateAngleFromRaw(const ICM42605_RawData *raw);
@@ -88,8 +101,10 @@ static ICM42605_Status ICM42605_VerifyRegister(
 );
 
 /* ===================== ICM42605 DMA/任务状态 ===================== */
+#ifdef ICM42605_RX_DMA_CHANNEL
 static uint8_t icm42605_dma_tx_buf[ICM42605_DMA_FRAME_SIZE];
 static uint8_t icm42605_dma_rx_buf[ICM42605_DMA_FRAME_SIZE];
+#endif
 
 volatile uint8_t g_icm42605_initialized = 0U;
 volatile uint8_t g_icm42605_sample_request = 0U;
@@ -151,6 +166,35 @@ static uint32_t icm42605_angle_last_temp_tick = 0U;
  * @brief  配置CH32H417的SPI4和对应GPIO。
  * @note   SPI模式3：CPOL=1、CPHA=1；8位；MSB先发；软件CS。
  */
+#ifdef ICM42605_I2C_INSTANCE
+static void ICM42605_I2C_Init(void)
+{
+    I2C_InitTypeDef I2C_InitStructure = {0};
+
+    AFIO_ClockEnable();
+    GPIO_ClockEnable(ICM42605_SCL_PORT);
+    GPIO_ClockEnable(ICM42605_SDA_PORT);
+    RCC_HB1PeriphClockCmd(RCC_HB1Periph_I2C3, ENABLE);
+
+    Hal_GPIO_Init(ICM42605_SCL_PIN_ENC, HAL_GPIO_MODE_AF_OD, HAL_GPIO_SPEED_VERY_HIGH, ICM42605_SCL_AF);
+    Hal_GPIO_Init(ICM42605_SDA_PIN_ENC, HAL_GPIO_MODE_AF_OD, HAL_GPIO_SPEED_VERY_HIGH, ICM42605_SDA_AF);
+
+    I2C_DeInit(ICM42605_I2C_INSTANCE);
+
+    I2C_InitStructure.I2C_ClockSpeed = 400000;
+    I2C_InitStructure.I2C_Mode = I2C_Mode_I2C;
+    I2C_InitStructure.I2C_DutyCycle = I2C_DutyCycle_2;
+    I2C_InitStructure.I2C_OwnAddress1 = 0x00;
+    I2C_InitStructure.I2C_Ack = I2C_Ack_Enable;
+    I2C_InitStructure.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
+
+    I2C_Init(ICM42605_I2C_INSTANCE, &I2C_InitStructure);
+    I2C_Cmd(ICM42605_I2C_INSTANCE, ENABLE);
+    I2C_AcknowledgeConfig(ICM42605_I2C_INSTANCE, ENABLE);
+}
+#endif
+
+#ifdef ICM42605_SPI_INSTANCE
 void ICM42605_SPI4_Init(void)
 {
     SPI_InitTypeDef SPI_InitStructure = {0};
@@ -196,6 +240,7 @@ void ICM42605_SPI4_Init(void)
     SPI_NSSInternalSoftwareConfig(ICM42605_SPI_INSTANCE, SPI_NSSInternalSoft_Set);
     SPI_Cmd(ICM42605_SPI_INSTANCE, ENABLE);
 }
+#endif /* ICM42605_SPI_INSTANCE */
 
 /**
  * @brief  写入配置后读取寄存器核对。
@@ -268,7 +313,11 @@ ICM42605_Status ICM42605_Init(void)
     uint8_t data_stat = 0;
     ICM42605_Status status;
 
+#ifdef ICM42605_I2C_INSTANCE
+    ICM42605_I2C_Init();
+#else
     ICM42605_SPI4_Init();
+#endif
 
     /* 上电后给传感器留出启动时间 */
     Delay_Ms(20);
@@ -436,6 +485,44 @@ ICM42605_Status ICM42605_Init(void)
 /**
  * @brief  写一个寄存器。
  */
+#ifdef ICM42605_I2C_INSTANCE
+ICM42605_Status ICM42605_WriteRegister(uint8_t reg, uint8_t value)
+{
+    uint32_t timeout;
+
+    I2C_GenerateSTART(ICM42605_I2C_INSTANCE, ENABLE);
+    timeout = ICM42605_I2C_TIMEOUT;
+    while(!I2C_CheckEvent(ICM42605_I2C_INSTANCE, I2C_EVENT_MASTER_MODE_SELECT))
+    {
+        if(--timeout == 0U) { return ICM42605_ERROR_TIMEOUT; }
+    }
+
+    I2C_Send7bitAddress(ICM42605_I2C_INSTANCE, ICM42605_I2C_ADDR_7BIT, I2C_Direction_Transmitter);
+    timeout = ICM42605_I2C_TIMEOUT;
+    while(!I2C_CheckEvent(ICM42605_I2C_INSTANCE, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED))
+    {
+        if(--timeout == 0U) { return ICM42605_ERROR_TIMEOUT; }
+    }
+
+    I2C_SendData(ICM42605_I2C_INSTANCE, reg);
+    timeout = ICM42605_I2C_TIMEOUT;
+    while(!I2C_CheckEvent(ICM42605_I2C_INSTANCE, I2C_EVENT_MASTER_BYTE_TRANSMITTED))
+    {
+        if(--timeout == 0U) { return ICM42605_ERROR_TIMEOUT; }
+    }
+
+    I2C_SendData(ICM42605_I2C_INSTANCE, value);
+    timeout = ICM42605_I2C_TIMEOUT;
+    while(!I2C_CheckEvent(ICM42605_I2C_INSTANCE, I2C_EVENT_MASTER_BYTE_TRANSMITTED))
+    {
+        if(--timeout == 0U) { return ICM42605_ERROR_TIMEOUT; }
+    }
+
+    I2C_GenerateSTOP(ICM42605_I2C_INSTANCE, ENABLE);
+    Delay_Ms(1);
+    return ICM42605_OK;
+}
+#else
 ICM42605_Status ICM42605_WriteRegister(uint8_t reg, uint8_t value)
 {
     uint8_t dummy;
@@ -468,10 +555,87 @@ ICM42605_Status ICM42605_WriteRegister(uint8_t reg, uint8_t value)
 
     return status;
 }
+#endif
 
 /**
  * @brief  从指定寄存器开始连续读取。
  */
+#ifdef ICM42605_I2C_INSTANCE
+ICM42605_Status ICM42605_ReadRegisters(
+    uint8_t reg,
+    uint8_t *data,
+    uint16_t length
+)
+{
+    uint32_t timeout;
+    uint16_t i;
+
+    if((data == 0) || (length == 0U))
+    {
+        return ICM42605_ERROR_PARAM;
+    }
+
+    I2C_GenerateSTART(ICM42605_I2C_INSTANCE, ENABLE);
+    timeout = ICM42605_I2C_TIMEOUT;
+    while(!I2C_CheckEvent(ICM42605_I2C_INSTANCE, I2C_EVENT_MASTER_MODE_SELECT))
+    {
+        if(--timeout == 0U) { return ICM42605_ERROR_TIMEOUT; }
+    }
+
+    I2C_Send7bitAddress(ICM42605_I2C_INSTANCE, ICM42605_I2C_ADDR_7BIT, I2C_Direction_Transmitter);
+    timeout = ICM42605_I2C_TIMEOUT;
+    while(!I2C_CheckEvent(ICM42605_I2C_INSTANCE, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED))
+    {
+        if(--timeout == 0U) { return ICM42605_ERROR_TIMEOUT; }
+    }
+
+    I2C_SendData(ICM42605_I2C_INSTANCE, reg);
+    timeout = ICM42605_I2C_TIMEOUT;
+    while(!I2C_CheckEvent(ICM42605_I2C_INSTANCE, I2C_EVENT_MASTER_BYTE_TRANSMITTED))
+    {
+        if(--timeout == 0U) { return ICM42605_ERROR_TIMEOUT; }
+    }
+
+    I2C_GenerateSTART(ICM42605_I2C_INSTANCE, ENABLE);
+    timeout = ICM42605_I2C_TIMEOUT;
+    while(!I2C_CheckEvent(ICM42605_I2C_INSTANCE, I2C_EVENT_MASTER_MODE_SELECT))
+    {
+        if(--timeout == 0U) { return ICM42605_ERROR_TIMEOUT; }
+    }
+
+    I2C_Send7bitAddress(ICM42605_I2C_INSTANCE, ICM42605_I2C_ADDR_7BIT, I2C_Direction_Receiver);
+    timeout = ICM42605_I2C_TIMEOUT;
+    while(!I2C_CheckEvent(ICM42605_I2C_INSTANCE, I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED))
+    {
+        if(--timeout == 0U) { return ICM42605_ERROR_TIMEOUT; }
+    }
+
+    if(length > 1U)
+    {
+        I2C_AcknowledgeConfig(ICM42605_I2C_INSTANCE, ENABLE);
+    }
+
+    for(i = 0U; i < length; i++)
+    {
+        if(i == (uint16_t)(length - 1U))
+        {
+            I2C_AcknowledgeConfig(ICM42605_I2C_INSTANCE, DISABLE);
+            I2C_GenerateSTOP(ICM42605_I2C_INSTANCE, ENABLE);
+        }
+
+        timeout = ICM42605_I2C_TIMEOUT;
+        while(!I2C_CheckEvent(ICM42605_I2C_INSTANCE, I2C_EVENT_MASTER_BYTE_RECEIVED))
+        {
+            if(--timeout == 0U) { return ICM42605_ERROR_TIMEOUT; }
+        }
+
+        data[i] = I2C_ReceiveData(ICM42605_I2C_INSTANCE);
+    }
+
+    I2C_AcknowledgeConfig(ICM42605_I2C_INSTANCE, ENABLE);
+    return ICM42605_OK;
+}
+#else
 ICM42605_Status ICM42605_ReadRegisters(
     uint8_t reg,
     uint8_t *data,
@@ -506,6 +670,7 @@ ICM42605_Status ICM42605_ReadRegisters(
 
     return status;
 }
+#endif
 
 /**
  * @brief  读取一个寄存器。
@@ -1155,7 +1320,9 @@ ICM42605_Status ICM42605_BCI_Init(void)
         return status;
     }
 
+#ifdef ICM42605_RX_DMA_CHANNEL
     ICM42605_DMA_Init();
+#endif
 
     Posture_Init(NULL);
     PM_Init(NULL);
@@ -1234,6 +1401,51 @@ void ICM42605_Task(void)
         return;
     }
 
+#ifdef ICM42605_I2C_INSTANCE
+    /*
+     * I2C模式：同步读取。
+     * 10ms采样请求到来时直接通过I2C读取六轴数据并处理。
+     */
+    if(g_icm42605_sample_request != 0U)
+    {
+        g_icm42605_sample_request = 0U;
+
+        if(ICM42605_ReadRaw(&raw) == ICM42605_OK)
+        {
+            icm42605_current_sample_ms = g_icm42605_ms_tick;
+            ICM42605_UpdateAngleFromRaw(&raw);
+
+            {
+                float ax_g = (float)raw.acc_x * ICM42605_ACC_SCALE_G;
+                float ay_g = (float)raw.acc_y * ICM42605_ACC_SCALE_G;
+                float az_g = (float)raw.acc_z * ICM42605_ACC_SCALE_G;
+                Posture_FeedAccel(ax_g, ay_g, az_g, ICM42605_SAMPLE_PERIOD_MS);
+
+                float gx_dps = (float)(raw.gyro_x - icm42605_gyro_offset_x) * ICM42605_GYR_SCALE_DPS;
+                float gy_dps = (float)(raw.gyro_y - icm42605_gyro_offset_y) * ICM42605_GYR_SCALE_DPS;
+                float gz_dps = (float)(raw.gyro_z - icm42605_gyro_offset_z) * ICM42605_GYR_SCALE_DPS;
+                float acc_mag = sqrtf(ax_g * ax_g + ay_g * ay_g + az_g * az_g);
+
+                PM_Event_t pm_ev = PM_Update(Posture_GetResult(),
+                                          gx_dps, gy_dps, gz_dps,
+                                          acc_mag,
+                                          g_icm42605_ms_tick);
+                if (pm_ev != PM_EVENT_NONE) {
+                    g_icm42605_pm_event_type = (uint8_t)pm_ev;
+                    g_icm42605_pm_event_pending = 1U;
+                }
+            }
+
+            g_icm42605_dma_ok_count++;
+        }
+        else
+        {
+            g_icm42605_dma_error_count++;
+        }
+    }
+
+    ICM42605_UpdateAngleTemperature();
+#else
     /*
      * DMA收到完整一帧后，在主循环中解析和积分。
      * 不在DMA中断里计算，避免影响ADS1299。
@@ -1292,6 +1504,7 @@ void ICM42605_Task(void)
             g_icm42605_dma_lost_count++;
         }
     }
+#endif
 
     /*
      * OLED低频刷新。
@@ -1359,6 +1572,7 @@ void ICM42605_GetAngleDeg10(
     }
 }
 
+#ifdef ICM42605_RX_DMA_CHANNEL
 /**
  * @brief  初始化ICM42605 SPI4 DMA。
  */
@@ -1606,8 +1820,9 @@ void DMA2_Channel2_IRQHandler(void)
         g_icm42605_dma_error_count++;
     }
 }
+#endif /* ICM42605_RX_DMA_CHANNEL */
 
-
+#ifdef ICM42605_SPI_INSTANCE
 /**
  * @brief  SPI全双工收发一个字节。
  */
@@ -1668,6 +1883,7 @@ static ICM42605_Status ICM42605_SPI_INSTANCE_WaitNotBusy(void)
 
     return ICM42605_OK;
 }
+#endif /* ICM42605_SPI_INSTANCE */
 
 /**
  * @brief  高字节在前的有符号16位数据拼接。

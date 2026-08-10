@@ -44,9 +44,10 @@
 #define KEY_DEBOUNCE_MS          20U
 #define KEY_LONG_PRESS_MS        3000U    /* >3s press -> shutdown */
 
-/* Key pressed level: low = pressed (internal pull-up).
- * If your key is active-high, change to Bit_SET and use IN_FLOATING. */
-#define KEY_PRESSED_LEVEL        Bit_RESET
+
+/* Key pressed level: high = pressed (external pull-down when released).
+ * If your key is active-low, change to Bit_RESET and use IPU. */
+#define KEY_PRESSED_LEVEL        Bit_SET
 
 /* I2C slave configuration */
 #define I2C_SLAVE_ADDR           0x20U   /* 7-bit I2C address (change as needed) */
@@ -290,9 +291,9 @@ static void gpio_init_all(void)
     GPIO_Init(VEN_PORT, &gpio);
     ven_off();
 
-    /* PD5/V_KEY: key detect input, internal pull-up (pressed = low). */
+    /* PD5/V_KEY: key detect input, floating (external pull-down, pressed = high). */
     gpio.GPIO_Pin  = KEY_PIN;
-    gpio.GPIO_Mode = GPIO_Mode_IPU;
+    gpio.GPIO_Mode = GPIO_Mode_IN_FLOATING;
     GPIO_Init(KEY_PORT, &gpio);
 
     /* All rail EN pins: push-pull outputs, start low (off). */
@@ -700,6 +701,7 @@ int main(void)
     while(1)
     {
         uint8_t key_long = key_task();
+
 
         /* Process I2C commands from main MCU */
         if(i2c_cmd_pending != 0)

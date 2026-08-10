@@ -62,7 +62,7 @@ void Hal_GPIO_Init(uint32_t pin_enc, Hal_GPIO_Mode_t mode,
         case HAL_GPIO_MODE_OUTPUT_OD:  init.GPIO_Mode = GPIO_Mode_Out_OD; break;
         case HAL_GPIO_MODE_AF_PP:      init.GPIO_Mode = GPIO_Mode_AF_PP; break;
         case HAL_GPIO_MODE_AF_OD:      init.GPIO_Mode = GPIO_Mode_AF_OD; break;
-        case HAL_GPIO_MODE_AF_INPUT:   init.GPIO_Mode = GPIO_Mode_IN_FLOATING; break; // �������룬�ø�������ģʽ
+        case HAL_GPIO_MODE_AF_INPUT:   init.GPIO_Mode = GPIO_Mode_IPU; break; // �������룬�ø�������ģʽ
     }
 
     switch (speed) {

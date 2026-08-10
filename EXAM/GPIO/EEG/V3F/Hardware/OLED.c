@@ -4,22 +4,24 @@
 #include "OLED.h"
 #include "debug.h"
 #include "Config.h"
-/* È«ÆÁ»º³åÇø (128 ÁÐ ¡Á 8 Ò³ = 1024 ×Ö½Ú) */
+
+#ifndef EEG_OLED_DISABLED
+/* È«ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ (128 ï¿½ï¿½ ï¿½ï¿½ 8 Ò³ = 1024 ï¿½Ö½ï¿½) */
 static uint8_t OLED_GRAM[8][128];
-/* ========== Òý½Å¶¨Òå ========== */
+/* ========== ï¿½ï¿½ï¿½Å¶ï¿½ï¿½ï¿½ ========== */
 
 #define SPI_HARDWARE 0
 #define SPI_SOFTWARE 1
 #define SPI_TYPE SPI_SOFTWARE
 
-/* ========== Èí¼þ SPI Òý½Å¿ØÖÆºê ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ SPI ï¿½ï¿½ï¿½Å¿ï¿½ï¿½Æºï¿½ ========== */
 #define OLED_W_CS(x) Hal_GPIO_Write (OLED_CS_PIN_ENC, (x))
 #define OLED_W_RES(x) Hal_GPIO_Write (OLED_RES_PIN_ENC, (x))
 #define OLED_W_DC(x) Hal_GPIO_Write (OLED_DC_PIN_ENC, (x))
 #define OLED_W_SCK(x) Hal_GPIO_Write (OLED_SCK_PIN_ENC, (x))
 #define OLED_W_MOSI(x) Hal_GPIO_Write (OLED_MOSI_PIN_ENC, (x))
 
-/* ========== I2C ³õÊ¼»¯ ========== */
+/* ========== I2C ï¿½ï¿½Ê¼ï¿½ï¿½ ========== */
 void OLED_I2C_Init (void) {
     AFIO_ClockEnable();
     I2C_ClockEnable (OLED_I2C_INSTANCE);
@@ -40,7 +42,7 @@ void OLED_I2C_Init (void) {
     I2C_Cmd (OLED_I2C_INSTANCE, ENABLE);
 }
 
-/* ========== SPI Òý½Å³õÊ¼»¯£¨È«²¿×÷ÎªÆÕÍ¨ÍÆÍìÊä³ö£© ========== */
+/* ========== SPI ï¿½ï¿½ï¿½Å³ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿½Í¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 void OLED_SPI_Init (void) {
     AFIO_ClockEnable();
     GPIO_ClockEnable (OLED_CS_PORT);
@@ -54,18 +56,18 @@ void OLED_SPI_Init (void) {
     Hal_GPIO_Init (OLED_DC_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP, HAL_GPIO_SPEED_VERY_HIGH, 0);
     Hal_GPIO_Init (OLED_SCK_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP, HAL_GPIO_SPEED_VERY_HIGH, 0);
     Hal_GPIO_Init (OLED_MOSI_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP, HAL_GPIO_SPEED_VERY_HIGH, 0);
-    OLED_W_SCK (1); /* ¿ÕÏÐÊ± SCK Îª¸ß£¨CPOL=1£© */
+    OLED_W_SCK (1); /* ï¿½ï¿½ï¿½ï¿½Ê± SCK Îªï¿½ß£ï¿½CPOL=1ï¿½ï¿½ */
 #else
     SPI_ClockEnable (OLED_SPI_INSTANCE);
-    /* SCK ºÍ MOSI ¸´ÓÃÍÆÍì */
+    /* SCK ï¿½ï¿½ MOSI ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     Hal_GPIO_Init (OLED_SCK_PIN_ENC, HAL_GPIO_MODE_AF_PP, HAL_GPIO_SPEED_VERY_HIGH, OLED_SCK_AF);
     Hal_GPIO_Init (OLED_MOSI_PIN_ENC, HAL_GPIO_MODE_AF_PP, HAL_GPIO_SPEED_VERY_HIGH, OLED_MOSI_AF);
-    /* CS¡¢RES¡¢DC ÎªÆÕÍ¨ÍÆÍìÊä³ö */
+    /* CSï¿½ï¿½RESï¿½ï¿½DC Îªï¿½ï¿½Í¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     Hal_GPIO_Init (OLED_CS_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP, HAL_GPIO_SPEED_VERY_HIGH, 0);
     Hal_GPIO_Init (OLED_RES_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP, HAL_GPIO_SPEED_VERY_HIGH, 0);
     Hal_GPIO_Init (OLED_DC_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP, HAL_GPIO_SPEED_VERY_HIGH, 0);
 
-    /* ÅäÖÃ SPI ÍâÉè */
+    /* ï¿½ï¿½ï¿½ï¿½ SPI ï¿½ï¿½ï¿½ï¿½ */
     SPI_InitTypeDef SPI_InitStructure;
     SPI_InitStructure.SPI_Direction = SPI_Direction_1Line_Tx;
     SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
@@ -84,7 +86,7 @@ void OLED_SPI_Init (void) {
     OLED_W_DC (1);
 }
 
-/* ========== I2C ¶à×Ö½Ú·¢ËÍ ========== */
+/* ========== I2C ï¿½ï¿½ï¿½Ö½Ú·ï¿½ï¿½ï¿½ ========== */
 void Hardware_I2C_Write (uint8_t addr, uint8_t *data, uint8_t len) {
     while (I2C_GetFlagStatus (OLED_I2C_INSTANCE, I2C_FLAG_BUSY));
     I2C_GenerateSTART (OLED_I2C_INSTANCE, ENABLE);
@@ -98,7 +100,7 @@ void Hardware_I2C_Write (uint8_t addr, uint8_t *data, uint8_t len) {
     I2C_GenerateSTOP (OLED_I2C_INSTANCE, ENABLE);
 }
 
-/* ========== Èí¼þÄ£Äâ SPI ·¢ËÍÒ»¸ö×Ö½Ú£¨CPOL=1, CPHA=1 Ä£Ê½3£© ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½Ä£ï¿½ï¿½ SPI ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½Ö½Ú£ï¿½CPOL=1, CPHA=1 Ä£Ê½3ï¿½ï¿½ ========== */
 static void SPI_SendByte (uint8_t byte) {
 #if (SPI_TYPE == SPI_SOFTWARE)
     for (uint8_t i = 0; i < 8; i++) {
@@ -114,7 +116,7 @@ static void SPI_SendByte (uint8_t byte) {
 #endif
 }
 
-/* ========== Ð´ÃüÁî ========== */
+/* ========== Ð´ï¿½ï¿½ï¿½ï¿½ ========== */
 static void OLED_WriteCommand (OLED_Type Type, uint8_t Command) {
     if (Type == I2C) {
         uint8_t buf[2] = {0x00, Command};
@@ -127,7 +129,7 @@ static void OLED_WriteCommand (OLED_Type Type, uint8_t Command) {
     }
 }
 
-/* ========== Ð´Êý¾Ý ========== */
+/* ========== Ð´ï¿½ï¿½ï¿½ï¿½ ========== */
 static void OLED_WriteData (OLED_Type Type, uint8_t Data) {
     if (Type == I2C) {
         uint8_t buf[2] = {0x40, Data};
@@ -140,14 +142,14 @@ static void OLED_WriteData (OLED_Type Type, uint8_t Data) {
     }
 }
 
-/* ========== ÉèÖÃ¹â±êÎ»ÖÃ ========== */
+/* ========== ï¿½ï¿½ï¿½Ã¹ï¿½ï¿½Î»ï¿½ï¿½ ========== */
 static void OLED_SetCursor (OLED_Type Type, uint8_t Y, uint8_t X) {
     OLED_WriteCommand (Type, 0xB0 | Y);
     OLED_WriteCommand (Type, 0x10 | ((X & 0xF0) >> 4));
     OLED_WriteCommand (Type, 0x00 | (X & 0x0F));
 }
 
-/* ========== ÇåÆÁ ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ ========== */
 void OLED_Clear (OLED_Type Type) {
     for (uint8_t j = 0; j < 8; j++) {
         OLED_SetCursor (Type, j, 0);
@@ -162,7 +164,7 @@ void OLED_Clear_All (void) {
     //OLED_Clear (I2C);
 }
 
-/* Ò»´ÎÐÔ½«»º³åÇø·¢ËÍµ½ SPI ÆÁÄ»£¨Ò³Ñ°Ö·Ä£Ê½£© */
+/* Ò»ï¿½ï¿½ï¿½Ô½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Íµï¿½ SPI ï¿½ï¿½Ä»ï¿½ï¿½Ò³Ñ°Ö·Ä£Ê½ï¿½ï¿½ */
 void OLED_UpdateFull (OLED_Type Type) {
     if (Type == I2C)
         return;
@@ -182,7 +184,7 @@ void OLED_UpdateFull (OLED_Type Type) {
     OLED_W_CS (1);
 }
 
-/* ========== ÏÔÊ¾Ò»¸ö×Ö·û (8x16) ========== */
+/* ========== ï¿½ï¿½Ê¾Ò»ï¿½ï¿½ï¿½Ö·ï¿½ (8x16) ========== */
 void OLED_ShowChar (OLED_Type Type, uint8_t Line, uint8_t Column, char Char) {
     const uint8_t (*font)[16] = OLED_F8x16;
     uint8_t idx = Char - ' ';
@@ -196,7 +198,7 @@ void OLED_ShowChar (OLED_Type Type, uint8_t Line, uint8_t Column, char Char) {
     }
 }
 
-/* ========== ÓÒ¶ÔÆë×Ö·û´® ========== */
+/* ========== ï¿½Ò¶ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ ========== */
 void OLED_ShowStringRight (OLED_Type Type, uint8_t Line, char *String) {
     uint8_t len = strlen (String);
     uint8_t startColumn = (len >= 16) ? 1 : (16 - len + 1);
@@ -205,14 +207,14 @@ void OLED_ShowStringRight (OLED_Type Type, uint8_t Line, char *String) {
     }
 }
 
-/* ========== ÆÕÍ¨ÏÔÊ¾×Ö·û´® ========== */
+/* ========== ï¿½ï¿½Í¨ï¿½ï¿½Ê¾ï¿½Ö·ï¿½ï¿½ï¿½ ========== */
 void OLED_ShowString (OLED_Type Type, uint8_t Line, uint8_t Column, char *String) {
     for (uint8_t i = 0; String[i] != '\0'; i++) {
         OLED_ShowChar (Type, Line, Column + i, String[i]);
     }
 }
 
-/* ========== Ñ­»·¹ö¶¯×Ö·û´® ========== */
+/* ========== Ñ­ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ ========== */
 uint8_t OLED_ShowString_Scroll (OLED_Type Type, uint8_t Line, uint8_t Column,
                                 const char *str, uint8_t offset, uint8_t display_width) {
     uint8_t len = strlen (str);
@@ -236,14 +238,14 @@ uint8_t OLED_ShowString_Scroll (OLED_Type Type, uint8_t Line, uint8_t Column,
     return next_offset;
 }
 
-/* ========== ÕûÊýÃÝº¯Êý ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ï¿½Ýºï¿½ï¿½ï¿½ ========== */
 uint32_t OLED_Pow (uint32_t X, uint32_t Y) {
     uint32_t Result = 1;
     while (Y--) Result *= X;
     return Result;
 }
 
-/* ========== ÏÔÊ¾ÎÞ·ûºÅÕûÊý ========== */
+/* ========== ï¿½ï¿½Ê¾ï¿½Þ·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 void OLED_ShowNum (OLED_Type Type, uint8_t Line, uint8_t Column,
                    uint32_t Number, uint8_t Length) {
     for (uint8_t i = 0; i < Length; i++) {
@@ -252,7 +254,7 @@ void OLED_ShowNum (OLED_Type Type, uint8_t Line, uint8_t Column,
     }
 }
 
-/* ========== ÏÔÊ¾ÓÐ·ûºÅÕûÊý ========== */
+/* ========== ï¿½ï¿½Ê¾ï¿½Ð·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 void OLED_ShowSignedNum (OLED_Type Type, uint8_t Line, uint8_t Column,
                          int32_t Number, uint8_t Length) {
     uint32_t Number1;
@@ -269,7 +271,7 @@ void OLED_ShowSignedNum (OLED_Type Type, uint8_t Line, uint8_t Column,
     }
 }
 
-/* ========== ÏÔÊ¾Ê®Áù½øÖÆ ========== */
+/* ========== ï¿½ï¿½Ê¾Ê®ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 void OLED_ShowHexNum (OLED_Type Type, uint8_t Line, uint8_t Column,
                       uint32_t Number, uint8_t Length) {
     for (uint8_t i = 0; i < Length; i++) {
@@ -281,7 +283,7 @@ void OLED_ShowHexNum (OLED_Type Type, uint8_t Line, uint8_t Column,
     }
 }
 
-/* ========== ÏÔÊ¾¶þ½øÖÆ ========== */
+/* ========== ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 void OLED_ShowBinNum (OLED_Type Type, uint8_t Line, uint8_t Column,
                       uint32_t Number, uint8_t Length) {
     for (uint8_t i = 0; i < Length; i++) {
@@ -290,13 +292,13 @@ void OLED_ShowBinNum (OLED_Type Type, uint8_t Line, uint8_t Column,
     }
 }
 
-/* ========== ÉèÖÃÁÐµØÖ· ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ï¿½Ðµï¿½Ö· ========== */
 void OLED_SetCol (OLED_Type Type, uint8_t col) {
     OLED_WriteCommand (Type, 0x10 | ((col & 0xF0) >> 4));
     OLED_WriteCommand (Type, 0x00 | (col & 0x0F));
 }
 
-/* ========== Çå¿ÕÖ¸¶¨Ò³ÇøÓò ========== */
+/* ========== ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½Ò³ï¿½ï¿½ï¿½ï¿½ ========== */
 void OLED_ClearArea (OLED_Type Type, uint8_t start_page, uint8_t end_page) {
     for (uint8_t page = start_page; page <= end_page; page++) {
         OLED_SetCursor (Type, page, 0);
@@ -306,7 +308,7 @@ void OLED_ClearArea (OLED_Type Type, uint8_t start_page, uint8_t end_page) {
     }
 }
 
-/* ========== »æÖÆÆµÆ×Öù×´Í¼ ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½Æµï¿½ï¿½ï¿½ï¿½×´Í¼ ========== */
 void OLED_DrawSpectrum (OLED_Type Type, uint8_t x_start, uint8_t *heights,
                         uint8_t num_bins, uint8_t max_height) {
     if (max_height > 64)
@@ -334,7 +336,7 @@ void OLED_DrawSpectrum (OLED_Type Type, uint8_t x_start, uint8_t *heights,
     }
 }
 
-/* ========== »æÖÆ²¨ÐÎ£¨128µãÕÛÏß£© ========== */
+/* ========== ï¿½ï¿½ï¿½Æ²ï¿½ï¿½Î£ï¿½128ï¿½ï¿½ï¿½ï¿½ï¿½ß£ï¿½ ========== */
 void OLED_DrawWaveformFast (OLED_Type Type, uint8_t *y_values) {
     if (Type == I2C)
         return;
@@ -367,9 +369,9 @@ void OLED_DrawWaveformFast (OLED_Type Type, uint8_t *y_values) {
     OLED_UpdateFull (Type);
 }
 
-/* ========== OLED ×Ü³õÊ¼»¯ ========== */
+/* ========== OLED ï¿½Ü³ï¿½Ê¼ï¿½ï¿½ ========== */
 void OLED_Init (void) {
-    /* 1. ³õÊ¼»¯ I2C ÆÁÄ» */
+    /* 1. ï¿½ï¿½Ê¼ï¿½ï¿½ I2C ï¿½ï¿½Ä» */
     // OLED_I2C_Init();
     // OLED_WriteCommand (I2C, 0xAE);
     // OLED_WriteCommand (I2C, 0xD5);
@@ -396,7 +398,7 @@ void OLED_Init (void) {
     // OLED_WriteCommand (I2C, 0xAF);
     // OLED_Clear (I2C);
 
-    /* 2. ³õÊ¼»¯ SPI ÆÁÄ» */
+    /* 2. ï¿½ï¿½Ê¼ï¿½ï¿½ SPI ï¿½ï¿½Ä» */
     OLED_SPI_Init();
     OLED_W_RES (0);
     Delay_Ms (200);
@@ -421,3 +423,5 @@ void OLED_Init (void) {
     OLED_Clear (SPI);
     OLED_WriteCommand (SPI, 0xAF);
 }
+
+#endif /* EEG_OLED_DISABLED */

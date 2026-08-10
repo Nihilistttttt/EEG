@@ -396,12 +396,139 @@ int SD_WriteMultiSector(uint32_t sector, const uint8_t *buf, uint32_t count) {
     return 0;
 }
 
+static void SD_DumpDiag(void) {
+    Serial_Printf(SERIAL_PORT_DEBUG, "=== SD Pin Diag ===\r\n");
+    Serial_Printf(SERIAL_PORT_DEBUG, "SCK: P%c%d AF%d  MISO: P%c%d AF%d\r\n",
+                  'A'+SD_SCK_PORT, SD_SCK_PIN, SD_SCK_AF,
+                  'A'+SD_MISO_PORT, SD_MISO_PIN, SD_MISO_AF);
+    Serial_Printf(SERIAL_PORT_DEBUG, "MOSI: P%c%d AF%d  CS: P%c%d  CD: P%c%d\r\n",
+                  'A'+SD_MOSI_PORT, SD_MOSI_PIN, SD_MOSI_AF,
+                  'A'+SD_CS_PORT, SD_CS_PIN,
+                  'A'+SD_CD_PORT, SD_CD_PIN);
+    Serial_Printf(SERIAL_PORT_DEBUG, "SPI=%p I2SCFGR=%04X CTLR1=%04X\r\n",
+                  SD_SPI_INSTANCE, SD_SPI_INSTANCE->I2SCFGR, SD_SPI_INSTANCE->CTLR1);
+    Serial_Printf(SERIAL_PORT_DEBUG, "RCC HB1PCENR=%08X HB2PCENR=%08X\r\n",
+                  RCC->HB1PCENR, RCC->HB2PCENR);
+    Serial_Printf(SERIAL_PORT_DEBUG, "AFIO C_AFHR=%08X D_AFLR=%08X D_AFHR=%08X\r\n",
+                  AFIO->GPIOC_AFHR, AFIO->GPIOD_AFLR, AFIO->GPIOD_AFHR);
+    Serial_Printf(SERIAL_PORT_DEBUG, "GPIOC CFGLR=%08X CFGHR=%08X\r\n",
+                  GPIOC->CFGLR, GPIOC->CFGHR);
+    Serial_Printf(SERIAL_PORT_DEBUG, "GPIOD CFGLR=%08X CFGHR=%08X\r\n",
+                  GPIOD->CFGLR, GPIOD->CFGHR);
+
+    SD_CS_HIGH();
+    Delay_Ms(1);
+    Serial_Printf(SERIAL_PORT_DEBUG, "CS=H: SCK=%d MISO=%d MOSI=%d CS=%d CD=%d\r\n",
+                  Hal_GPIO_Read(SD_SCK_PIN_ENC), Hal_GPIO_Read(SD_MISO_PIN_ENC),
+                  Hal_GPIO_Read(SD_MOSI_PIN_ENC), Hal_GPIO_Read(SD_CS_PIN_ENC),
+                  Hal_GPIO_Read(SD_CD_PIN_ENC));
+
+    SD_CS_LOW();
+    Delay_Ms(1);
+    Serial_Printf(SERIAL_PORT_DEBUG, "CS=L: SCK=%d MISO=%d MOSI=%d CS=%d CD=%d\r\n",
+                  Hal_GPIO_Read(SD_SCK_PIN_ENC), Hal_GPIO_Read(SD_MISO_PIN_ENC),
+                  Hal_GPIO_Read(SD_MOSI_PIN_ENC), Hal_GPIO_Read(SD_CS_PIN_ENC),
+                  Hal_GPIO_Read(SD_CD_PIN_ENC));
+    SD_CS_HIGH();
+
+    Serial_Printf(SERIAL_PORT_DEBUG, "SPI transfer test (8 bytes):\r\n");
+    SD_MOSI_ToAF();
+    for (int k = 0; k < 8; k++) {
+        uint8_t rx = SD_SPI_Transfer(0xFF);
+        Serial_Printf(SERIAL_PORT_DEBUG, "  tx=FF rx=%02X SCKpin=%d MISOpin=%d\r\n",
+                      rx, Hal_GPIO_Read(SD_SCK_PIN_ENC), Hal_GPIO_Read(SD_MISO_PIN_ENC));
+    }
+
+    Serial_Printf(SERIAL_PORT_DEBUG, "MISO as plain input (no AF):\r\n");
+    Hal_GPIO_Init(SD_MISO_PIN_ENC, HAL_GPIO_MODE_INPUT_PU, HAL_GPIO_SPEED_LOW, 0);
+    Delay_Ms(1);
+    Serial_Printf(SERIAL_PORT_DEBUG, "  MISO pullup=%d\r\n", Hal_GPIO_Read(SD_MISO_PIN_ENC));
+    Hal_GPIO_Init(SD_MISO_PIN_ENC, HAL_GPIO_MODE_INPUT, HAL_GPIO_SPEED_LOW, 0);
+    Delay_Ms(1);
+    Serial_Printf(SERIAL_PORT_DEBUG, "  MISO floating=%d\r\n", Hal_GPIO_Read(SD_MISO_PIN_ENC));
+    Hal_GPIO_Init(SD_MISO_PIN_ENC, HAL_GPIO_MODE_INPUT_PD, HAL_GPIO_SPEED_LOW, 0);
+    Delay_Ms(1);
+    Serial_Printf(SERIAL_PORT_DEBUG, "  MISO pulldown=%d\r\n", Hal_GPIO_Read(SD_MISO_PIN_ENC));
+    Hal_GPIO_Init(SD_MISO_PIN_ENC, HAL_GPIO_MODE_AF_INPUT, HAL_GPIO_SPEED_VERY_HIGH, SD_MISO_AF);
+
+    Serial_Printf(SERIAL_PORT_DEBUG, "SCK as plain output toggle test:\r\n");
+    Hal_GPIO_Init(SD_SCK_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP, HAL_GPIO_SPEED_VERY_HIGH, 0);
+    for (int k = 0; k < 5; k++) {
+        Hal_GPIO_Write(SD_SCK_PIN_ENC, 1);
+        Delay_Ms(1);
+        uint8_t hi = Hal_GPIO_Read(SD_SCK_PIN_ENC);
+        Hal_GPIO_Write(SD_SCK_PIN_ENC, 0);
+        Delay_Ms(1);
+        uint8_t lo = Hal_GPIO_Read(SD_SCK_PIN_ENC);
+        Serial_Printf(SERIAL_PORT_DEBUG, "  SCK write: hi=%d lo=%d\r\n", hi, lo);
+    }
+    Hal_GPIO_Init(SD_SCK_PIN_ENC, HAL_GPIO_MODE_AF_PP, HAL_GPIO_SPEED_VERY_HIGH, SD_SCK_AF);
+
+    Serial_Printf(SERIAL_PORT_DEBUG, "MOSI as plain output toggle test:\r\n");
+    Hal_GPIO_Init(SD_MOSI_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP, HAL_GPIO_SPEED_VERY_HIGH, 0);
+    for (int k = 0; k < 3; k++) {
+        Hal_GPIO_Write(SD_MOSI_PIN_ENC, 1);
+        Delay_Ms(1);
+        uint8_t hi = Hal_GPIO_Read(SD_MOSI_PIN_ENC);
+        Hal_GPIO_Write(SD_MOSI_PIN_ENC, 0);
+        Delay_Ms(1);
+        uint8_t lo = Hal_GPIO_Read(SD_MOSI_PIN_ENC);
+        Serial_Printf(SERIAL_PORT_DEBUG, "  MOSI write: hi=%d lo=%d\r\n", hi, lo);
+    }
+    Hal_GPIO_Init(SD_MOSI_PIN_ENC, HAL_GPIO_MODE_AF_PP, HAL_GPIO_SPEED_VERY_HIGH, SD_MOSI_AF);
+
+    Serial_Printf(SERIAL_PORT_DEBUG, "Bit-bang CMD0 test (bypass SPI peripheral):\r\n");
+    {
+        Hal_GPIO_Init(SD_SCK_PIN_ENC,  HAL_GPIO_MODE_OUTPUT_PP, HAL_GPIO_SPEED_VERY_HIGH, 0);
+        Hal_GPIO_Init(SD_MOSI_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP, HAL_GPIO_SPEED_VERY_HIGH, 0);
+        Hal_GPIO_Init(SD_MISO_PIN_ENC, HAL_GPIO_MODE_INPUT_PU,  HAL_GPIO_SPEED_LOW, 0);
+        Hal_GPIO_Write(SD_SCK_PIN_ENC, 0);
+        Hal_GPIO_Write(SD_MOSI_PIN_ENC, 1);
+        SD_CS_HIGH();
+        for (int i = 0; i < 80; i++) {
+            Hal_GPIO_Write(SD_SCK_PIN_ENC, 1); Delay_Us(5);
+            Hal_GPIO_Write(SD_SCK_PIN_ENC, 0); Delay_Us(5);
+        }
+        SD_CS_LOW();
+        Delay_Us(20);
+        uint8_t cmd[6] = {0x40, 0x00, 0x00, 0x00, 0x00, 0x95};
+        for (int i = 0; i < 6; i++) {
+            for (int b = 7; b >= 0; b--) {
+                Hal_GPIO_Write(SD_MOSI_PIN_ENC, (cmd[i] >> b) & 1);
+                Hal_GPIO_Write(SD_SCK_PIN_ENC, 1); Delay_Us(5);
+                Hal_GPIO_Write(SD_SCK_PIN_ENC, 0); Delay_Us(5);
+            }
+        }
+        for (int i = 0; i < 10; i++) {
+            uint8_t r = 0;
+            for (int b = 7; b >= 0; b--) {
+                Hal_GPIO_Write(SD_MOSI_PIN_ENC, 1);
+                Hal_GPIO_Write(SD_SCK_PIN_ENC, 1); Delay_Us(5);
+                r |= (Hal_GPIO_Read(SD_MISO_PIN_ENC) << b);
+                Hal_GPIO_Write(SD_SCK_PIN_ENC, 0); Delay_Us(5);
+            }
+            Serial_Printf(SERIAL_PORT_DEBUG, "  bb resp[%d]=%02X\r\n", i, r);
+            if ((r & 0x80) == 0) break;
+        }
+        SD_CS_HIGH();
+        Hal_GPIO_Init(SD_SCK_PIN_ENC,  HAL_GPIO_MODE_AF_PP,    HAL_GPIO_SPEED_VERY_HIGH, SD_SCK_AF);
+        Hal_GPIO_Init(SD_MOSI_PIN_ENC, HAL_GPIO_MODE_AF_PP,    HAL_GPIO_SPEED_VERY_HIGH, SD_MOSI_AF);
+        Hal_GPIO_Init(SD_MISO_PIN_ENC, HAL_GPIO_MODE_AF_INPUT, HAL_GPIO_SPEED_VERY_HIGH, SD_MISO_AF);
+    }
+
+    Serial_Printf(SERIAL_PORT_DEBUG, "=== End Pin Diag ===\r\n");
+}
+
 int SD_SelfTest(void) {
     uint8_t buf[SD_SECTOR_SIZE];
     int i;
     int ret;
 
     Serial_Printf(SERIAL_PORT_DEBUG, "[SD] card present: %d\r\n", SD_IsCardPresent());
+
+    SD_GPIO_Init();
+    SD_SPI_Init(SPI_BaudRatePrescaler_Mode7);
+    SD_DumpDiag();
 
     ret = SD_Init();
     if (ret != SD_INIT_OK) {

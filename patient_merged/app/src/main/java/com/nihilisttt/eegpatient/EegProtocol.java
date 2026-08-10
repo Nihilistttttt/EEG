@@ -73,6 +73,9 @@ public final class EegProtocol {
     public static final int CMD_SSVEP_STIM_STARTED = 0x41;
     public static final int CMD_SSVEP_RESULT = 0x42;
 
+    public static final int CMD_FOCUS_START = 0x51;
+    public static final int CMD_FOCUS_STOP  = 0x52;
+
     public static final int WAVE_NUM_CH = 8;
     public static final int WAVE_HEADER = 1;
     public static final int WAVE_PAYLOAD = WAVE_HEADER + WAVE_NUM_CH * 4;

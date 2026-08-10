@@ -24,15 +24,26 @@ static void max98357a_gpio_init(void) {
     GPIO_ClockEnable(MAX98357A_WS_PORT);
     GPIO_ClockEnable(MAX98357A_CK_PORT);
     GPIO_ClockEnable(MAX98357A_DIN_PORT);
+#ifdef MAX98357A_GAIN_PORT
     GPIO_ClockEnable(MAX98357A_GAIN_PORT);
     GPIO_ClockEnable(MAX98357A_SHDN_PORT);
+#endif
+#ifdef MAX98357A_MODE_PORT
+    GPIO_ClockEnable(MAX98357A_MODE_PORT);
+#endif
 
     Hal_GPIO_Init(MAX98357A_WS_PIN_ENC,  HAL_GPIO_MODE_AF_PP,    HAL_GPIO_SPEED_VERY_HIGH, MAX98357A_WS_AF);
     Hal_GPIO_Init(MAX98357A_CK_PIN_ENC,  HAL_GPIO_MODE_AF_PP,    HAL_GPIO_SPEED_VERY_HIGH, MAX98357A_CK_AF);
     Hal_GPIO_Init(MAX98357A_DIN_PIN_ENC, HAL_GPIO_MODE_AF_PP,    HAL_GPIO_SPEED_VERY_HIGH, MAX98357A_DIN_AF);
+#ifdef MAX98357A_GAIN_PIN_ENC
     Hal_GPIO_Init(MAX98357A_GAIN_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP, HAL_GPIO_SPEED_LOW, 0);
     Hal_GPIO_Init(MAX98357A_SHDN_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP, HAL_GPIO_SPEED_LOW, 0);
     MAX98357A_SHDN_LOW();
+#endif
+#ifdef MAX98357A_MODE_PIN_ENC
+    Hal_GPIO_Init(MAX98357A_MODE_PIN_ENC, HAL_GPIO_MODE_OUTPUT_PP, HAL_GPIO_SPEED_LOW, 0);
+    Hal_GPIO_Write(MAX98357A_MODE_PIN_ENC, 0);
+#endif
 }
 
 static void max98357a_i2s_init(void) {
@@ -77,6 +88,7 @@ int max98357a_init(max98357a_gain_t gain) {
     max98357a_gpio_init();
     max98357a_i2s_init();
 
+#ifdef MAX98357A_GAIN_PIN_ENC
     if (gain == MAX98357A_GAIN_15DB_RIGHT) {
         MAX98357A_GAIN_HIGH();
     } else {
@@ -85,6 +97,11 @@ int max98357a_init(max98357a_gain_t gain) {
     Delay_Ms(1);
     MAX98357A_SHDN_HIGH();
     Delay_Ms(2);
+#endif
+#ifdef MAX98357A_MODE_PIN_ENC
+    Hal_GPIO_Write(MAX98357A_MODE_PIN_ENC, 1);
+    Delay_Ms(3);
+#endif
 
     g_playing = 0;
     g_loop_len = 0;
@@ -93,11 +110,17 @@ int max98357a_init(max98357a_gain_t gain) {
 
 void max98357a_shutdown(void) {
     max98357a_stop();
+#ifdef MAX98357A_SHDN_PIN_ENC
     MAX98357A_SHDN_LOW();
+#endif
+#ifdef MAX98357A_MODE_PIN_ENC
+    Hal_GPIO_Write(MAX98357A_MODE_PIN_ENC, 0);
+#endif
     g_playing = 0;
 }
 
 void max98357a_wakeup(max98357a_gain_t gain) {
+#ifdef MAX98357A_SHDN_PIN_ENC
     MAX98357A_SHDN_LOW();
     Delay_Ms(1);
     if (gain == MAX98357A_GAIN_15DB_RIGHT) {
@@ -108,6 +131,13 @@ void max98357a_wakeup(max98357a_gain_t gain) {
     Delay_Ms(1);
     MAX98357A_SHDN_HIGH();
     Delay_Ms(2);
+#endif
+#ifdef MAX98357A_MODE_PIN_ENC
+    Hal_GPIO_Write(MAX98357A_MODE_PIN_ENC, 0);
+    Delay_Ms(1);
+    Hal_GPIO_Write(MAX98357A_MODE_PIN_ENC, 1);
+    Delay_Ms(2);
+#endif
 }
 
 void max98357a_stop(void) {

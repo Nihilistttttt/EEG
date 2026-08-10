@@ -16,7 +16,7 @@ static volatile int s_eof = 0;
 static int s_eof_drain_count = 0;
 static uint32_t s_bytes_remaining;
 static uint32_t s_bytes_per_sample;
-static uint8_t  s_volume_pct = 5;
+static uint8_t  s_volume_pct = 100;
 static FATFS    s_fs;
 static int      s_fs_mounted = 0;
 static int      s_loop = 0;

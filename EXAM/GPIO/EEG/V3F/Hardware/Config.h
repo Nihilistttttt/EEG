@@ -340,7 +340,7 @@
 #define SD_CS_PIN               0
 #define SD_CS_PIN_ENC           HAL_GPIO_PIN(SD_CS_PORT, SD_CS_PIN)
 #define SD_CD_PORT              2
-#define SD_CD_PIN               1
+#define SD_CD_PIN               5
 #define SD_CD_PIN_ENC           HAL_GPIO_PIN(SD_CD_PORT, SD_CD_PIN)
 #endif /* __SD_CARD_H */
 

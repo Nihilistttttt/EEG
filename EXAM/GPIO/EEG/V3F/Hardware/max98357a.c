@@ -77,12 +77,15 @@ int max98357a_init(max98357a_gain_t gain) {
     max98357a_gpio_init();
     max98357a_i2s_init();
 
-    Hal_GPIO_Init(MAX98357A_GAIN_PIN_ENC, HAL_GPIO_MODE_INPUT, HAL_GPIO_SPEED_LOW, 0);
+    if (gain == MAX98357A_GAIN_15DB_RIGHT) {
+        MAX98357A_GAIN_HIGH();
+    } else {
+        MAX98357A_GAIN_LOW();
+    }
     Delay_Ms(1);
     MAX98357A_SHDN_HIGH();
     Delay_Ms(2);
 
-    (void)gain;
     g_playing = 0;
     g_loop_len = 0;
     return 0;

@@ -1,0 +1,17 @@
+# Build output
+obj/
+*.o
+*.d
+*.elf
+*.hex
+*.lst
+*.siz
+*.map
+
+# MounRiver Studio
+.wvproj/
+.metadata/
+
+# OS
+Thumbs.db
+desktop.ini

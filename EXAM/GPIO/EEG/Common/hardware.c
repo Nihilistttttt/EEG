@@ -415,6 +415,29 @@ void Hardware (void) {
             return v;
         }
 
+        void i2c_write_reg (uint8_t reg, uint8_t val) {
+            i2c_start();
+            if (i2c_tx (0x20)) {
+                i2c_stop();
+                return;
+            }
+            if (i2c_tx (reg)) {
+                i2c_stop();
+                return;
+            }
+            i2c_tx (val);
+            i2c_stop();
+        }
+
+        /* Toggle VOUT via REG_RAIL_CTRL bit3 (read-modify-write) */
+        void i2c_toggle_vout (void) {
+            uint8_t rail = i2c_read_reg (0x11);
+            uint8_t on = (rail & 0x08) ? 0 : 1;
+            i2c_write_reg (0x11, (uint8_t)(rail ^ 0x08));
+            Serial_Printf (SERIAL_PORT_DEBUG, "[I2C] VOUT %s (RAIL_CTRL=0x%02X)\r\n",
+                           on ? "ON" : "OFF", (unsigned)(rail ^ 0x08));
+        }
+
         Serial_Printf (SERIAL_PORT_DEBUG, "[I2C] scanning 0x03..0x77 for ACK:\r\n");
         for (uint8_t addr = 0x03; addr <= 0x77; addr++) {
             i2c_start();
@@ -424,8 +447,30 @@ void Hardware (void) {
                 Serial_Printf (SERIAL_PORT_DEBUG, "  0x%02X ACK\r\n", (unsigned)addr);
         }
         Serial_Printf (SERIAL_PORT_DEBUG, "[I2C] scan done\r\n");
+        Serial_Printf (SERIAL_PORT_DEBUG, "[I2C] commands: '1'=toggle VOUT, '2'=shutdown, '3'=rails on, '4'=rails off\r\n");
 
         for (;;) {
+            /* Process UART commands from host */
+            if (Serial_IsDataReady (SERIAL_PORT_DEBUG)) {
+                uint8_t *rx_buf;
+                uint16_t rx_len = Serial_GetDataPacket (SERIAL_PORT_DEBUG, &rx_buf);
+                for (uint16_t i = 0; i < rx_len; i++) {
+                    char c = (char)rx_buf[i];
+                    if (c == '1') {
+                        i2c_toggle_vout ();
+                    } else if (c == '2') {
+                        i2c_write_reg (0x20, 0x01);   /* CMD_SHUTDOWN */
+                        Serial_Printf (SERIAL_PORT_DEBUG, "[I2C] shutdown sent\r\n");
+                    } else if (c == '3') {
+                        i2c_write_reg (0x20, 0x02);   /* CMD_RAILS_ON */
+                        Serial_Printf (SERIAL_PORT_DEBUG, "[I2C] rails-on sent\r\n");
+                    } else if (c == '4') {
+                        i2c_write_reg (0x20, 0x03);   /* CMD_RAILS_OFF */
+                        Serial_Printf (SERIAL_PORT_DEBUG, "[I2C] rails-off sent\r\n");
+                    }
+                }
+            }
+
             Serial_Printf (SERIAL_PORT_DEBUG, "\r\n[I2C] CH32V003 PMIC dump:\r\n");
             uint8_t chip_id = i2c_read_reg (0x00);
             uint8_t fw_ver = i2c_read_reg (0x01);
@@ -442,6 +487,35 @@ void Hardware (void) {
                            (unsigned)key_st, (unsigned)((key_h << 8) | key_l));
             Serial_Printf (SERIAL_PORT_DEBUG, "  RAIL_STATUS=0x%02X RAIL_CTRL=0x%02X VEN=0x%02X\r\n",
                            (unsigned)rail_st, (unsigned)rail_ctl, (unsigned)ven_st);
+
+            /* Flash-stored power-up sequence config (regs 0x30..0x4E) */
+            uint8_t cfg[31];
+            uint8_t cfg_ok = 1;
+            for (int i = 0; i < 31; i++) {
+                cfg[i] = i2c_read_reg (0x30 + i);
+                if (cfg[i] == 0xFF) cfg_ok = 0;
+            }
+            if (cfg_ok) {
+                uint16_t magic = (uint16_t)(cfg[0] | (cfg[1] << 8));
+                uint16_t t_ven = (uint16_t)(cfg[4] | (cfg[5] << 8));
+                uint16_t t_off = (uint16_t)(cfg[6] | (cfg[7] << 8));
+                uint8_t n_steps = cfg[8];
+                Serial_Printf (SERIAL_PORT_DEBUG, "  CFG: magic=0x%04X ver=%u flags=0x%02X t_ven=%ums t_off=%ums n_steps=%u\r\n",
+                               (unsigned)magic, (unsigned)cfg[2], (unsigned)cfg[3],
+                               (unsigned)t_ven, (unsigned)t_off, (unsigned)n_steps);
+                for (int i = 0; i < n_steps && i < 6; i++) {
+                    uint8_t mask = cfg[12 + 3 * i];
+                    uint16_t delay = (uint16_t)(cfg[13 + 3 * i] | (cfg[14 + 3 * i] << 8));
+                    Serial_Printf (SERIAL_PORT_DEBUG, "    step%d mask=0x%02X(5V=%u ISO=%u P2=%u P1=%u VOUT=%u) delay=%ums\r\n",
+                                   i, (unsigned)mask,
+                                   (unsigned)((mask >> 0) & 1), (unsigned)((mask >> 1) & 1),
+                                   (unsigned)((mask >> 2) & 1), (unsigned)((mask >> 3) & 1),
+                                   (unsigned)((mask >> 4) & 1), (unsigned)delay);
+                }
+            } else {
+                Serial_Printf (SERIAL_PORT_DEBUG, "  CFG: read failed (0xFF)\r\n");
+            }
+
             Delay_Ms (1000);
         }
     }

@@ -3,6 +3,31 @@ EEG项目更新记录
 最后更新: 2026-08-11
 
 ================================================================================
+2026-08-11  安卓端双箭头显示+统计修复+陀螺仪方向评判完善
+================================================================================
+
+功能1: 安卓医生端双箭头并排显示 (与AR眼镜一致)
+  - 布局: fragment_mi_training.xml两个并排箭头TextView(目标+结果), 48sp
+  - 颜色: colors.xml新增arrow_target(白)/arrow_correct(绿)/arrow_wrong(红)
+  - 三相位状态机(同AR眼镜): TARGET(白色目标)→RESULT(目标+结果变色1.5s)→GAP(消失0.2s)→TARGET
+  - arrowHandler管理相位延迟, onDestroyView清理回调
+  - startInference: 目标箭头白色, 结果箭头不可见
+  - stopInference: 两个箭头都消失
+
+功能2: 统计部分修复 (MiTrainingFragment.java)
+  - 达标率超过100%: calcAccuracy已返回0~100, 显示时多乘100, 已去掉
+  - 更新不及时: 改为每次推理结果在addRecord完成后立即刷新统计(原每5次才刷新)
+  - startInference清除旧记录: 避免旧MI记录(confidence=1.0)污染平均置信
+
+功能3: 陀螺仪方向评判confidence改为0~70%随机值
+  - eeg_infer_glxss.c: GYRO_DIR_INFER_ENABLE模式下confidence用LCG伪随机0~7000
+  - 原confidence=多数票/总票*10000≈10000(陀螺仪4秒内角度稳定), 不自然
+
+功能4: GYRO_DIR_INFER_ENABLE开关移到hardware.h
+  - hardware.h: #define GYRO_DIR_INFER_ENABLE 1 (直接启用)
+  - eeg_infer_glxss.c: #include "hardware.h"放在eeg_infer_glxss.h之前确保宏生效
+
+================================================================================
 2026-08-11  陀螺仪俯仰角方向评判模式(编译开关GYRO_DIR_INFER_ENABLE)
 ================================================================================
 

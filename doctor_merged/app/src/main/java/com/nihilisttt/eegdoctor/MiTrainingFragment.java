@@ -92,9 +92,9 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
     private View cardDirTrain;
     private View btnModeToggle;
 
-    private TextView tvInferDirection;
-
-    private TextView tvInferTargetDir;
+    private TextView tvInferTargetArrow;
+    private TextView tvInferResultArrow;
+    private final Handler arrowHandler = new Handler(Looper.getMainLooper());
     private TextView tvInferConfidence;
     private TextView tvInferScores;
     private View btnStartInfer;
@@ -187,9 +187,8 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
         initDirTrainViews(root);
         applyMode();
 
-        tvInferDirection = root.findViewById(R.id.tv_infer_direction);
-
-        tvInferTargetDir = root.findViewById(R.id.tv_infer_target_dir);
+        tvInferTargetArrow = root.findViewById(R.id.tv_infer_target_arrow);
+        tvInferResultArrow = root.findViewById(R.id.tv_infer_result_arrow);
         tvInferConfidence = root.findViewById(R.id.tv_infer_confidence);
         tvInferScores = root.findViewById(R.id.tv_infer_scores);
         btnStartInfer = root.findViewById(R.id.btn_start_infer);
@@ -670,6 +669,7 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
         super.onDestroyView();
         DataDispatcher.getInstance().removeListener(this);
         handler.removeCallbacksAndMessages(null);
+        arrowHandler.removeCallbacksAndMessages(null);
     }
 
     @Override
@@ -698,7 +698,6 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
             handler.post(this::handleReadyTest);
         }
         if (!isInferencing) return;
-        resultCountSinceLastRefresh++;
 
         InferenceRecordStore.Record rec = new InferenceRecordStore.Record();
         rec.timestamp = System.currentTimeMillis();
@@ -712,27 +711,34 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
             rec.groundTruth = gt;
             rec.correct = gt.equals(result.getIntent());
         }
-        recordWriter.execute(() -> InferenceRecordStore.addRecord(requireContext(), rec));
-
-        if (resultCountSinceLastRefresh >= 5) {
-            resultCountSinceLastRefresh = 0;
-            refreshStats();
-        }
+        recordWriter.execute(() -> {
+            InferenceRecordStore.addRecord(requireContext(), rec);
+            if (getActivity() != null) getActivity().runOnUiThread(() -> refreshStats());
+        });
 
         if (getActivity() != null) getActivity().runOnUiThread(() -> {
             tvInferConfidence.setText(String.format("置信度: %.1f%%", result.getConfidence() * 100));
             tvInferScores.setText(String.format("L:%.3f R:%.3f", result.getScoreLeft(), result.getScoreRight()));
             String intent = result.getIntent();
-            String dirText = "LEFT".equals(intent) ? "←" : "→";
-            tvInferDirection.setText(dirText);
-            tvInferDirection.setTextColor(ContextCompat.getColor(requireContext(),
-                    "LEFT".equals(intent) ? R.color.direction_left : R.color.direction_right));
-            if (currentTarget != null) {
-                String targetText = "LEFT".equals(currentTarget) ? "◀ 左" : "右 ▶";
-                tvInferTargetDir.setText("目标: " + targetText);
-                tvInferTargetDir.setTextColor(ContextCompat.getColor(requireContext(),
-                        "LEFT".equals(currentTarget) ? R.color.direction_left : R.color.direction_right));
-            }
+            String intentArrow = "LEFT".equals(intent) ? "←" : "→";
+            String targetArrow = currentTarget != null ? ("LEFT".equals(currentTarget) ? "←" : "→") : "←";
+            boolean correct = currentTarget != null && currentTarget.equals(intent);
+            int feedbackColor = ContextCompat.getColor(requireContext(),
+                    correct ? R.color.arrow_correct : R.color.arrow_wrong);
+            tvInferTargetArrow.setText(targetArrow);
+            tvInferTargetArrow.setTextColor(feedbackColor);
+            tvInferResultArrow.setText(intentArrow);
+            tvInferResultArrow.setTextColor(feedbackColor);
+            arrowHandler.removeCallbacksAndMessages(null);
+            final String nextTarget = currentTarget;
+            arrowHandler.postDelayed(() -> {
+                tvInferTargetArrow.setText("");
+                tvInferResultArrow.setText("");
+                arrowHandler.postDelayed(() -> {
+                    tvInferTargetArrow.setText(nextTarget != null ? ("LEFT".equals(nextTarget) ? "←" : "→") : "←");
+                    tvInferTargetArrow.setTextColor(ContextCompat.getColor(requireContext(), R.color.arrow_target));
+                }, 200);
+            }, 1500);
         });
     }
 
@@ -775,6 +781,12 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
         isInferencing = true;
         resultCountSinceLastRefresh = 0;
         currentTarget = null;
+        InferenceRecordStore.clearAll(requireContext());
+        refreshStats();
+        arrowHandler.removeCallbacksAndMessages(null);
+        tvInferTargetArrow.setText("←");
+        tvInferTargetArrow.setTextColor(ContextCompat.getColor(requireContext(), R.color.arrow_target));
+        tvInferResultArrow.setText("");
         int mode = spinnerInferMode.getSelectedItemPosition();
         int rounds = mode == 0 ? spinnerInferRounds.getSelectedItemPosition() + 1 : 3;
         TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_INFER_CFG, new byte[]{(byte) mode, (byte) rounds});
@@ -787,6 +799,9 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
     private void stopInference() {
         if (!isInferencing) return;
         isInferencing = false;
+        arrowHandler.removeCallbacksAndMessages(null);
+        tvInferTargetArrow.setText("");
+        tvInferResultArrow.setText("");
         TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_STOP, null);
         TcpServerManager.getInstance().sendDisplayToOutput(EegProtocol.CMD_TRAIN_STOP, null);
         btnStartInfer.setEnabled(true);
@@ -798,7 +813,7 @@ public class MiTrainingFragment extends Fragment implements DataListener, Traini
         if (getActivity() != null) getActivity().runOnUiThread(() -> {
             tvStatTotal.setText("总推理: " + InferenceRecordStore.countTotal(records));
             float acc = InferenceRecordStore.calcAccuracy(records);
-            tvStatAccuracy.setText(String.format("达标率: %.0f%%", acc * 100));
+            tvStatAccuracy.setText(String.format("达标率: %.0f%%", acc));
             tvStatAvgConf.setText(String.format("平均置信: %.1f%%", InferenceRecordStore.avgConfidence(records)));
             tvStatLeft.setText("←左: " + InferenceRecordStore.countLeft(records));
             tvStatRight.setText("右→: " + InferenceRecordStore.countRight(records));

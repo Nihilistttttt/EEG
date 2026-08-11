@@ -52,6 +52,9 @@
 
     <color name="direction_left">#1565C0</color>
     <color name="direction_right">#E65100</color>
+    <color name="arrow_target">#FFFFFF</color>
+    <color name="arrow_correct">#00C853</color>
+    <color name="arrow_wrong">#D50000</color>
     <color name="training_rest">#607D8B</color>
     <color name="training_active">#00C853</color>
     <color name="confidence_high">#00C853</color>

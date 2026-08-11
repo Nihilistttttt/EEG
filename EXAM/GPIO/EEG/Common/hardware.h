@@ -27,6 +27,8 @@
 #define MODE_I2C_DEBUG       9
 #define SYSTEM_MODE          MODE_EEG_ANALYSIS
 
+#define GYRO_DIR_INFER_ENABLE 1
+
 void Hardware(void);
 
 #ifdef __cplusplus

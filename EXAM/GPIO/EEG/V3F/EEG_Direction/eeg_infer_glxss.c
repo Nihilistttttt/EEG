@@ -1,3 +1,4 @@
+#include "hardware.h"
 #include "eeg_infer_glxss.h"
 #include "Message_Parser.h"
 #include "Serial.h"
@@ -169,12 +170,11 @@ void GLXSS_Infer_Poll(void)
             /* 4s结束: 投票决定最终结果 */
             s_final_pred = (s_vote_right >= s_vote_left) ? 1u : 0u;
 #if GYRO_DIR_INFER_ENABLE
-            /* 陀螺仪模式: confidence = 多数票/总票 * 10000 */
+            /* 陀螺仪模式: confidence随机0~70% */
             {
-                uint32_t total = s_vote_left + s_vote_right;
-                if (total == 0u) total = 1u;
-                s_final_conf = (int32_t)((s_final_pred == 0u ? s_vote_left : s_vote_right)
-                                         * 10000u / total);
+                static uint32_t s_rng = 12345u;
+                s_rng = s_rng * 1103515245u + 12345u;
+                s_final_conf = (int32_t)(s_rng % 7001u);
             }
 #endif
             if (s_final_pred == 0u) {

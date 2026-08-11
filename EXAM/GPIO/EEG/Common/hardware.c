@@ -284,13 +284,15 @@ void Hardware (void) {
     }
 
 #elif (SYSTEM_MODE == MODE_SD_TEST)
-    Serial_Printf (SERIAL_PORT_DEBUG, "[SD] start self test\r\n");
-    {
-        int ret = SD_SelfTest();
-        Serial_Printf (SERIAL_PORT_DEBUG, "[SD] self test result: %s (ret=%d)\r\n",
-                       ret == 0 ? "PASS" : "FAIL", ret);
-    }
+    Serial_Init(SERIAL_PORT_DEBUG);
     while (1) {
+        Serial_Printf(SERIAL_PORT_DEBUG, "[SD] start self test\r\n");
+        {
+            int ret = SD_SelfTest();
+            Serial_Printf(SERIAL_PORT_DEBUG, "[SD] self test result: %s (ret=%d)\r\n",
+                           ret == 0 ? "PASS" : "FAIL", ret);
+        }
+        Delay_Ms(1000);
     }
 
 #elif (SYSTEM_MODE == ICM_42605_Mode)

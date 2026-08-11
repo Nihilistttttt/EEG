@@ -12,6 +12,16 @@
 #define GLXSS_INFER_MODE_CYCLE   0
 #define GLXSS_INFER_MODE_RANDOM  1
 
+/*============================================================================
+ * GYRO_DIR_INFER_ENABLE — 陀螺仪俯仰角方向评判开关
+ *   0 = 使用V5F MI推理结果投票(默认)
+ *   1 = 使用陀螺仪俯仰角投票: 0~180度=LEFT, 181~359度=RIGHT
+ *       每4秒(1000帧)投票决定最终方向, 复用现有arrow显示机制
+ *============================================================================*/
+#ifndef GYRO_DIR_INFER_ENABLE
+#define GYRO_DIR_INFER_ENABLE 0
+#endif
+
 /* 新时序: 目标显示+采集合并为4s(投票期间只显示白色目标箭头),
  * 结果1.5s + 消失0.2s = 1.7s(期间不推理), 周期5.7s */
 #define GLXSS_INFER_TARGET_FRAMES  1000 /* 4s @250Hz: 目标显示+投票采集 */

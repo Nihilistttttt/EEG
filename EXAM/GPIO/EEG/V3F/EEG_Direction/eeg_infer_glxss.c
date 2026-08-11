@@ -138,6 +138,14 @@ void GLXSS_Infer_Poll(void)
 
     if (s_state == GLXSS_INFER_STATE_TARGET) {
         /* 目标显示+投票采集合并为4s: 全程显示白色目标箭头 */
+#if GYRO_DIR_INFER_ENABLE
+        /* 陀螺仪俯仰角投票: 0~180度=LEFT, 181~359度=RIGHT (每帧一票) */
+        {
+            int32_t pitch_deg10 = IPC_LOG_SHARED->v3f_pitch_deg10;
+            if (pitch_deg10 > 1800) s_vote_right++;
+            else                     s_vote_left++;
+        }
+#else
         uint32_t infer_cnt = DualCore_IPC_GetLastV5FInferCount();
         uint32_t infer_valid = DualCore_IPC_GetLastV5FInferValid();
         static uint32_t s_last_cnt = 0xFFFFFFFFu;
@@ -155,10 +163,20 @@ void GLXSS_Infer_Poll(void)
                 s_final_conf = conf;
             }
         }
+#endif
 
         if (s_frame_count >= GLXSS_INFER_TARGET_FRAMES) {
             /* 4s结束: 投票决定最终结果 */
             s_final_pred = (s_vote_right >= s_vote_left) ? 1u : 0u;
+#if GYRO_DIR_INFER_ENABLE
+            /* 陀螺仪模式: confidence = 多数票/总票 * 10000 */
+            {
+                uint32_t total = s_vote_left + s_vote_right;
+                if (total == 0u) total = 1u;
+                s_final_conf = (int32_t)((s_final_pred == 0u ? s_vote_left : s_vote_right)
+                                         * 10000u / total);
+            }
+#endif
             if (s_final_pred == 0u) {
                 s_final_sl = 10000 - s_final_conf;
                 s_final_sr = s_final_conf;

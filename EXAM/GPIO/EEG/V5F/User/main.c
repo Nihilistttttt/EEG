@@ -286,6 +286,8 @@ static int text_pixel(int32_t x, int32_t y,
     int idx = str[ci] - 'A';
     if (idx >= 0 && idx < 26)
         return (s_font5x7[idx * 7 + row] & (0x10 >> col)) ? 1 : 0;
+    if (str[ci] == '-')
+        return (row == 3 && col >= 0 && col < 5) ? 1 : 0;
     int didx = str[ci] - '0';
     if (didx < 0 || didx >= 10) return 0;
     return (s_font5x7_digit[didx * 7 + row] & (0x10 >> col)) ? 1 : 0;
@@ -396,6 +398,8 @@ static int is_in_dash(int32_t px, int32_t py, int32_t cx, int32_t cy, int32_t sz
     return 0;
 }
 
+static int pitch_overlay_pixel(int32_t x, int32_t y, uint8_t *r, uint8_t *g, uint8_t *b);
+
 static void fill_arrow_pkt(uint32_t offset, uint16_t len)
 {
     uint8_t hdr[16] = {0x80,0x02,0x00,0x00, 0x90,0x01,0x00,0x00, 0x01,0,0,0,0,0,0,0};
@@ -421,6 +425,7 @@ static void fill_arrow_pkt(uint32_t offset, uint16_t len)
             { r = tgt_r; g = tgt_g; b = tgt_b; }
         if (g_arrow_res_vis && is_in_arrow((int32_t)x, (int32_t)y, res_cx, cy, sz, g_arrow_res_dir))
             { r = res_r; g = res_g; b = res_b; }
+        { uint8_t pr,pg,pb; if (pitch_overlay_pixel((int32_t)x,(int32_t)y,&pr,&pg,&pb)) { r=pr; g=pg; b=pb; } }
         if (ch == 0) s_pkt[i] = r;
         else if (ch == 1) s_pkt[i] = g;
         else if (ch == 2) s_pkt[i] = b;
@@ -575,6 +580,7 @@ static void fill_train_pkt(uint32_t offset, uint16_t len)
             if ((int32_t)x < fill_x) { r = 0x00; g = 0x80; b = 0xFF; }
             else { r = 0x40; g = 0x40; b = 0x40; }
         }
+        { uint8_t pr,pg,pb; if (pitch_overlay_pixel((int32_t)x,(int32_t)y,&pr,&pg,&pb)) { r=pr; g=pg; b=pb; } }
         if (ch == 0) s_pkt[i] = r;
         else if (ch == 1) s_pkt[i] = g;
         else if (ch == 2) s_pkt[i] = b;
@@ -611,6 +617,35 @@ static glxss_err_t send_train_frame(void)
     return GLXSS_OK;
 }
 
+static char    s_pitch_buf[8];
+static int     s_pitch_len = 0;
+static uint32_t s_pitch_last_us = 0;
+
+static int pitch_overlay_pixel(int32_t x, int32_t y, uint8_t *r, uint8_t *g, uint8_t *b)
+{
+    static uint8_t s_pitch_green = 1;
+    uint32_t now = tick_get_us();
+    if (now - s_pitch_last_us > 100000u) {
+        s_pitch_last_us = now;
+        int32_t pitch_deg10 = IPC_LOG_SHARED->v3f_pitch_deg10;
+        int deg = (int)(pitch_deg10 / 10);
+        s_pitch_green = (deg >= 0 && deg < 180) ? 1 : 0;
+        if (deg < 0) deg = 0;
+        if (deg > 359) deg = 359;
+        char d[8]; int dn = 0;
+        if (deg == 0) { d[dn++] = '0'; }
+        else { while (deg > 0 && dn < 6) { d[dn++] = (char)('0' + deg % 10); deg /= 10; } }
+        for (int i = 0; i < dn; i++) s_pitch_buf[i] = d[dn-1-i];
+        s_pitch_len = dn;
+    }
+    if (text_pixel(x, y, s_pitch_buf, s_pitch_len, 3, 40, 16)) {
+        if (s_pitch_green) { *r = 100; *g = 255; *b = 100; }
+        else               { *r = 255; *g = 100; *b = 100; }
+        return 1;
+    }
+    return 0;
+}
+
 static void fill_idle_pkt(uint32_t offset, uint16_t len)
 {
     uint8_t hdr[16] = {0x80,0x02,0x00,0x00, 0x90,0x01,0x00,0x00, 0x01,0,0,0,0,0,0,0};
@@ -628,6 +663,7 @@ static void fill_idle_pkt(uint32_t offset, uint16_t len)
             if (text_pixel_cn_str((int32_t)x, (int32_t)y, wait_str, 4, 8, 320, 200))
                 { r = 0xFF; g = 0xFF; b = 0xFF; }
         }
+        { uint8_t pr,pg,pb; if (pitch_overlay_pixel((int32_t)x,(int32_t)y,&pr,&pg,&pb)) { r=pr; g=pg; b=pb; } }
         if (ch == 0) s_pkt[i] = r;
         else if (ch == 1) s_pkt[i] = g;
         else if (ch == 2) s_pkt[i] = b;
@@ -870,6 +906,7 @@ static void fill_game_pkt(uint32_t offset, uint16_t len)
             if (text_pixel((int32_t)x, (int32_t)y, "GAME", 4, 5, 320, 180)) { r=255; g=100; b=100; }
             else if (text_pixel((int32_t)x, (int32_t)y, "OVER", 4, 5, 320, 230)) { r=255; g=100; b=100; }
         }
+        { uint8_t pr,pg,pb; if (pitch_overlay_pixel((int32_t)x,(int32_t)y,&pr,&pg,&pb)) { r=pr; g=pg; b=pb; } }
 
         if (ch == 0) s_pkt[i] = r;
         else if (ch == 1) s_pkt[i] = g;
@@ -1078,6 +1115,7 @@ static void fill_focus_pkt(uint32_t offset, uint16_t len)
             g = cg[g_stroop_color];
             b = cb[g_stroop_color];
         }
+        { uint8_t pr,pg,pb; if (pitch_overlay_pixel((int32_t)x,(int32_t)y,&pr,&pg,&pb)) { r=pr; g=pg; b=pb; } }
 
         if (ch == 0) s_pkt[i] = r;
         else if (ch == 1) s_pkt[i] = g;

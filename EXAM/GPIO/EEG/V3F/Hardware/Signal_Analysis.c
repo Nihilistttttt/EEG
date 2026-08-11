@@ -337,6 +337,12 @@ void Signal_Analysis_Start (void) {
         ICM42605_Task();
 
         {
+            int32_t roll_deg10, pitch_deg10, yaw_deg10;
+            ICM42605_GetAngleDeg10(&roll_deg10, &pitch_deg10, &yaw_deg10);
+            IPC_LOG_SHARED->v3f_pitch_deg10 = pitch_deg10;
+        }
+
+        {
             static uint32_t posture_last_print_tick = 0;
             static Posture_t s_last_wifi_posture = POSTURE_UNKNOWN;
             const PostureResult_t *pr = Posture_GetResult();

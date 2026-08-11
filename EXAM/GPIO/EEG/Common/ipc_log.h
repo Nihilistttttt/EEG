@@ -52,6 +52,7 @@ typedef struct {
     volatile uint32_t v5f_infer_count;
 
     volatile int32_t v3f_attn_q100;
+    volatile int32_t v3f_pitch_deg10;
     volatile int32_t ssvep_scores_q10000[4];
     volatile int8_t   ssvep_raw_index;
 

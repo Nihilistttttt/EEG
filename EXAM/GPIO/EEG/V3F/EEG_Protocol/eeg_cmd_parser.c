@@ -24,6 +24,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+extern uint8_t g_focus_sim_active;
+extern float   g_focus_sim_offset;
+
 extern uint8_t g_eeg_app_mode;
 extern uint8_t g_ipc_diag_enable;
 extern volatile uint8_t g_ssvep_active;
@@ -293,6 +296,8 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         break;
 
     case CMD_FOCUS_START:
+        g_focus_sim_active = 1;
+        g_focus_sim_offset = 0.0f;
 #ifdef GLXSS_ENABLED
         Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_FOCUS_START -> IPC FOCUS(1)\r\n");
         IPC_Cmd_Send_V3F(IPC_CMD_FOCUS, 1);
@@ -302,6 +307,7 @@ void Parse_CommandBinary(const uint8_t *payload, uint16_t len, const char *sourc
         break;
 
     case CMD_FOCUS_STOP:
+        g_focus_sim_active = 0;
 #ifdef GLXSS_ENABLED
         Serial_Printf(SERIAL_PORT_DEBUG, "[GLXSS] CMD_FOCUS_STOP -> IPC FOCUS(0)\r\n");
         IPC_Cmd_Send_V3F(IPC_CMD_FOCUS, 0);

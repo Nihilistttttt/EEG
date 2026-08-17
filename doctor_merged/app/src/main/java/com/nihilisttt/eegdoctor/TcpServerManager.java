@@ -1004,6 +1004,12 @@ public class TcpServerManager {
                                 .confirmStimulusStarted(freqIndex, refreshRate);
                     }
                     break;
+                case EegProtocol.CMD_FOCUS_START:
+                    sendBinaryToDevice(EegProtocol.CMD_FOCUS_START, null);
+                    break;
+                case EegProtocol.CMD_FOCUS_STOP:
+                    sendBinaryToDevice(EegProtocol.CMD_FOCUS_STOP, null);
+                    break;
                 default:
                     Log.i("DOCTOR", ">>> D2P RECV generation=" + generation + " cmd=0x"
                             + Integer.toHexString(cmd) + " len=" + payloadLen);
@@ -1578,12 +1584,15 @@ public class TcpServerManager {
 
         private boolean handleFocusFrame(int payloadLen) {
             if (payloadLen < EegProtocol.FOCUS_PAYLOAD) return false;
-            ByteBuffer buf = ByteBuffer.wrap(body, bodyPayloadOffset(), 16).order(ByteOrder.LITTLE_ENDIAN);
-            float a0 = buf.getFloat(), a1 = buf.getFloat(), e0 = buf.getFloat(), e1 = buf.getFloat();
             int off = bodyPayloadOffset();
+            ByteBuffer buf = ByteBuffer.wrap(body, off, 16).order(ByteOrder.LITTLE_ENDIAN);
+            float a0 = buf.getFloat(), a1 = buf.getFloat(), e0 = buf.getFloat(), e1 = buf.getFloat();
             int trend = body[off + 16] & 0xFF;
             int instant = body[off + 17] & 0xFF;
             dispatcher.postFocusData(a0, a1, e0, e1, trend, instant);
+            byte[] rawPayload = new byte[payloadLen];
+            System.arraycopy(body, off, rawPayload, 0, payloadLen);
+            sendDisplayToOutputNow(EegProtocol.CMD_FOCUS, rawPayload);
             return true;
         }
 

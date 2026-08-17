@@ -80,6 +80,7 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
 
     private void startStroop() {
         TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_FOCUS_START, null);
+        TcpServerManager.getInstance().sendDisplayToOutput(EegProtocol.CMD_FOCUS_START, null);
         stroopRunning = true;
         if (tvStroopStatus != null) tvStroopStatus.setText("训练中");
         if (btnStroopStart != null) btnStroopStart.setAlpha(0.5f);
@@ -89,6 +90,7 @@ public class FocusHistoryFragment extends Fragment implements DataListener {
 
     private void stopStroop() {
         TcpServerManager.getInstance().sendBinaryToDevice(EegProtocol.CMD_FOCUS_STOP, null);
+        TcpServerManager.getInstance().sendDisplayToOutput(EegProtocol.CMD_FOCUS_STOP, null);
         stroopRunning = false;
         if (tvStroopStatus != null) tvStroopStatus.setText("未开始");
         if (btnStroopStart != null) btnStroopStart.setAlpha(1.0f);

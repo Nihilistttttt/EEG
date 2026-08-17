@@ -73,6 +73,10 @@ public final class EegProtocol {
     public static final int CMD_SSVEP_STIM_STARTED = 0x41;
     public static final int CMD_SSVEP_RESULT = 0x42;
 
+    public static final int CMD_FOCUS_START = 0x51;
+    public static final int CMD_FOCUS_STOP = 0x52;
+    public static final int FOCUS_PAYLOAD = 18;
+
     public static final int WAVE_NUM_CH = 8;
     public static final int WAVE_HEADER = 1;
     public static final int WAVE_PAYLOAD = WAVE_HEADER + WAVE_NUM_CH * 4;
@@ -111,7 +115,6 @@ public final class EegProtocol {
     public static final int SPECTRUM_FRAG_SIZE = SPECTRUM_FLOAT_PER_FRAG * 4;
     public static final int SPECTRUM_HEADER = 4;
 
-    public static final int FOCUS_PAYLOAD = 18;
 
     public static final int SSVEP_RESULT_PAYLOAD = 36;
 

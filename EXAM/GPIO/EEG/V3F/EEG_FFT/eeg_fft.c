@@ -1,4 +1,5 @@
 #include "eeg_fft.h"
+#include "hardware.h"
 #include "signal_analysis.h"
 #include "eeg_direction_collect.h"
 #include "eeg_direction_infer.h"
@@ -118,6 +119,9 @@ static float g_raw_attn_scores[2];
 static float g_raw_relax_scores[2];
 
 uint8_t instant_state, trend_state;
+
+uint8_t g_focus_sim_active = 0;
+float   g_focus_sim_offset = 0.0f;
 
 AttnEma_t attn_ema[2];
 AttnEma_t relax_ema[2];
@@ -799,19 +803,31 @@ uint8_t Process_FFT_Step (void) {
         break;
 
     case FFT_STEP_SEND_FOCUS:
-        Send_Focus (g_attn_output.attention_score, g_attn_output.relaxation_score,
-                    g_attn_output.attention_confidence, g_attn_output.relaxation_confidence,
-                    trend_state, instant_state);
-#ifdef GLXSS_ENABLED
         {
             float attn = g_attn_output.attention_score;
-            if (attn < 0.0f) attn = 0.0f;
-            if (attn > 100.0f) attn = 100.0f;
-            IPC_LOG_SHARED->v3f_attn_q100 = (int32_t)(attn * 100.0f);
-        }
+            float relax = g_attn_output.relaxation_score;
+#if FOCUS_TRAINING_SIM_ENABLE
+            if (g_focus_sim_active) {
+                if (g_focus_sim_offset < 30.0f) g_focus_sim_offset += 0.3f;
+                attn += g_focus_sim_offset;
+                relax -= g_focus_sim_offset;
+                if (attn > 100.0f) attn = 100.0f;
+                if (relax < 0.0f) relax = 0.0f;
+            }
 #endif
-        Update_OLED_Scores (g_attn_output.attention_score, g_attn_output.relaxation_score, g_attn_output.blink_score,
-                            g_attn_output.attention_confidence, g_attn_output.relaxation_confidence, g_attn_output.blink_score);
+            Send_Focus(attn, relax,
+                       g_attn_output.attention_confidence, g_attn_output.relaxation_confidence,
+                       trend_state, instant_state);
+#ifdef GLXSS_ENABLED
+            {
+                if (attn < 0.0f) attn = 0.0f;
+                if (attn > 100.0f) attn = 100.0f;
+                IPC_LOG_SHARED->v3f_attn_q100 = (int32_t)(attn * 100.0f);
+            }
+#endif
+            Update_OLED_Scores(attn, relax, g_attn_output.blink_score,
+                                g_attn_output.attention_confidence, g_attn_output.relaxation_confidence, g_attn_output.blink_score);
+        }
         fft_step = FFT_STEP_SEND_FILT_SPECTRUM;
         break;
 

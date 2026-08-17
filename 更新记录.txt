@@ -3,6 +3,27 @@ EEG项目更新记录
 最后更新: 2026-08-11
 
 ================================================================================
+2026-08-11  患者端颜色辨字Stroop显示(去掉按钮,跟AR眼镜一致,医生端控制)
+================================================================================
+
+功能1: 患者端颜色辨字页面改造为Stroop显示 (与AR眼镜V5F一致)
+  - fragment_focus_training.xml: 去掉开始/停止按钮, 新增80sp大字TextView(tv_stroop_word)
+  - FocusTrainingFragment.java: 去掉按钮和sendFocusStart/Stop逻辑
+    · 6种字(红黄绿蓝白黑)×6种颜色, 强制color!=word (Stroop冲突)
+    · 每1秒Handler切换(stroopTick), 颜色表与V5F fill_focus_pkt一致
+    · 通过onFocusTrainingStart/Stop回调控制启停(由医生端下发)
+  - 颜色表: 红(255,0,0)黄(255,255,0)绿(0,255,0)蓝(0,0,255)白(255,255,255)黑(90,90,90)
+
+功能2: 医生端控制患者端Stroop启停
+  - FocusHistoryFragment.java: startStroop/stopStroop新增sendDisplayToOutput(CMD_FOCUS_START/STOP)
+    · 医生端按下开始/停止 → 同时发CMD_FOCUS_START/STOP到MCU和患者端
+  - DoctorConnector.java (患者端):
+    · DataListener接口新增default onFocusTrainingStart/onFocusTrainingStop回调
+    · FrameDecoder新增CMD_FOCUS_START/STOP case → 通知listener启停
+  - 控制流: 医生端startStroop → MCU(专注度模拟) + 患者端(Stroop显示)
+  - 患者端不再有按钮, 全部跟随医生端控制
+
+================================================================================
 2026-08-11  安卓端双箭头显示+统计修复+陀螺仪方向评判完善
 ================================================================================
 

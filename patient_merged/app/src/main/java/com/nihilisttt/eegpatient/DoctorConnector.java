@@ -107,6 +107,8 @@ public class DoctorConnector {
         default void onSsvepResult(PatientSsvepResult result) {}
         default void onTargetDirection(String direction) {}
         default void onTrainStop() {}
+        default void onFocusTrainingStart() {}
+        default void onFocusTrainingStop() {}
     }
 
     private DoctorConnector() {}
@@ -448,11 +450,16 @@ public class DoctorConnector {
         return true;
     }
 
+    public boolean sendFocusStart() { return sendControlMessage("FOCUS_START"); }
+    public boolean sendFocusStop() { return sendControlMessage("FOCUS_STOP"); }
+
     /** 患者端反馈文本 → 41004 上行二进制 payload（[cmd][data...]）。 */
     private static byte[] controlTextToPayload(String line) {
         String cmd = line == null ? "" : line.trim();
         if (cmd.equals("PONG")) return new byte[]{ (byte) EegProtocol.CMD_PONG };
         if (cmd.equals("PATIENT_READY")) return new byte[]{ (byte) EegProtocol.CMD_PATIENT_READY };
+        if (cmd.equals("FOCUS_START")) return new byte[]{ (byte) EegProtocol.CMD_FOCUS_START };
+        if (cmd.equals("FOCUS_STOP")) return new byte[]{ (byte) EegProtocol.CMD_FOCUS_STOP };
         if (cmd.startsWith("SSVEP,STIM_STARTED,")) {
             String[] parts = cmd.split(",");
             if (parts.length >= 4) {
@@ -553,7 +560,8 @@ public class DoctorConnector {
             case 4: return 1;
             case 5: return 2;
             case 6: return 3;
-            case 9: return 4;
+            case 2: return 4;
+            case 9: return 5;
             default: return 0;
         }
     }
@@ -783,6 +791,33 @@ public class DoctorConnector {
                     }
                     break;
                 }
+                case EegProtocol.CMD_FOCUS: {
+                    if (payloadLen >= EegProtocol.FOCUS_PAYLOAD) {
+                        ByteBuffer buf = ByteBuffer.wrap(body, off, 16).order(ByteOrder.LITTLE_ENDIAN);
+                        float a0 = buf.getFloat(), a1 = buf.getFloat(), e0 = buf.getFloat(), e1 = buf.getFloat();
+                        int trend = body[off + 16] & 0xFF;
+                        int instant = body[off + 17] & 0xFF;
+                        for (DataListener listener : listeners) {
+                            try { listener.onFocusData(a0, a1, e0, e1, trend, instant); }
+                            catch (Exception e) { Log.w(TAG, "onFocusData error: " + e.getMessage()); }
+                        }
+                    }
+                    break;
+                }
+                case EegProtocol.CMD_FOCUS_START:
+                    Log.i(TAG, ">>> D2P FOCUS_START");
+                    for (DataListener listener : listeners) {
+                        try { listener.onFocusTrainingStart(); }
+                        catch (Exception e) { Log.w(TAG, "onFocusTrainingStart error: " + e.getMessage()); }
+                    }
+                    break;
+                case EegProtocol.CMD_FOCUS_STOP:
+                    Log.i(TAG, ">>> D2P FOCUS_STOP");
+                    for (DataListener listener : listeners) {
+                        try { listener.onFocusTrainingStop(); }
+                        catch (Exception e) { Log.w(TAG, "onFocusTrainingStop error: " + e.getMessage()); }
+                    }
+                    break;
                 default:
                     Log.i(TAG, "D2P unhandled cmd=0x" + Integer.toHexString(cmd)
                             + " len=" + payloadLen);
